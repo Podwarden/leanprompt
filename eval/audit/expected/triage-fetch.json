@@ -1,0 +1,12 @@
+[
+  {
+    "rule": "LP-GE-10",
+    "file": "before/triage.ts",
+    "line": 16
+  },
+  {
+    "rule": "LP-GE-05",
+    "file": "before/triage.ts",
+    "line": 19
+  }
+]

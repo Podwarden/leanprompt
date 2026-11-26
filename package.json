@@ -1,6 +1,6 @@
 {
   "name": "leanprompt",
-  "version": "0.1.0-dev.1",
+  "version": "0.1.0-dev.2",
   "description": "Skills for AI coding assistants that cut wasted prefill and generation in LLM calls, plus a CLI to measure the result.",
   "type": "module",
   "license": "Apache-2.0 AND CC-BY-4.0",

@@ -1,6 +1,6 @@
 # Install leanprompt for each assistant
 
-leanprompt is pre-release. Today you install it from GitHub: the Claude Code plugin, or the CLI run straight from this repo with `npx`. The npm package and the PyPI logger come with the first release; until then the `leanprompt` package on npm is a placeholder with no CLI in it. Back to the [README](../README.md).
+leanprompt is pre-release. Today you install it from GitHub: the Claude Code plugin, or the CLI run straight from this repo with `npx`. The npm package and the PyPI logger come with the first release; until then the `leanprompt` package on npm is a placeholder with no CLI or logger in it, and the loggers install from GitHub (below). Back to the [README](../README.md).
 
 ## Run the CLI (today)
 
@@ -25,6 +25,23 @@ npm ci && npm run build && npm link
 `npm link` puts a `leanprompt` command on your `PATH` that runs from the clone; `git pull && npm run build` updates it, and `npm unlink -g leanprompt` removes it. If `npm link` needs write access you do not have, run the CLI directly from the clone instead: `node /path/to/leanprompt/cli/dist/main.js init --dir /path/to/your-app`.
 
 In the sections below, `leanprompt <cmd>` means whichever of these you use: `npx github:Podwarden/leanprompt <cmd>`, the linked `leanprompt` command, or, after the npm release, `npx leanprompt <cmd>`.
+
+## The usage loggers (until the npm release)
+
+The measure loop logs every call with a small logger inside the app. The packages on npm and PyPI are placeholders until the first release, so install the loggers from GitHub. Your assistant proposes the command and asks before it runs.
+
+- TypeScript or JavaScript, which gives `import { createLogger } from "leanprompt/log"` with its types:
+  ```
+  npm i github:Podwarden/leanprompt#v0.1.0-dev.1
+  ```
+  npm builds the package on install (a `prepare` script), so the first install takes a few seconds and needs Node 20.19 or newer. After the npm release: `npm i leanprompt`.
+- Python, which gives `from leanprompt_cli import Logger`:
+  ```
+  pip install "git+https://github.com/Podwarden/leanprompt#subdirectory=python"
+  ```
+  `uv pip install` takes the same argument. After the PyPI release: `pip install leanprompt-cli`.
+
+Use of the loggers: [measure-loop](../skills/measure-loop/SKILL.md#log-every-call).
 
 ## What `init` does
 

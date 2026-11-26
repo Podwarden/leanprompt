@@ -2,7 +2,7 @@
 id: LP-GE-10
 title: Structured output instead of parse-and-re-ask
 skill: generation-economy
-applies_to: [openai, anthropic, gemini, openrouter, deepinfra, vllm, sglang]
+applies_to: [openai, anthropic, gemini, openrouter, deepinfra, vllm, sglang, any]
 saves: generation
 severity: high
 evidence:

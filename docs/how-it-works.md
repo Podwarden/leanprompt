@@ -13,7 +13,7 @@ leanprompt gives your coding assistant the rules to find those places in your co
 Ask your assistant to *audit this app's LLM calls*. The [`llm-call-audit`](../skills/llm-call-audit/SKILL.md) skill:
 
 1. Inventories the call sites by SDK and HTTP shape (Anthropic, OpenAI, Gemini, LangChain, LlamaIndex, LiteLLM, the Vercel AI SDK, raw `fetch` or `requests`), and follows each one back to where its system prompt, tools and history are built.
-2. Checks each call against the rules and records every finding with its rule id, file and line.
+2. Checks each call against the rules and records every finding with its rule id, file and line. A rule that depends on a provider feature (a cache mark, a batch API) applies only to the providers it lists. A rule whose fix is the same everywhere (output limits, retries, timeouts, structured output, response caching) applies to every target, including a hosted API that has no provider table here.
 3. Proposes one fix per finding, with the rule's "Don't break meaning" check, and asks before editing anything.
 4. Hands each fix to [`measure-loop`](../skills/measure-loop/SKILL.md) to prove it with a before and after number.
 

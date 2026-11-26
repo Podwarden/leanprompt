@@ -2,7 +2,7 @@
 id: LP-GE-05
 title: Retry only retryable errors; never retry a truncation unchanged
 skill: generation-economy
-applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, sglang]
+applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, sglang, any]
 saves: both
 severity: high
 evidence:

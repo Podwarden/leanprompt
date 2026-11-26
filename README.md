@@ -31,7 +31,7 @@
    Paths per assistant, global installs, Windows and a clone-and-build install: [docs/install.md](docs/install.md).
 2. Ask your assistant: *audit this app's LLM calls*.
 3. It writes `leanprompt-report.md` and `.leanprompt/findings.json`, then proposes one fix at a time and asks before it edits anything.
-4. Score it with `npx leanprompt score`: measured from your usage log when there is one, static from the findings otherwise. Until the npm release, run every `npx leanprompt <cmd>` as `npx github:Podwarden/leanprompt <cmd>`.
+4. Score it with `npx leanprompt score`: measured from your usage log when there is one, static from the findings otherwise. Until the npm release, run every `npx leanprompt <cmd>` as `npx github:Podwarden/leanprompt <cmd>`, and install the usage logger from GitHub (`npm i github:Podwarden/leanprompt#v0.1.0-dev.1`, or for Python `pip install "git+https://github.com/Podwarden/leanprompt#subdirectory=python"`; details in [docs/install.md](docs/install.md)).
 5. Optional: `npx leanprompt report --html` writes a local page, `.leanprompt/report.html`.
 
 ## The problem

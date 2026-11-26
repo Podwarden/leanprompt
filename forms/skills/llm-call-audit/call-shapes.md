@@ -27,22 +27,38 @@ Agent frameworks built on these (CrewAI, AutoGen, the OpenAI Agents SDK, Mastra,
 
 ## Raw HTTP
 
-Search all languages for the endpoint paths, in string literals and in URL builders:
+A raw HTTP client rarely writes the whole endpoint in one string. The base URL usually already ends in `/v1` (or another version prefix), and the code appends only the rest: `${base}/chat/completions`, `base + "/chat/completions"`, `f"{base}/chat/completions"`, `urljoin(base, "chat/completions")`. A search for the full literals (`/v1/chat/completions`, `/v1/responses`, `/v1/messages`) finds only the rarer, fully written form. Search for the path without the version, and for the request body, as well.
 
-| Endpoint | Dialect | Typical callers |
+| Endpoint path | Dialect | Typical callers |
 |---|---|---|
-| `/v1/chat/completions` | OpenAI Chat Completions | OpenAI, OpenRouter, DeepInfra, vLLM, SGLang, LiteLLM proxy, LM Warden |
-| `/v1/responses` | OpenAI Responses | OpenAI |
-| `/v1/messages` | Anthropic Messages | Anthropic, and routers that accept the Anthropic dialect |
-| `/v1/completions` | OpenAI legacy completions | self-hosted engines, older code |
+| `chat/completions` | OpenAI Chat Completions | OpenAI, OpenRouter, DeepInfra, DeepSeek, Groq, Together, Azure, vLLM, SGLang, LiteLLM proxy, LM Warden |
+| `/responses` | OpenAI Responses | OpenAI |
+| `/messages` | Anthropic Messages | Anthropic, and routers that accept the Anthropic dialect |
+| `/completions` | OpenAI legacy completions | self-hosted engines, older code |
 | `:generateContent`, `:streamGenerateContent` | Gemini native | Gemini |
-| `/v1/batches`, `/v1/messages/batches`, `:batchGenerateContent` | Batch APIs | bulk jobs (LP-GE-07 is about the jobs that do not use them) |
+| `/batches`, `/messages/batches`, `:batchGenerateContent` | Batch APIs | bulk jobs (LP-GE-07 is about the jobs that do not use them) |
 
-Shapes: Python `requests.post(`, `httpx.post(`, `httpx.AsyncClient(`, `aiohttp`; TS/JS `fetch(`, `axios.post(`, `got.post(`, `ky.post(`; Go `http.NewRequest(`, `http.Post(`, `resty`. The JSON body (`"messages"`, `"model"`, `"system"`, `"tools"`, `"contents"`) confirms it is an LLM call.
+Each path can sit behind a version (`/v1/chat/completions`) or not (`${base}/chat/completions`), inside a string literal, a template literal (`${base}/messages`), a concatenation (`base + "/responses"`) or a URL builder.
+
+Run both searches (the second has one pattern per language). In the patterns, `\x27` stands for a single quote, so a pattern can sit inside single quotes in a shell.
+
+1. The path, in any language: the full literal and the versionless suffix.
 
 ```
-rg -n '/v1/(chat/completions|responses|messages|completions|batches)|:(stream)?[gG]enerateContent' -g '!{node_modules,.venv,vendor,dist,build}/**'
+rg -n 'chat/completions|/(responses|completions|batches|messages(/batches)?)["`\x27?]|/v1/(responses|messages|completions|batches)|:(stream|batch)?[gG]enerateContent' -g '!{node_modules,.venv,vendor,dist,build}/**'
 ```
+
+2. The request body near the call, when the URL is in a variable and the path never appears next to the call. Shapes: Python `requests.post(`, `httpx.post(`, `httpx.AsyncClient(`, `aiohttp`; TS/JS `fetch(`, `axios.post(`, `got.post(`, `ky.post(`, `undici.request(`; Go `http.NewRequest(`, `http.Post(`, `resty`. A `messages` list in the JSON body, next to one of them, confirms an LLM call.
+
+```
+rg -n -U '(?s)(fetch|axios|got|ky|undici)[.(].{0,600}["`\x27]?messages["`\x27]?\s*[:,}]' -g '*.{ts,tsx,js,jsx,mjs,cjs}' -g '!{node_modules,dist,build}/**'
+rg -n -U '(?s)(requests|httpx|aiohttp|session|client)\.(post|request|stream)\(.{0,600}["\x27]messages["\x27]\s*:' -g '*.py' -g '!{.venv,venv,dist,build}/**'
+rg -n -U '(?s)http\.(NewRequest|Post)\w*\(.{0,600}"messages"' -g '*.go' -g '!vendor/**'
+```
+
+The patterns are for `rg`. With plain `grep -E`, search for the paths of the first pattern only, typing a single quote in place of `\x27`, and read each file that imports an HTTP client for the body.
+
+A hit is a candidate, not a call. A doc comment, a test string, a log line, or a route the app serves itself (`app.get("/messages")`) also matches. Open each hit and confirm it is a request the app sends to a model (a URL it calls, a body with `messages` and `model`) before it goes into the inventory; and when the only hit in a file is a comment, search the file's HTTP calls by hand, since the real call may be written another way.
 
 ## The app's own wrapper
 
@@ -55,7 +71,7 @@ Most apps call the SDK in one or two helper functions (`call_llm`, `askModel`, `
 3. The model string: a router prefix such as `anthropic/` or `google/` means the upstream is that provider even though the SDK is `openai` (the cache marks then matter: LP-PC-01).
 4. Environment and config files (`.env.example`, `settings.py`, `config.ts`) when the model or URL is read from a variable.
 
-When these disagree, or the value comes only from the environment at run time, write "unknown" in the inventory and ask (see [presenting.md](presenting.md)); `leanprompt.yaml` settles it for the next run ([docs/profile.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.1/docs/profile.md)).
+When these disagree, or the value comes only from the environment at run time, write "unknown" in the inventory and ask (see [presenting.md](presenting.md)); `leanprompt.yaml` settles it for the next run ([docs/profile.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.2/docs/profile.md)).
 
 ## Call kind
 
@@ -80,4 +96,4 @@ From each call site, trace the arguments back:
 - **Request options:** `max_tokens`, `thinking`, `reasoning_effort`, `temperature`, `n`, `tool_choice`, `prompt_cache_key`, `cache_control`, timeouts and retries (on the client and in decorators around the call).
 
 The rule files of [prefill-cache](../prefill-cache/SKILL.md), [generation-economy](../generation-economy/SKILL.md) and [lmwarden](../lmwarden/SKILL.md) give the `rg` patterns and code shapes for each rule; use them once the call sites are known.
-<!-- leanprompt:generated v0.1.0-dev.1 — managed by npx leanprompt init; local edits are replaced on update -->
+<!-- leanprompt:generated v0.1.0-dev.2 — managed by npx leanprompt init; local edits are replaced on update -->

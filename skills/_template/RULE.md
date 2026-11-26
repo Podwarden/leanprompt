@@ -2,11 +2,13 @@
 id: LP-PC-00                 # stable; never reused. Format LP-<PC|GE|LW>-<nn>
 title: Short imperative title
 skill: prefill-cache         # prefill-cache | generation-economy | lmwarden
-applies_to: [anthropic, openai, gemini, vllm, sglang, any-automatic]
+applies_to: [anthropic, openai, gemini, vllm, sglang, any]   # providers with a table the rule is about; add `any` when the fix works on every target
 saves: prefill               # prefill | generation | both
 severity: high               # high | medium | low, by typical tokens lost
 evidence: [E3]               # rows of docs/evidence.md, or {doc: <url>, checked: YYYY-MM-DD}
 ---
+<!-- applies_to: a rule that depends on a provider feature (a cache mark, a sample-count parameter, a batch API) lists the providers that have it, and applies only to those. A rule whose fix is the same on every target (an output limit, a retry policy, a timeout, parsing, a response cache) also lists `any`, and then applies to every target, including OpenAI-compatible hosts with no provider table. -->
+
 ## Rule
 One sentence, imperative.
 

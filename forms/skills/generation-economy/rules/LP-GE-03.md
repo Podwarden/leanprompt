@@ -2,7 +2,7 @@
 id: LP-GE-03
 title: Output and thinking budgets that fit the task
 skill: generation-economy
-applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, sglang]
+applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, sglang, any]
 saves: generation
 severity: high
 evidence:
@@ -20,12 +20,12 @@ Set an output limit and a thinking or effort level on every call, sized from the
 ## Why
 Output tokens are the slow and expensive part of a call, and two opposite mistakes both waste them.
 
-- **No limit, or a limit far above the task.** A reasoning model with thinking on by default and no output limit can think until it reaches the token ceiling and return no answer at all: every token is billed and the app gets nothing. Thinking and reasoning tokens count toward the output limit and are billed as output on Anthropic and OpenAI ([models/anthropic-thinking.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.1/models/anthropic-thinking.md), [models/openai-reasoning.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.1/models/openai-reasoning.md)); OpenAI notes that hitting the limit can end a response as `incomplete` before any visible output. Self-hosted Qwen hybrid models think unless `enable_thinking` is set to false, and one template defaults to its highest effort ([models/qwen.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.1/models/qwen.md)).
+- **No limit, or a limit far above the task.** A reasoning model with thinking on by default and no output limit can think until it reaches the token ceiling and return no answer at all: every token is billed and the app gets nothing. Thinking and reasoning tokens count toward the output limit and are billed as output on Anthropic and OpenAI ([models/anthropic-thinking.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.2/models/anthropic-thinking.md), [models/openai-reasoning.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.2/models/openai-reasoning.md)); OpenAI notes that hitting the limit can end a response as `incomplete` before any visible output. Self-hosted Qwen hybrid models think unless `enable_thinking` is set to false, and one template defaults to its highest effort ([models/qwen.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.2/models/qwen.md)).
 - **A limit below the task.** The answer is cut off (`finish_reason: "length"`, `stop_reason: "max_tokens"`, `finishReason: "MAX_TOKENS"`), the app throws it away and asks again, often with the same limit (LP-GE-05). The truncated tokens were paid for and are lost.
 
 Thinking effort is the larger lever. Pick the effort or budget per kind of task (a title needs none, a multi-step plan may need a lot), and keep it fixed within a session, since changing it changes the cached prefix (LP-PC-09). Do not save thinking tokens by stripping earlier reasoning from the history: in agent loops that produced about 3x more generation (E11).
 
-Where the controls are: OpenAI `max_output_tokens` / `max_completion_tokens` and `reasoning_effort` ([providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.1/providers/openai.md)); Anthropic `max_tokens` and adaptive thinking with `effort` ([providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.1/providers/anthropic.md)); Gemini `maxOutputTokens`, `thinkingBudget`, `thinkingLevel` ([providers/gemini.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.1/providers/gemini.md)); OpenRouter `max_tokens`, which covers reasoning and visible output together on most providers ([providers/openrouter.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.1/providers/openrouter.md)); vLLM and SGLang `max_tokens` plus the model's template kwargs ([providers/vllm.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.1/providers/vllm.md), [providers/sglang.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.1/providers/sglang.md)).
+Where the controls are: OpenAI `max_output_tokens` / `max_completion_tokens` and `reasoning_effort` ([providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.2/providers/openai.md)); Anthropic `max_tokens` and adaptive thinking with `effort` ([providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.2/providers/anthropic.md)); Gemini `maxOutputTokens`, `thinkingBudget`, `thinkingLevel` ([providers/gemini.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.2/providers/gemini.md)); OpenRouter `max_tokens`, which covers reasoning and visible output together on most providers ([providers/openrouter.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.2/providers/openrouter.md)); vLLM and SGLang `max_tokens` plus the model's template kwargs ([providers/vllm.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.2/providers/vllm.md), [providers/sglang.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.2/providers/sglang.md)).
 
 ## Detect in code
 Python:
@@ -81,4 +81,4 @@ Less thinking and shorter outputs can change answers. Lower an effort level or a
 
 ## Waste signal
 Measured: output tokens of calls with `finish: "length"` that were retried count as generation waste; output spent on a runaway call with no answer shows as `finish: "length"` too. Static: severity high for a reasoning or thinking model called with no output limit, medium for one effort level on every kind of call, low for a fixed limit far above the measured outputs.
-<!-- leanprompt:generated v0.1.0-dev.1 — managed by npx leanprompt init; local edits are replaced on update -->
+<!-- leanprompt:generated v0.1.0-dev.2 — managed by npx leanprompt init; local edits are replaced on update -->

@@ -15,7 +15,7 @@ evidence:
 In an app that serves many users or tenants, put what is the same for everyone (instructions, tools, shared reference documents, examples) before anything specific to a tenant, then a user, then a request.
 
 ## Why
-A cache is shared between requests only up to the first byte that differs. If the system prompt opens with "You are helping Alice at Acme" and then carries a long shared handbook, every user gets a private copy of the handbook in cache and every user's first request pays for it again. Ordered from widest to narrowest audience (everyone, tenant, user, request), each layer is reused by everyone who shares it. OpenAI and DeepInfra both ask for stable content first; OpenAI's `prompt_cache_key` groups requests that share a prefix, and it should name the group that shares it (for example the tenant), not a single request ([providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.1/providers/openai.md), [providers/deepinfra.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.1/providers/deepinfra.md)). Documented, not yet measured here.
+A cache is shared between requests only up to the first byte that differs. If the system prompt opens with "You are helping Alice at Acme" and then carries a long shared handbook, every user gets a private copy of the handbook in cache and every user's first request pays for it again. Ordered from widest to narrowest audience (everyone, tenant, user, request), each layer is reused by everyone who shares it. OpenAI and DeepInfra both ask for stable content first; OpenAI's `prompt_cache_key` groups requests that share a prefix, and it should name the group that shares it (for example the tenant), not a single request ([providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.2/providers/openai.md), [providers/deepinfra.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.2/providers/deepinfra.md)). Documented, not yet measured here.
 
 On a self-hosted server a cache shared across tenants is also a privacy question; see the `lmwarden` skill (keys, isolation, `cache_salt`).
 
@@ -72,4 +72,4 @@ The model must still know whom it serves: keep the user and tenant blocks labell
 
 ## Waste signal
 Measured: first requests of different users share a short prefix with each other; the score's S counts only continuing requests, so the loss shows as many `sys` or `head` ids for one shared prompt. Static: severity medium for per-user or per-tenant values before long shared text, low for a `prompt_cache_key` that is unique per request.
-<!-- leanprompt:generated v0.1.0-dev.1 — managed by npx leanprompt init; local edits are replaced on update -->
+<!-- leanprompt:generated v0.1.0-dev.2 — managed by npx leanprompt init; local edits are replaced on update -->

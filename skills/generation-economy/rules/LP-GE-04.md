@@ -2,7 +2,7 @@
 id: LP-GE-04
 title: Stream long outputs; timeouts that match generation time
 skill: generation-economy
-applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, sglang]
+applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, sglang, any]
 saves: both
 severity: high
 evidence:

@@ -2,7 +2,7 @@
 id: LP-GE-06
 title: Cache exact responses for deterministic requests
 skill: generation-economy
-applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, sglang]
+applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, sglang, any]
 saves: both
 severity: medium
 evidence:
