@@ -11,6 +11,7 @@ The first release.
 - `llm-call-audit`: finds every LLM call in an app, checks it against the rules, ranks the findings and writes `leanprompt-report.md` and `.leanprompt/findings.json`; asks before editing code, installing a package or running billed requests.
 - `prefill-cache`: rules LP-PC-01 to LP-PC-12 for prompts a provider's prefix cache can reuse.
 - `generation-economy`: rules LP-GE-01 to LP-GE-10 for calls and output that are not wasted.
+- `prompt-diet`: rules LP-PD-01 to LP-PD-06 for dead weight in what each call sends; every trim carries an answer check.
 - `measure-loop`: the usage logger, the stable-head CI test (vitest and pytest templates on kvsig ids), replay before and after, and the score.
 - `lmwarden`: rules LP-LW-01 to LP-LW-03 for self-hosted engines, and reading engine facts from LM Warden. Prompt Lens is described as planned.
 - Dated provider tables (Anthropic, OpenAI, Gemini, OpenRouter, DeepInfra, vLLM, SGLang) and per-model notes (Qwen, OpenAI reasoning, Anthropic thinking), each with a `checked:` date and a source.
@@ -38,6 +39,17 @@ The first release.
 - Per-assistant forms generated from one source and checked in CI; a Claude Code plugin marketplace in `.claude-plugin/`.
 - `npm run check:numbers`: every number with a unit in the README, the public docs and the skills cites an evidence row or a measured result.
 - Apache-2.0 for code, CC BY 4.0 for the skills and docs; README, CONTRIBUTING, GOVERNANCE and SECURITY (the last three under `.github/`).
+
+## 0.1.0-dev.7 – 2026-11-26
+
+Get more from every LLM call your app makes: a new skill for dead weight in the prompt, a new headline, and finding titles on the report page.
+
+- **New skill, `prompt-diet`.** Six rules for what a call need not send: LP-PD-01 offer each route only the tools it can use (a fixed list per route; on OpenAI, `allowed_tools` to narrow the choice without changing the list); LP-PD-02 say each instruction once; LP-PD-03 do not resend the same boilerplate on every turn; LP-PD-04 trim tool results and retrieved context at the tool boundary; LP-PD-05 drop stale history on purpose, not by stripping (compaction itself stays in LP-PC-08); LP-PD-06 compact serialisation for data in the prompt. Every rule ships its trim with an answer check through `measure-loop`, weighs the cache before touching the shared head of the prompt, and cites the standing reason not to strip blindly: stripping reasoning from history produced about 3x more generation (E11).
+- **Prompt size facts.** The Anthropic, OpenAI and Gemini tables gain a dated "Prompt size facts" section, each fact with its source: tool and function definitions are billed as input tokens, OpenAI's `allowed_tools` keeps the tool list stable for caching, Anthropic's rules for thinking blocks in tool-use turns, and Anthropic's tool result clearing (beta) and how it invalidates the cache.
+- **The audit** checks the `LP-PD-*` rules (rule map, estimates under `tokens_per_1k.prompt`, a trim question in `presenting.md`), and `findings.json`, `score`, `report --html` and `lesson` accept the new ids. `init`, the Claude Code plugin, the Cursor and OpenCode forms, the `AGENTS.md` block and `--help` list the new skill.
+- **Headline.** "Get more from every LLM call your app makes." Effective, efficient and affordable: your coding assistant makes prompts cacheable, cuts dead weight, stops wasted output and speeds up first tokens, without changing the answers. Used in the README, the package and plugin descriptions, the Python package and the docs index.
+- **By the LM Warden Team.** Attribution, copyright and the package authors now read the LM Warden Team; the GitHub address is unchanged. A test checks that no public file uses the old name.
+- **`report --html`.** Each row of the meter shows the finding's short title (the first sentence of its problem, cut at a word) next to its file and line; it wraps at phone width and is read out with the row. The headline sentence no longer capitalises the first word after its colon, unless that word is an acronym, code or a name.
 
 ## 0.1.0-dev.6 – 2026-11-26
 

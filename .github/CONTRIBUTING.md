@@ -1,6 +1,6 @@
 # Contributing to leanprompt
 
-Issues and pull requests are welcome. leanprompt is maintained by the PodWarden Team; how decisions are made is in [GOVERNANCE.md](GOVERNANCE.md).
+Issues and pull requests are welcome. leanprompt is maintained by the LM Warden Team; how decisions are made is in [GOVERNANCE.md](GOVERNANCE.md).
 
 ## What to edit
 
@@ -16,7 +16,7 @@ Copy [skills/_template/RULE.md](../skills/_template/RULE.md) into the skill's `r
 2. It has evidence: either a measured example (a row in [docs/evidence.md](../docs/evidence.md), or an example app under `examples/` with a measured result under `eval/results/`), or a dated provider-doc source (`evidence: [{doc: <url>, checked: YYYY-MM-DD}]`). A rule with only a doc source says "documented, not yet measured here".
 3. Its fix keeps meaning. A change that saves tokens but changes answers is not a fix.
 
-Rule ids (`LP-PC-nn`, `LP-GE-nn`, `LP-LW-nn`) are stable and never reused.
+Rule ids (`LP-PC-nn`, `LP-GE-nn`, `LP-PD-nn`, `LP-LW-nn`) are stable and never reused.
 
 ## Numbers
 

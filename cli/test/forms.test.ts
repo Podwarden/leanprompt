@@ -108,7 +108,7 @@ describe("buildForms", () => {
     expect(mk.plugins[0].name).toBe(pl.name);
     expect(mk.plugins[0].source).toBe("./");
     expect(pl.version).toBe(pkg.version);
-    expect(pl.author).toEqual({ name: "PodWarden Team" });
+    expect(pl.author).toEqual({ name: "LM Warden Team" });
     for (const n of [mk.name, pl.name]) {
       expect(n).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
       expect(n).not.toMatch(/^(claude|anthropic)-/);

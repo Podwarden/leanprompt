@@ -1,6 +1,8 @@
 # leanprompt
 
-**Skills that teach your AI coding assistant to make the app it is building call LLMs for less, by the PodWarden Team.** leanprompt is a set of skills for coding agents, not a prompt-compression library, and it works on the app the assistant is building, not on the assistant's own bill.
+**Get more from every LLM call your app makes.**
+
+Effective, efficient and affordable: your coding assistant makes prompts cacheable, cuts dead weight, stops wasted output and speeds up first tokens, without changing the answers. leanprompt is a set of skills for coding agents, by the LM Warden Team. It is not a prompt-compression library, and it works on the app the assistant is building, not on the assistant's own bill.
 
 [![license: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![ci](https://github.com/Podwarden/leanprompt/actions/workflows/ci.yml/badge.svg)](https://github.com/Podwarden/leanprompt/actions/workflows/ci.yml)
@@ -11,7 +13,7 @@
 
 ## TL;DR
 
-- **What it does:** five skills that show Claude Code, Codex, Cursor, OpenCode or any `AGENTS.md` agent where your app pays twice for the same LLM tokens: a prompt the provider's cache cannot reuse, a retry that repeats a truncation, one request per sample.
+- **What it does:** six skills that show Claude Code, Codex, Cursor, OpenCode or any `AGENTS.md` agent where your app's LLM calls lose tokens and time: a prompt the provider's cache cannot reuse, tools and context a call does not need, a retry that repeats a truncation, one request per sample.
 - **How you use it:** install the skills, then ask your assistant to *audit this app's LLM calls*.
 - **What you get:** findings ranked by tokens lost, each with its file, line and a fix that keeps meaning, and a score: measured from your provider's own usage numbers, or estimated from the findings until you have a usage log.
 - **What it never does:** no telemetry, no proxy, no hosted service, no account. It does not edit your code without asking first.
@@ -50,11 +52,12 @@ And one that went the other way: moving the date to the end of the prompt cut co
 
 ## What's in the box
 
-Five skills, each a folder with a `SKILL.md` and one file per rule:
+Six skills, each a folder with a `SKILL.md` and one file per rule:
 
 - [`llm-call-audit`](skills/llm-call-audit/SKILL.md): finds every LLM call, checks it against the rules, ranks the findings and writes the report. Start here.
 - [`prefill-cache`](skills/prefill-cache/SKILL.md): prompts the provider's prefix cache can reuse, without changing what they mean (LP-PC-01 to LP-PC-12).
 - [`generation-economy`](skills/generation-economy/SKILL.md): samples, budgets, timeouts, retries and batching that do not waste calls or output (LP-GE-01 to LP-GE-10).
+- [`prompt-diet`](skills/prompt-diet/SKILL.md): dead weight in what each call sends: unused tools, instructions said twice, per-turn boilerplate, whole tool results, stale history, padded JSON; every trim with an answer check (LP-PD-01 to LP-PD-06).
 - [`measure-loop`](skills/measure-loop/SKILL.md): measure, change one thing, measure again; the usage logger, the stable-head CI test, the score.
 - [`lmwarden`](skills/lmwarden/SKILL.md): self-hosted engines (vLLM, SGLang, LM Warden): engine settings, replica routing, cache isolation (LP-LW-01 to LP-LW-03).
 
@@ -85,7 +88,7 @@ Issues and pull requests are welcome. A new rule needs a "Verify" section and ei
 
 ## License
 
-Code (`cli/`, `eval/`, `examples/`, `python/`, `scripts/`) is under [Apache-2.0](LICENSE). The skills, provider and model tables, docs and this README are under [CC BY 4.0](LICENSE-DOCS). Copyright the PodWarden Team. "PodWarden" and "LM Warden" are trademarks of their owners; see [NOTICE](NOTICE).
+Code (`cli/`, `eval/`, `examples/`, `python/`, `scripts/`) is under [Apache-2.0](LICENSE). The skills, provider and model tables, docs and this README are under [CC BY 4.0](LICENSE-DOCS). Copyright the LM Warden Team. "PodWarden" and "LM Warden" are trademarks of their owners; see [NOTICE](NOTICE).
 
 ## Related projects
 

@@ -1,3 +1,5 @@
+import { SKILLS } from "./forms.js";
+
 /**
  * One table of command specs. Every command builds its `parseArgs` options from it (`optionsFor`),
  * and `--help` prints from it, so the help text cannot list a flag the parser rejects or miss one it accepts.
@@ -119,5 +121,5 @@ export function overviewText(commandNames: string[]): string {
     const s = SPECS.find((x) => x.name.split(" ")[0] === c);
     return `  ${c.padEnd(11)}${s?.summary ?? ""}`;
   });
-  return ["usage: leanprompt <command> [options]", "", "commands:", ...rows, "", "Run leanprompt <command> --help for a command's options.", "leanprompt --version prints the version.", ""].join("\n");
+  return ["usage: leanprompt <command> [options]", "", "commands:", ...rows, "", `Skills that init installs: ${SKILLS.join(", ")}.`, "", "Run leanprompt <command> --help for a command's options.", "leanprompt --version prints the version.", ""].join("\n");
 }

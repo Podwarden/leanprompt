@@ -62,4 +62,4 @@ kvsig gives each request keyed ids: `sys` (system prompt), `tools` (tool list), 
 
 ## What this skill does not do
 
-It does not change how much the model generates (that is `generation-economy`), it does not tune engine settings or replica routing on a self-hosted server (that is `lmwarden`), and it does not promise a saving for an app it has not measured.
+It does not change how much the model generates (that is `generation-economy`), it does not cut dead weight from what each call sends (that is `prompt-diet`), it does not tune engine settings or replica routing on a self-hosted server (that is `lmwarden`), and it does not promise a saving for an app it has not measured.

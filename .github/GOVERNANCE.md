@@ -1,6 +1,6 @@
 # Governance
 
-leanprompt is maintained by the PodWarden Team. The maintainers review and merge pull requests, decide what becomes a rule, and cut releases.
+leanprompt is maintained by the LM Warden Team. The maintainers review and merge pull requests, decide what becomes a rule, and cut releases.
 
 ## Principles
 

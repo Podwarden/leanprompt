@@ -58,7 +58,7 @@ describe("llm-call-audit skill files", () => {
     expect(known.size).toBeGreaterThan(0);
     let seen = 0;
     for (const [f, t] of all()) {
-      for (const m of t.matchAll(/LP-(?:PC|GE|LW)-\d+/g)) {
+      for (const m of t.matchAll(/LP-(?:PC|GE|PD|LW)-\d+/g)) {
         seen++;
         expect(known.has(m[0]), `${f}: ${m[0]}`).toBe(true);
       }
@@ -82,9 +82,9 @@ describe("llm-call-audit skill files", () => {
     expect(links).toBeGreaterThan(0);
   });
 
-  it("links to the other four skills instead of restating their rules", () => {
+  it("links to the other five skills instead of restating their rules", () => {
     const s = SKILL();
-    for (const k of ["prefill-cache", "generation-economy", "measure-loop", "lmwarden"]) expect(s).toContain(`../${k}/SKILL.md`);
+    for (const k of ["prefill-cache", "generation-economy", "prompt-diet", "measure-loop", "lmwarden"]) expect(s).toContain(`../${k}/SKILL.md`);
     // Rule bodies stay in their own files: no Fix or Verify sections copied in.
     for (const [f, t] of all()) expect(t, f).not.toMatch(/^## (Rule|Why|Detect in code|Fix|Don't break meaning|Waste signal)$/m);
   });

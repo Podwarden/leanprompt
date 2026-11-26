@@ -6,12 +6,13 @@ license: CC-BY-4.0
 
 # llm-call-audit
 
-Finds every place an app calls an LLM and every place it pays for the same tokens twice: prompts the provider's cache could have reused and did not, and output the app generated and then threw away. Each finding is tied to a rule, a file and line, an estimate of the tokens it loses per 1,000 calls, one fix, and a way to verify the fix. The result is a report, `leanprompt-report.md`, a findings file, `.leanprompt/findings.json`, and a score from the leanprompt CLI.
+Finds every place an app calls an LLM and every place it pays for tokens it does not need: prompts the provider's cache could have reused and did not, dead weight the call did not need to send, and output the app generated and then threw away. Each finding is tied to a rule, a file and line, an estimate of the tokens it loses per 1,000 calls, one fix, and a way to verify the fix. The result is a report, `leanprompt-report.md`, a findings file, `.leanprompt/findings.json`, and a score from the leanprompt CLI.
 
-The audit owns no rules of its own. It finds the calls and applies the rules of the other four skills:
+The audit owns no rules of its own. It finds the calls and applies the rules of the other five skills:
 
 - [prefill-cache](../prefill-cache/SKILL.md): `LP-PC-*`, prompts the cache can reuse.
 - [generation-economy](../generation-economy/SKILL.md): `LP-GE-*`, calls and output that are not wasted.
+- [prompt-diet](../prompt-diet/SKILL.md): `LP-PD-*`, dead weight in what each call sends.
 - [lmwarden](../lmwarden/SKILL.md): `LP-LW-*`, self-hosted servers.
 - [measure-loop](../measure-loop/SKILL.md): how each fix is proved, and the score.
 
@@ -25,7 +26,7 @@ Ask first: before you edit the app's code, install a package, add a file outside
 - The user wants a leanprompt score or the README badge.
 - A new codebase arrives and you want to know what it calls, with which model, and how.
 
-For a single change you are writing right now (a new prompt builder, a new retry), use `prefill-cache` or `generation-economy` directly; the audit is for the whole app.
+For a single change you are writing right now (a new prompt builder, a new retry), use `prefill-cache`, `generation-economy` or `prompt-diet` directly; the audit is for the whole app.
 
 ## Workflow
 
@@ -46,9 +47,10 @@ For a single change you are writing right now (a new prompt builder, a new retry
 | Part of the request | Rules |
 |---|---|
 | Cache marks (Anthropic, and Anthropic or Gemini models behind a router) | [LP-PC-01](../prefill-cache/rules/LP-PC-01.md), [LP-PC-11](../prefill-cache/rules/LP-PC-11.md) |
-| System prompt: what comes first, what varies per call, user or session | [LP-PC-02](../prefill-cache/rules/LP-PC-02.md), [LP-PC-03](../prefill-cache/rules/LP-PC-03.md), [LP-PC-07](../prefill-cache/rules/LP-PC-07.md) |
-| Tool list and JSON serialisation | [LP-PC-04](../prefill-cache/rules/LP-PC-04.md), [LP-PC-05](../prefill-cache/rules/LP-PC-05.md) |
-| History, compaction, attachments | [LP-PC-06](../prefill-cache/rules/LP-PC-06.md), [LP-PC-08](../prefill-cache/rules/LP-PC-08.md), [LP-PC-10](../prefill-cache/rules/LP-PC-10.md) |
+| System prompt: what comes first, what varies per call, user or session, what is said twice | [LP-PC-02](../prefill-cache/rules/LP-PC-02.md), [LP-PC-03](../prefill-cache/rules/LP-PC-03.md), [LP-PC-07](../prefill-cache/rules/LP-PC-07.md), [LP-PD-02](../prompt-diet/rules/LP-PD-02.md) |
+| Tool list and JSON serialisation | [LP-PC-04](../prefill-cache/rules/LP-PC-04.md), [LP-PC-05](../prefill-cache/rules/LP-PC-05.md), [LP-PD-01](../prompt-diet/rules/LP-PD-01.md), [LP-PD-06](../prompt-diet/rules/LP-PD-06.md) |
+| What each turn adds: per-turn reminders, tool results, retrieved context | [LP-PD-03](../prompt-diet/rules/LP-PD-03.md), [LP-PD-04](../prompt-diet/rules/LP-PD-04.md), [LP-PD-06](../prompt-diet/rules/LP-PD-06.md) |
+| History, compaction, attachments | [LP-PC-06](../prefill-cache/rules/LP-PC-06.md), [LP-PC-08](../prefill-cache/rules/LP-PC-08.md), [LP-PC-10](../prefill-cache/rules/LP-PC-10.md), [LP-PD-05](../prompt-diet/rules/LP-PD-05.md) |
 | Thinking, reasoning effort, output limits | [LP-PC-09](../prefill-cache/rules/LP-PC-09.md), [LP-GE-03](../generation-economy/rules/LP-GE-03.md) |
 | Model, key and route per request | [LP-PC-12](../prefill-cache/rules/LP-PC-12.md), [LP-GE-08](../generation-economy/rules/LP-GE-08.md) |
 | Loops and fan-out over calls | [LP-GE-01](../generation-economy/rules/LP-GE-01.md), [LP-GE-02](../generation-economy/rules/LP-GE-02.md), [LP-GE-06](../generation-economy/rules/LP-GE-06.md), [LP-GE-07](../generation-economy/rules/LP-GE-07.md) |
@@ -57,7 +59,7 @@ For a single change you are writing right now (a new prompt builder, a new retry
 
 An `lm-warden` target counts as `vllm` when you match `applies_to`, as it does for the cache tables. With no known target, check every rule and say which ones depend on the provider. A known target with no table of its own is not an unknown target: apply the `any` rules, and treat the provider-specific ones as above.
 
-The priority changes the order and the advice, not what counts as waste: follow the priority-aware advice in [generation-economy](../generation-economy/SKILL.md). Caching never changes answers, so the `LP-PC-*` findings apply under every priority. Findings that change price or latency but not tokens (a batch API, LP-GE-07; a smaller model, LP-GE-08) have no tokens lost to rank by; list them after the token findings, in the order the priority gives them.
+The priority changes the order and the advice, not what counts as waste: follow the priority-aware advice in [generation-economy](../generation-economy/SKILL.md). Caching never changes answers, so the `LP-PC-*` findings apply under every priority. Dead weight costs under every priority too, but a trim can change answers, so every `LP-PD-*` fix carries an answer check, and a trim of the shared head is weighed against the cache it breaks ([prompt-diet](../prompt-diet/SKILL.md), "Three things every trim must respect"). Findings that change price or latency but not tokens (a batch API, LP-GE-07; a smaller model, LP-GE-08) have no tokens lost to rank by; list them after the token findings, in the order the priority gives them.
 
 ## Estimating tokens lost per 1,000 calls
 
@@ -65,7 +67,7 @@ Findings are ranked by the tokens each one loses per 1,000 calls of the whole ap
 
 With no usage log, estimate it from the code, as the product of three things, and say it is an estimate:
 
-1. **Tokens lost on an affected call.** For a prefill finding, the size of the part of the prompt the cache could have reused and now recomputes: everything from the first byte that changes to the end of the otherwise stable part, in the provider's render order (the "Why" of each rule gives the order). For a generation finding, the output tokens of the call that is repeated, retried or thrown away, or the prompt tokens of a context sent once per question or sample (LP-GE-01, LP-GE-02). Count tokens with the provider's tokenizer or token-counting endpoint when you can; otherwise estimate from the text's length and say so.
+1. **Tokens lost on an affected call.** For a prefill finding, the size of the part of the prompt the cache could have reused and now recomputes: everything from the first byte that changes to the end of the otherwise stable part, in the provider's render order (the "Why" of each rule gives the order). For a generation finding, the output tokens of the call that is repeated, retried or thrown away, or the prompt tokens of a context sent once per question or sample (LP-GE-01, LP-GE-02). For a dead-weight finding (LP-PD-*), the tokens of what the call need not send: the unused tool definitions, the repeated instruction or reminder, the part of a tool result or retrieved context that was cut, the stale history; count it on every later call that carries it, and say in the assumptions how much of it was read from the cache. Count tokens with the provider's tokenizer or token-counting endpoint when you can; otherwise estimate from the text's length and say so.
 2. **How often a call is affected.** A value that changes on every call (a timestamp, a request id) affects every call; a value that changes per session or per user affects the first call of each session or user; a history rewrite affects every turn after it; a retry on truncation affects the calls that hit the limit.
 3. **This call site's share of the app's calls,** from the call kind: an agent loop makes many calls per task, a title or label call one per conversation. When you cannot tell, treat the call sites as equal and say so.
 
@@ -109,6 +111,8 @@ After `npx leanprompt score` writes a measured score, read `diagnostics.heads` i
       "assumptions": "every call goes through this prompt; the system prompt is about 1,900 tokens",
       "verify": "On the second of two requests a minute apart, cached tokens rise from 0 to about the size of the system prompt." },
     { "rule": "LP-GE-05", "file": "app/llm.py", "line": 40, "saves": "generation", "severity": "high", "fixed": true },
+    { "rule": "LP-PD-04", "file": "app/tools.py", "line": 18, "saves": "prefill", "severity": "high", "share": 0.12,
+      "tokens_per_1k": { "prompt": 540000 } },
     { "rule": "LP-LW-01", "file": "<external>", "where": "vLLM launch flags on the inference host", "saves": "prefill", "severity": "high",
       "status": "needs-facts", "confirm": "the engine's block size and whether --prefix-match-unit is set" }
   ]
@@ -126,7 +130,7 @@ The numbers in this example are illustrative, not from a real app.
 - `severity`: `high`, `medium` or `low`, as the rule's "Waste signal" assigns it for the shape you found (several rules give different severities for different shapes).
 - `share` (required for every finding): the fraction, from 0 to 1, of the app's prompt tokens (prefill) or output tokens (generation) this finding wastes, derived from its tokens-lost-per-1,000-calls estimate above: share = estimated tokens lost on the affected side per 1,000 calls ÷ that side's tokens for the same 1,000 calls (prompt tokens for `prefill`, output tokens for `generation`, over all the app's calls, not only the affected ones). Write the assumptions behind both numbers in the report (call mix, tokens per call, how often the affected path runs). For a `both` finding the score applies the one share on each side: compute it for both, record the larger, and give both in the report. Fall back to the severity default (leave `share` out) only when no estimate is possible, and say so in the report, with the reason. `npx leanprompt score --static` prints how many findings used a default (`default_shares: N of M`). `leanprompt calibrate` does not rescale a share you set.
 - `fixed` (optional): `true` once the fix is applied and proved. The score skips fixed findings.
-- `tokens_per_1k` (on every finding you can estimate): the tokens it loses per 1,000 calls of the whole app, split by how they are billed: `uncached` (prompt tokens the cache could have served), `prompt` (prompt tokens sent that need not be sent at all, such as a retry's), `output` (output tokens thrown away), and `measured_calls` when the numbers come from a usage log of that many calls. The page sums them, ranks by them, and with a volume and prices turns them into money ("Volume and prices", above).
+- `tokens_per_1k` (on every finding you can estimate): the tokens it loses per 1,000 calls of the whole app, split by how they are billed: `uncached` (prompt tokens the cache could have served), `prompt` (prompt tokens sent that need not be sent at all, such as a retry's, or the dead weight of an `LP-PD-*` finding), `output` (output tokens thrown away), and `measured_calls` when the numbers come from a usage log of that many calls. The page sums them, ranks by them, and with a volume and prices turns them into money ("Volume and prices", above).
 - `model` (optional): the model name in `prices:` this finding's calls use, when there are several.
 - The plain-English fields, on every finding: `problem` (what is wrong, in one or two sentences a person who has not read the rule follows; no rule ids or jargon), `change` (what to change), `why` (why it costs tokens or time), `estimate` (the number as words, for example `"about 138k tokens per 1,000 calls"`), `assumptions` (what the estimate assumes) and `verify` (how to prove the fix). Plain text, each at most 600 characters: the page and the hand-off block for the user's coding agent are built from them. Older files without them stay valid.
 - `average_call` (top level, optional): the average call's `prompt_tokens` and `output_tokens` you assumed for the shares, so the page can give the saving as a share of the bill.

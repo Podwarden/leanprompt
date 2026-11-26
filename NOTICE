@@ -1,5 +1,5 @@
 leanprompt
-Copyright 2026 The PodWarden Team
+Copyright 2026 The LM Warden Team
 
 The code in this repository (cli/, eval/, examples/, python/, scripts/) is
 licensed under the Apache License, Version 2.0 (see LICENSE). The skills,

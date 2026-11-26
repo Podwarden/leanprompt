@@ -95,4 +95,4 @@ From each call site, trace the arguments back:
 - **History:** where the message list is stored, loaded, trimmed, summarised or rewritten between turns.
 - **Request options:** `max_tokens`, `thinking`, `reasoning_effort`, `temperature`, `n`, `tool_choice`, `prompt_cache_key`, `cache_control`, timeouts and retries (on the client and in decorators around the call).
 
-The rule files of [prefill-cache](../prefill-cache/SKILL.md), [generation-economy](../generation-economy/SKILL.md) and [lmwarden](../lmwarden/SKILL.md) give the `rg` patterns and code shapes for each rule; use them once the call sites are known.
+The rule files of [prefill-cache](../prefill-cache/SKILL.md), [generation-economy](../generation-economy/SKILL.md), [prompt-diet](../prompt-diet/SKILL.md) and [lmwarden](../lmwarden/SKILL.md) give the `rg` patterns and code shapes for each rule; use them once the call sites are known.

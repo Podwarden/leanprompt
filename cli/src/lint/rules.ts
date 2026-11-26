@@ -13,8 +13,8 @@ export interface LintIssue {
 }
 
 export const REQUIRED_SECTIONS = ["Rule", "Why", "Detect in code", "Fix", "Don't break meaning", "Verify", "Waste signal"];
-const SKILL_CODES: Record<string, string> = { PC: "prefill-cache", GE: "generation-economy", LW: "lmwarden" };
-const ID_RE = /^LP-(PC|GE|LW)-\d{2}$/;
+const SKILL_CODES: Record<string, string> = { PC: "prefill-cache", GE: "generation-economy", PD: "prompt-diet", LW: "lmwarden" };
+const ID_RE = /^LP-(PC|GE|PD|LW)-\d{2}$/;
 const SAVES = ["prefill", "generation", "both"];
 const SEVERITY = ["high", "medium", "low"];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;

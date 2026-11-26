@@ -16,7 +16,7 @@ Inside one session these values do not change, so the loss is across sessions: e
 - A coding harness writes the working directory into its long system prompt. Across sessions in different directories a self-hosted vLLM reused only the 7,920 tokens before that line (E5).
 - Another harness puts a per-session version suffix and the working directory on its first system line. Anthropic still reused 12,895 tokens across sessions, because it renders tools first and the tools were equal; a route that renders the system prompt first loses everything after line 1 (E4).
 
-Render order decides how much survives: tools, then system, then messages on Anthropic ([providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.6/providers/anthropic.md)); system before tools on OpenAI and DeepInfra as observed, not documented (render-order rows in [providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.6/providers/openai.md) and [providers/deepinfra.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.6/providers/deepinfra.md)); on a self-hosted engine, whatever the model's chat template says. A path or id in a tool description breaks the tool block itself, which on Anthropic comes before everything else. Dates are the mild case (they change once a day; LP-PC-02); ids and timestamps change every session or every call.
+Render order decides how much survives: tools, then system, then messages on Anthropic ([providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.7/providers/anthropic.md)); system before tools on OpenAI and DeepInfra as observed, not documented (render-order rows in [providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.7/providers/openai.md) and [providers/deepinfra.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.7/providers/deepinfra.md)); on a self-hosted engine, whatever the model's chat template says. A path or id in a tool description breaks the tool block itself, which on Anthropic comes before everything else. Dates are the mild case (they change once a day; LP-PC-02); ids and timestamps change every session or every call.
 
 ## Detect in code
 Python:
@@ -72,4 +72,4 @@ The model still needs the value. Keep it labelled ("Working directory: ..."), an
 
 ## Waste signal
 Measured: the score's S counts only requests that continue an earlier one, so this cross-session loss shows mostly as many distinct `head` ids among the first requests of an app whose head should be one, and as a short shared prefix on each first request. Static: severity high for a per-session or per-call value in the first lines of the system prompt or in a tool definition.
-<!-- leanprompt:generated v0.1.0-dev.6 — managed by npx leanprompt init; local edits are replaced on update -->
+<!-- leanprompt:generated v0.1.0-dev.7 — managed by npx leanprompt init; local edits are replaced on update -->

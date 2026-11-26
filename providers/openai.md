@@ -58,6 +58,16 @@ Used by the `generation-economy` rules. Prices are relative; the price card is o
 | Errors | 401 invalid authentication and 403 unsupported region: fix, not retry. 500: retry after a brief wait. 429 rate limit and 503 overloaded: retry, following `Retry-After`. 429 for exhausted credit, spend or usage limits: do not retry | https://developers.openai.com/api/docs/guides/error-codes |
 | Client disconnect | Whether closing the connection stops generation and billing on a direct OpenAI call: not stated on the pages above. Through OpenRouter, OpenAI is listed among providers whose streams stop on abort (`providers/openrouter.md`) | not stated (checked 2026-11-26) |
 
+## Prompt size facts (docs, checked 2026-11-26)
+
+Used by the `prompt-diet` rules.
+
+| Fact | Value | Source |
+|---|---|---|
+| Function definitions are input | "callable function definitions count against the model's context limit and are billed as input tokens"; the guide advises keeping the number of functions available at the start of a turn small, and deferring rarely used ones with tool search | https://developers.openai.com/api/docs/guides/function-calling |
+| A subset of tools per call, cache kept | `tool_choice: {"type": "allowed_tools", "mode": "auto", "tools": [...]}` limits which of the supplied tools the model may call "but not modify the list of tools you pass in, so you can maximize savings from prompt caching" | same page |
+| Tool definitions are in the cached prefix | The cacheable prefix "can include OpenAI-provided instructions, developer messages, tool definitions"; changing tool names, descriptions, schemas or order breaks reuse. The page advises `allowed_tools`, or `tool_choice: "none"`, instead of removing tool definitions. Observed here (above): `"none"` dropped the definitions from `prompt_tokens` through OpenRouter, so prefer `allowed_tools` and verify | https://developers.openai.com/api/docs/guides/prompt-caching |
+
 ## Not stated in the docs
 
 - Cached-token price multiplier for the current model list: not stated on the caching page (checked 2026-11-26).

@@ -1,6 +1,6 @@
 # How leanprompt works
 
-leanprompt is a set of skills for coding assistants. It finds the places where an app pays for the same LLM tokens twice, proposes a fix for each that keeps meaning, and proves the fix with the provider's own usage numbers. This page covers the problem, the audit, the rules and the measure loop. Back to the [README](../README.md).
+leanprompt is a set of skills for coding assistants. It finds the places where an app's LLM calls lose tokens or time (a prompt the cache cannot reuse, dead weight in the prompt, output thrown away), proposes a fix for each that keeps meaning, and proves the fix with the provider's own usage numbers. This page covers the problem, the audit, the rules and the measure loop. Back to the [README](../README.md).
 
 ## The problem
 
@@ -14,7 +14,7 @@ Ask your assistant to *audit this app's LLM calls*. The [`llm-call-audit`](../sk
 
 1. Inventories the call sites by SDK and HTTP shape (Anthropic, OpenAI, Gemini, LangChain, LlamaIndex, LiteLLM, the Vercel AI SDK, raw `fetch` or `requests`), and follows each one back to where its system prompt, tools and history are built.
 2. Checks each call against the rules and records every finding with its rule id, file and line. A finding outside the repository (an engine's launch flags, say) is recorded as `<external>` with where it lives, and one that depends on a fact the code cannot show carries the question that would settle it; both count in the static score and are listed as open questions. A rule that depends on a provider feature (a cache mark, a batch API) applies only to the providers it lists. A rule whose fix is the same everywhere (output limits, retries, timeouts, structured output, response caching) applies to every target, including a hosted API that has no provider table here.
-3. Proposes one fix per finding, with the rule's "Don't break meaning" check, and asks before editing anything.
+3. Proposes one fix per finding, with the rule's "Don't break meaning" check, and asks before editing anything. A fix that cuts dead weight from the prompt ([`prompt-diet`](../skills/prompt-diet/SKILL.md)) ships only after an answer check, and a cut to the cached head of the prompt is weighed against the cache it breaks.
 4. Hands each fix to [`measure-loop`](../skills/measure-loop/SKILL.md) to prove it with a before and after number.
 
 The audit writes `leanprompt-report.md` and `.leanprompt/findings.json`. The report follows [report-template.md](../skills/llm-call-audit/report-template.md): a plain-English headline, what the findings cost, each finding's problem, change and reason, a hand-off block for a coding agent, the score, the call inventory and the next steps. `leanprompt report --html` turns the same content into a single local page (`.leanprompt/report.html`) with copy buttons, for the person who reads the audit. If you tell the audit you are on a particular provider or self-hosted engine, or that speed matters more than cost, put it in [`leanprompt.yaml`](profile.md) and the findings are ranked for that target.
@@ -23,7 +23,7 @@ The audit writes `leanprompt-report.md` and `.leanprompt/findings.json`. The rep
 
 ## The rules at a glance
 
-Prefill rules first, then generation, then self-hosted. Every rule file ends with a "Verify" section: the usage field that must change and the kvsig id that must stay equal.
+Prefill rules first, then generation, then dead weight in the prompt, then self-hosted. Every rule file ends with a "Verify" section: the usage field that must change and the kvsig id that must stay equal.
 
 | Rule | In one line | Saves |
 |---|---|---|
@@ -49,6 +49,12 @@ Prefill rules first, then generation, then self-hosted. Every rule file ends wit
 | [LP-GE-08](../skills/generation-economy/rules/LP-GE-08.md) | Route trivially small calls to a small model | both |
 | [LP-GE-09](../skills/generation-economy/rules/LP-GE-09.md) | Predicted outputs for mostly unchanged text | generation |
 | [LP-GE-10](../skills/generation-economy/rules/LP-GE-10.md) | Structured output instead of parse-and-re-ask | generation |
+| [LP-PD-01](../skills/prompt-diet/rules/LP-PD-01.md) | Offer each route only the tools it can use | prefill |
+| [LP-PD-02](../skills/prompt-diet/rules/LP-PD-02.md) | Say each instruction once | prefill |
+| [LP-PD-03](../skills/prompt-diet/rules/LP-PD-03.md) | Do not resend the same boilerplate on every turn | prefill |
+| [LP-PD-04](../skills/prompt-diet/rules/LP-PD-04.md) | Trim tool results and retrieved context at the tool boundary | prefill |
+| [LP-PD-05](../skills/prompt-diet/rules/LP-PD-05.md) | Drop stale history on purpose, not by stripping | prefill |
+| [LP-PD-06](../skills/prompt-diet/rules/LP-PD-06.md) | Compact serialisation for data in the prompt | prefill |
 | [LP-LW-01](../skills/lmwarden/rules/LP-LW-01.md) | Turn on prefix caching and set the match unit | prefill |
 | [LP-LW-02](../skills/lmwarden/rules/LP-LW-02.md) | Keep a conversation on the replica that holds its cache | prefill |
 | [LP-LW-03](../skills/lmwarden/rules/LP-LW-03.md) | One key per app or tenant; cache scope is a privacy boundary | prefill |

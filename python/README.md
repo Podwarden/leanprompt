@@ -1,8 +1,9 @@
 # leanprompt-cli
 
 The usage logger for Python apps, part of [leanprompt](https://github.com/Podwarden/leanprompt)
-by the PodWarden Team. leanprompt is a set of skills that teach AI coding assistants to make
-LLM-calling apps cheaper and faster; it is not a prompt-compression library. The main tool is
+by the LM Warden Team. leanprompt gets more from every LLM call your app makes: its skills teach
+AI coding assistants to make prompts cacheable, cut dead weight, stop wasted output and speed up
+first tokens, without changing the answers; it is not a prompt-compression library. The main tool is
 the npm package (`npx leanprompt init`); this package is the Python side of its measure loop.
 
 The logger writes one JSON line per LLM call to a usage log. `npx leanprompt score` reads that

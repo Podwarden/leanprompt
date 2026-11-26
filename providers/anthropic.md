@@ -67,6 +67,17 @@ Used by the `generation-economy` rules.
 | Errors | 400 `invalid_request_error`, 401 `authentication_error`, 413 `request_too_large`; 504 `timeout_error` (for long requests the page points to streaming); 529 `overloaded_error` (temporary); 429 also covers a monthly spend cap, which has no `retry-after` and keeps failing, so limit retries after a 429; 500: retry only if `x-should-retry` is not `false` | same page |
 | Client disconnect | Whether closing the connection stops generation and billing on a direct call: not stated on the pages above. Through OpenRouter, Anthropic is listed among providers whose streams stop on abort (`providers/openrouter.md`) | not stated (checked 2026-11-26) |
 
+## Prompt size facts (docs, checked 2026-11-26)
+
+Used by the `prompt-diet` rules.
+
+| Fact | Value | Source |
+|---|---|---|
+| Tool definitions are input | Tool use requests are priced on "the total number of input tokens sent to the model (including in the `tools` parameter)"; the extra tokens come from the `tools` parameter (names, descriptions, schemas), `tool_use` blocks and `tool_result` blocks. With any tool present the API also adds a tool use system prompt, whose size per model and `tool_choice` is listed on the page | https://platform.claude.com/docs/en/agents-and-tools/tool-use/overview |
+| Thinking blocks in a tool-use turn | "Required: within a tool-use turn, pass thinking blocks back", complete and unmodified. Across turns: "You don't need to prune old thinking yourself"; the API filters them and bills input only for the blocks shown to the model. Which earlier blocks are kept is per model | https://platform.claude.com/docs/en/build-with-claude/thinking |
+| Changing an earlier message | On models with preserved thinking, a change to `system`, `tools` or an earlier message makes every thinking block after the change fail a prefix check, and the request can get a 400 error. A dropped thinking block changes the cached prefix from its position onward | same page |
+| Tool result clearing | Context editing (beta, header `context-management-2025-06-27`) has a `clear_tool_uses_20250919` strategy that clears old tool results past a token trigger, keeping the most recent ones. It "invalidates cached prompt prefixes when content is cleared"; `clear_at_least` skips a clearing that would remove too little to be worth the cache write | https://platform.claude.com/docs/en/build-with-claude/context-editing |
+
 ## Not stated in the docs
 
 - Whether a cache entry can be evicted before its lifetime ends: not stated in the docs (checked 2026-11-26). Only the first 100,000 characters of the page were read; the rest was not.

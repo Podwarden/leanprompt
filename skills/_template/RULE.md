@@ -1,7 +1,7 @@
 ---
-id: LP-PC-00                 # stable; never reused. Format LP-<PC|GE|LW>-<nn>
+id: LP-PC-00                 # stable; never reused. Format LP-<PC|GE|PD|LW>-<nn>
 title: Short imperative title
-skill: prefill-cache         # prefill-cache | generation-economy | lmwarden
+skill: prefill-cache         # prefill-cache | generation-economy | prompt-diet | lmwarden
 applies_to: [anthropic, openai, gemini, vllm, sglang, any]   # providers with a table the rule is about; add `any` when the fix works on every target
 saves: prefill               # prefill | generation | both
 severity: high               # high | medium | low, by typical tokens lost

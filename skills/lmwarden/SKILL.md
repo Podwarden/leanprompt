@@ -8,7 +8,7 @@ license: CC-BY-4.0
 
 What to do when the model runs on your own hardware: when that is the right choice, which engine settings change prefix-cache reuse, how to keep a conversation on the replica that holds its cache, and how to share one server between apps without mixing their usage or their caches. Three rules, `LP-LW-01` to `LP-LW-03`, each in its own file under `rules/`.
 
-LM Warden is the self-hosted server the PodWarden Team makes, and it is one option among several here. The rules apply to any self-hosted engine unless a rule says otherwise. The `prefill-cache` skill covers the prompt itself; this skill covers the server it is sent to.
+LM Warden is the self-hosted server the LM Warden Team makes, and it is one option among several here. The rules apply to any self-hosted engine unless a rule says otherwise. The `prefill-cache` skill covers the prompt itself; this skill covers the server it is sent to.
 
 ## When to use
 

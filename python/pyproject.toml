@@ -5,12 +5,12 @@ build-backend = "hatchling.build"
 [project]
 name = "leanprompt-cli"
 version = "0.1.0.dev0"
-description = "The leanprompt usage logger for Python apps: one JSON line per LLM call with keyed prompt ids and token counts, never prompt text."
+description = "The usage logger of leanprompt (get more from every LLM call your app makes) for Python apps: one JSON line per LLM call with keyed prompt ids and token counts, never prompt text."
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.10"
 dependencies = ["kvsig==0.1.0"]
-authors = [{ name = "PodWarden Team" }]
+authors = [{ name = "LM Warden Team" }]
 keywords = ["llm", "prompt-cache", "kvsig", "leanprompt"]
 classifiers = ["Development Status :: 3 - Alpha", "Programming Language :: Python :: 3"]
 

@@ -3,7 +3,7 @@ import { posix, join } from "node:path";
 import { stringify } from "yaml";
 import { parseDoc } from "./frontmatter.js";
 
-export const SKILLS = ["llm-call-audit", "prefill-cache", "generation-economy", "measure-loop", "lmwarden"] as const;
+export const SKILLS = ["llm-call-audit", "prefill-cache", "generation-economy", "prompt-diet", "measure-loop", "lmwarden"] as const;
 
 export const BLOCK_BEGIN = "<!-- leanprompt:begin -->";
 export const BLOCK_END = "<!-- leanprompt:end -->";
@@ -23,8 +23,8 @@ export const REPO = "https://github.com/Podwarden/leanprompt";
 
 const PREAMBLE = `# AGENTS.md
 
-This repo is leanprompt: skills for AI coding assistants that cut wasted prefill and
-generation in LLM calls, plus a TypeScript CLI. Contributors:
+This repo is leanprompt: skills that get more from every LLM call an app makes (cacheable
+prompts, no dead weight, no wasted output, faster first tokens), plus a TypeScript CLI. Contributors:
 
 - \`skills/\`, \`providers/\`, \`models/\`, \`runtimes/\`, \`docs/\` are the source of truth. Edit them, never \`forms/\`.
 - \`npm run build:forms\` regenerates \`forms/\`, \`.claude-plugin/\` and the block below; CI runs
@@ -41,6 +41,7 @@ const BLURB: Record<(typeof SKILLS)[number], string> = {
   "llm-call-audit": "audit an app's LLM calls, rank the waste, write the report and findings",
   "prefill-cache": "rules for prompts the provider's cache can reuse (LP-PC-*)",
   "generation-economy": "rules for calls and output that are not wasted (LP-GE-*)",
+  "prompt-diet": "rules that cut dead weight from what each call sends (LP-PD-*)",
   "measure-loop": "prove a fix with a before and after number; the score (CI test, logger)",
   lmwarden: "rules for self-hosted vLLM, SGLang and LM Warden servers (LP-LW-*)",
 };
@@ -103,14 +104,15 @@ export function agentsBlock(): string {
     BLOCK_BEGIN,
     "## leanprompt",
     "",
-    "Skills that cut wasted prefill and generation in code that calls LLMs. Load a skill only",
+    "Skills that get more from every LLM call: cacheable prompts, no dead weight, no wasted output.",
+    "Load a skill only",
     "when its task comes up, and a rule file only when the skill points at it.",
     "",
     "Skills live in `.claude/skills/<name>/` or `.agents/skills/<name>/` (Cursor: `.cursor/rules/leanprompt-<name>.mdc`):",
     "",
     ...SKILLS.map((s) => `- \`${s}\`: ${BLURB[s]}`),
     "",
-    "- Start with `llm-call-audit` for \"where does this app pay for the same tokens twice\".",
+    "- Start with `llm-call-audit` for \"where do this app's LLM calls lose tokens or time\".",
     "- Rules are in `<skill>/rules/LP-*.md`. Each ends with `Verify`; run it before calling a fix done.",
     "- Provider and model facts (limits, minimums, TTLs) are in the `providers/` and `models/`",
     "  pages linked from each rule, and HTTP client defaults in `runtimes/`, each with a `checked:`",
@@ -183,13 +185,13 @@ export function buildForms(root: string): Map<string, string> {
 
   out.set(
     ".claude-plugin/plugin.json",
-    json({ name: "leanprompt", description: pkg.description, version, author: { name: "PodWarden Team" } }),
+    json({ name: "leanprompt", description: pkg.description, version, author: { name: "LM Warden Team" } }),
   );
   out.set(
     ".claude-plugin/marketplace.json",
     json({
       name: "leanprompt",
-      owner: { name: "PodWarden Team" },
+      owner: { name: "LM Warden Team" },
       plugins: [{ name: "leanprompt", source: "./", description: pkg.description }],
     }),
   );

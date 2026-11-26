@@ -31,6 +31,7 @@ describe("help", () => {
       expect(await main(argv)).toBe(0);
       for (const c of Object.keys(commands)) expect(out).toContain(c);
       expect(out).toContain("leanprompt <command> --help");
+      for (const s of ["llm-call-audit", "prefill-cache", "generation-economy", "prompt-diet", "measure-loop", "lmwarden"]) expect(out).toContain(s);
     }
   });
 

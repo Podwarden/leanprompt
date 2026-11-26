@@ -1,5 +1,7 @@
 # leanprompt docs
 
+**Get more from every LLM call your app makes.** Effective, efficient and affordable: your coding assistant makes prompts cacheable, cuts dead weight, stops wasted output and speeds up first tokens, without changing the answers.
+
 Back to the [README](../README.md).
 
 ## Using leanprompt

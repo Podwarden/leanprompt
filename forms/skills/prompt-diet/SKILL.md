@@ -1,0 +1,69 @@
+---
+name: prompt-diet
+description: Use when writing, reviewing or debugging code that builds what an LLM call sends (tool and function lists, MCP tool sets, system prompts assembled from several templates, per-turn reminders or policies, tool results, retrieved RAG chunks, documents, conversation history, JSON put into the prompt) for Anthropic, OpenAI, Gemini, OpenRouter, DeepInfra or a self-hosted vLLM or SGLang server, or when usage shows prompt tokens per call far above what the answer needs or growing turn after turn. Cuts dead weight from the prompt without changing the answers and without breaking the provider's cache.
+license: CC-BY-4.0
+---
+
+# prompt-diet
+
+Cuts dead weight from what each call sends: tools the call cannot use, instructions said twice, reminders sent on every turn, tool results and retrieved context passed whole, old turns that no longer bear on the answer, and data serialised with more characters than it needs. Six rules, `LP-PD-01` to `LP-PD-06`, each in its own file under `rules/`, each with a way to detect it in code, the smallest fix, what the fix must not break, and how to verify it.
+
+The `prefill-cache` skill makes the prompt cheaper to read again. This skill makes it smaller in the first place. The two pull against each other at one point, the shared head of the prompt, and the rules below say how to settle it.
+
+## When to use
+
+- You are writing or changing the code that decides what a call sends: which tools it offers, how the system prompt is assembled, what goes into each user message, how tool results and retrieved chunks are put into the prompt, and how long the history is kept.
+- Usage shows prompt tokens per call far above what the answer needs, or prompt tokens that grow turn after turn without the answers needing more context.
+- The `llm-call-audit` skill sends you here for an `LP-PD-*` finding.
+
+## Three things every trim must respect
+
+1. **An answer check, before and after.** Cutting text from a prompt can change what the model does. Every trim ships with an answer check: a fixed set of inputs (synthetic, or recorded and anonymised), run through the `measure-loop` skill before and after on the same scenario, outputs compared, pass or fail. The trim ships only when the answers are unchanged or better.
+2. **Weigh the cache before cutting the shared head.** A token in the cached head of the prompt (the tools, the system prompt) is read from the provider's cache on every later call at a fraction of the input price ([providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.7/providers/anthropic.md), [providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.7/providers/openai.md)). Cutting it saves little per call, and changing the head breaks the cached prefix for every call that follows until the new head is cached. Trim the head only when the saving over the cache lifetime is larger than one full prefill of the head on each route, and do it once, in one release, not per call. The rules of [prefill-cache](../prefill-cache/SKILL.md) say what must stay byte-identical.
+3. **Do not strip blindly.** Stripping reasoning from the history to save tokens produced about 3x more generation in agent loops (E11): the model redid the work it could no longer see. Context that looks stale may be what keeps the model from repeating itself. Remove a kind of content only after the answer check shows the model does not need it, and keep what a provider requires (on Anthropic, the thinking blocks of a tool-use turn in progress).
+
+## Workflow
+
+1. **Know the target and priority.** Read `leanprompt.yaml` if the project has one (`target`, `priority`). Otherwise infer the provider and model from the SDK, `base_url` and model names, and ask if it is unclear. Open that provider's table; each has a "Prompt size facts" section where the provider documents them.
+2. **Measure what each call sends.** For each call site, list what the request carries and roughly how big each part is: tools, system prompt, per-turn additions, tool results, retrieved context, history. Count with the provider's tokenizer or token-counting endpoint when you can; otherwise estimate from the text's length and say so.
+3. **Check each rule,** in the order of the index below. Each rule's "Detect in code" gives `rg` patterns and code shapes for Python, TS/JS and Go. Open a rule file when its pattern matches.
+4. **Propose the fix.** Give the rule id, file and line, and the smallest change from the rule's "Fix", with its "Don't break meaning" check and the cache question from point 2 above. When you are reviewing existing code, propose and ask before editing. When you are writing the call now, apply the rules directly.
+5. **Verify.** Use the rule's "Verify": (a) the provider's usage fields (prompt or input tokens per call, cached tokens), and (b) the leanprompt usage record (`prompt_tokens` and `cached_tokens` per call, and the kvsig ids that must stay equal). Run the answer check with `measure-loop` on the same scenario before and after.
+
+## Provider facts, in brief
+
+What each provider documents lives only in the dated tables; read it there, not from memory.
+
+- **Anthropic.** Tool definitions are input tokens, and any tool adds a tool use system prompt. Tools render first, so a change to the tool list invalidates the whole cached prefix. Within a tool-use turn, thinking blocks must be passed back unchanged; older ones are filtered by the API. Context editing (beta) can clear old tool results, which invalidates the cache from that point. [providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.7/providers/anthropic.md)
+- **OpenAI.** Function definitions count against the context limit and are billed as input tokens, and they are part of the cached prefix. `allowed_tools` restricts which tools a call may use while the tool list stays the same. [providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.7/providers/openai.md)
+- **Gemini.** Every function declaration is billed as input tokens on every request. [providers/gemini.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.7/providers/gemini.md)
+- **OpenRouter and DeepInfra.** What the upstream provider does applies; tool definitions are rendered into the prompt the model reads. [providers/openrouter.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.7/providers/openrouter.md), [providers/deepinfra.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.7/providers/deepinfra.md)
+- **vLLM and SGLang (self-hosted).** The chat template renders tool definitions into the prompt, so they cost prefill time and KV memory; a cached prefix is reused in whole blocks. [providers/vllm.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.7/providers/vllm.md), [providers/sglang.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.7/providers/sglang.md)
+
+Evidence rows (E1 to E12) are in [docs/evidence.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.7/docs/evidence.md). A rule whose only source is provider documentation says "documented, not yet measured here".
+
+## Rules
+
+| Id | Rule | Severity | Evidence |
+|---|---|---|---|
+| [LP-PD-01](rules/LP-PD-01.md) | Offer each route only the tools it can use | medium | E11, provider docs |
+| [LP-PD-02](rules/LP-PD-02.md) | Say each instruction once | low | E11, provider docs |
+| [LP-PD-03](rules/LP-PD-03.md) | Do not resend the same boilerplate on every turn | medium | E11, provider docs |
+| [LP-PD-04](rules/LP-PD-04.md) | Trim tool results and retrieved context at the tool boundary | high | E11, provider docs |
+| [LP-PD-05](rules/LP-PD-05.md) | Drop stale history on purpose, not by stripping | medium | E11, provider docs |
+| [LP-PD-06](rules/LP-PD-06.md) | Compact serialisation for data in the prompt | low | E11, provider docs |
+
+## Reading the usage record
+
+Dead weight shows as prompt tokens, not as cache misses. In `.leanprompt/usage.jsonl`:
+
+- **Per call:** `prompt_tokens` for the same call site (same `ids.head` and the same kind of input) falls after a trim, by about the size of what was cut.
+- **Over a conversation:** `prompt_tokens` that rise turn after turn by more than the new user message and the last answer point at per-turn boilerplate (LP-PD-03), whole tool results (LP-PD-04) or history that is never dropped (LP-PD-05).
+- **The head:** `ids.head`, `ids.sys` and `ids.tools` stay equal from call to call within a route after the fix; a trim that changes them on every call has broken the cache (LP-PC-03, LP-PC-04).
+
+The score does not count prompt size: its prefill side measures reuse, so a smaller prompt can leave it unchanged. The report shows a prompt-diet finding by its tokens per 1,000 calls (`tokens_per_1k.prompt`), and with prices, in money.
+
+## What this skill does not do
+
+It does not compress prompts by rewriting them on the wire, it does not make the prompt cache better (that is `prefill-cache`), it does not change how much the model generates or how output is formatted (that is `generation-economy`), and it does not promise a saving for an app it has not measured.
+<!-- leanprompt:generated v0.1.0-dev.7 — managed by npx leanprompt init; local edits are replaced on update -->

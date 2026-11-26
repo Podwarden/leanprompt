@@ -85,4 +85,4 @@ Batch discounts (LP-GE-07) and model choice (LP-GE-08) change money, not tokens,
 
 ## What this skill does not do
 
-It does not make prompts cache better (that is `prefill-cache`), it does not tune engine settings or replica routing on a self-hosted server (that is `lmwarden`), and it does not promise a saving for an app it has not measured.
+It does not make prompts cache better (that is `prefill-cache`), it does not cut dead weight from the prompt (that is `prompt-diet`), it does not tune engine settings or replica routing on a self-hosted server (that is `lmwarden`), and it does not promise a saving for an app it has not measured.

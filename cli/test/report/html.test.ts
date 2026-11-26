@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { main } from "../../src/main.js";
-import { handoffText, loadRules, splitLead, rawScoreUrl, renderReport, shareText, type ScoreFile } from "../../src/report/html.js";
+import { afterColon, handoffText, loadRules, shortTitle, splitLead, rawScoreUrl, renderReport, shareText, type ScoreFile } from "../../src/report/html.js";
 import type { Finding } from "../../src/score/static.js";
 import { PACKAGE_ROOT } from "../../src/score/write.js";
 
@@ -328,10 +328,51 @@ describe("renderReport", () => {
     const html = render([f({ file: "a.ts", line: 1, tokens_per_1k: { prompt: 30_000 } }), f({ file: "b.ts", line: 2, tokens_per_1k: { output: 10_000 } })]);
     const meter = between(html, '<figure class="meter">', "</figure>");
     expect(meter).toContain("<figcaption>Tokens per 1,000 calls");
-    expect(meter).toContain('aria-label="Finding 1, a.ts:1: 30k tokens per 1,000 calls, 75% of the total"');
-    expect(meter).toContain('aria-label="Finding 2, b.ts:2: 10k tokens per 1,000 calls, 25% of the total"');
+    expect(meter).toContain('aria-label="Finding 1, Put cache marks where the provider needs them, a.ts:1: 30k tokens per 1,000 calls, 75% of the total"');
+    expect(meter).toContain('aria-label="Finding 2, Put cache marks where the provider needs them, b.ts:2: 10k tokens per 1,000 calls, 25% of the total"');
     expect(meter).toContain('href="#f1"');
     expect(html).toMatch(/data-where="a\.ts:1" id="f1"/);
+  });
+
+  it("meter rows show the finding's short title next to file:line, from the first sentence of its problem", () => {
+    const html = render([
+      f({ file: "src/a.ts", line: 1, problem: "The system prompt starts with the current time. So nothing is reused.", tokens_per_1k: { prompt: 30_000 } }),
+      f({ file: "b.ts", line: 2, tokens_per_1k: { output: 10_000 } }),
+    ]);
+    const meter = between(html, '<figure class="meter">', "</figure>");
+    expect(meter).toContain('<span class="mtt">The system prompt starts with the current time</span><code class="mw">a.ts:1</code>');
+    expect(meter).toContain("Finding 1, The system prompt starts with the current time, a.ts:1: 30k tokens");
+    // Without a problem, the rule's title stands in.
+    expect(meter).toContain('<span class="mtt">Put cache marks where the provider needs them</span>');
+    // The title wraps on a phone: it is not clipped to one line like the file name.
+    const css = between(html, "<style>", "</style>");
+    expect(css).toMatch(/\.meter \.mtt \{[^}]*overflow-wrap: anywhere/);
+    expect(css).not.toMatch(/\.meter \.mtt \{[^}]*nowrap/);
+    expect(between(css, "@media (max-width: 40rem)", "}\n\n")).toMatch(/\.meter \.ml \{ grid-column: 2; grid-row: 1; \}/);
+  });
+
+  it("a long title is cut at a word with an ellipsis", () => {
+    const long = f({ problem: "The tool returns the whole order record with every nested field, the full customer profile and all past shipments into the history. More." });
+    const t = shortTitle(long, rules);
+    expect(t.length).toBeLessThanOrEqual(80);
+    expect(t.endsWith("\u2026")).toBe(true);
+    expect(t).toMatch(/^The tool returns the whole order record/);
+    expect(t).not.toMatch(/ \u2026$/);
+    expect(shortTitle(f({ problem: "Short one." }), rules)).toBe("Short one");
+  });
+
+  it("the hero sentence lower-cases an ordinary first word after the colon, not acronyms, code or names", () => {
+    expect(afterColon("When the model thinks, it pays twice.")).toBe("when the model thinks, it pays twice.");
+    expect(afterColon("A timestamp leads the prompt.")).toBe("a timestamp leads the prompt.");
+    for (const t of ["LLM calls repeat.", "vLLM drops a block.", "OpenAI drops the tools.", "Anthropic renders tools first.", "I see it.", "`tools` changes.", "Qwen's template differs."]) expect(afterColon(t)).toBe(t);
+    const html = render([f({ file: "a.ts", line: 2, problem: "When the model thinks, the answer is cut off. More.", tokens_per_1k: { output: 5000 } })]);
+    expect(between(html, "<header", "</header>")).toContain("tokens per 1,000 calls: when the model thinks, the answer is cut off.");
+    const acr = render([f({ file: "a.ts", line: 2, problem: "LLM calls send every tool. More.", tokens_per_1k: { prompt: 5000 } })]);
+    expect(between(acr, "<header", "</header>")).toContain(": LLM calls send every tool.");
+  });
+
+  it("the footer says who makes leanprompt", () => {
+    expect(between(render(), '<footer class="page-foot', "</footer>")).toContain("by the LM Warden Team");
   });
 
   it("prints the findings cleanly: a print stylesheet that hides the controls and opens the details", () => {

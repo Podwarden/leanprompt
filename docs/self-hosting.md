@@ -14,7 +14,7 @@ The rules for self-hosted engines are LP-LW-01 to LP-LW-03, listed in [how-it-wo
 
 ## LM Warden
 
-[LM Warden](https://github.com/Podwarden/lm-warden) is the self-hosted server the PodWarden Team makes and the option the skill recommends: an OpenAI-compatible API on your own NVIDIA GPUs, vLLM and llama.cpp behind one port, a key per consumer with its own usage, and replica routing that keeps a conversation on the replica holding its cache.
+[LM Warden](https://github.com/Podwarden/lm-warden) is the self-hosted server the LM Warden Team makes and the option the skill recommends: an OpenAI-compatible API on your own NVIDIA GPUs, vLLM and llama.cpp behind one port, a key per consumer with its own usage, and replica routing that keeps a conversation on the replica holding its cache.
 
 Measured on 8 concurrent synthetic agent sessions on four RTX A4000 cards with Qwen3-4B, one run per arm: median time to first byte from 2.33 s to 0.48 s, prompt tokens from cache from 44% to 86%, output tokens a minute up 29% (E10). At 24 and more sessions, where the cards were overloaded either way, the median got worse with routing on (E10). That is an engine result, not something a leanprompt rule achieves.
 

@@ -1,13 +1,13 @@
 {
   "name": "leanprompt",
   "owner": {
-    "name": "PodWarden Team"
+    "name": "LM Warden Team"
   },
   "plugins": [
     {
       "name": "leanprompt",
       "source": "./",
-      "description": "Skills for AI coding assistants that cut wasted prefill and generation in LLM calls, plus a CLI to measure the result."
+      "description": "Get more from every LLM call your app makes: skills that make prompts cacheable, cut dead weight, stop wasted output and speed up first tokens, without changing the answers, plus a CLI to measure the result."
     }
   ]
 }

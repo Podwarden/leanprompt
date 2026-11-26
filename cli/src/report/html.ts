@@ -187,18 +187,42 @@ function headline(o: ReportInput, g: Groups, cost: CostSummary): string {
     const t = tokensOf(top);
     const size = t !== undefined ? `, about ${e(formatTokens(t))} tokens per 1,000 calls` : top.estimate ? `, ${e(top.estimate)}` : "";
     const what = top.problem ? splitLead(top.problem)[0] : `${ruleTitle(top, o.rules).replace(/\.$/, "")}.`;
-    h += `<p class="sub">The biggest, at ${location(top)}${size}: ${e(what)}</p>`;
+    h += `<p class="sub">The biggest, at ${location(top)}${size}: ${e(afterColon(what))}</p>`;
     if (cost.with_tokens > 0) {
       const kind = tokenKind(cost);
       h += `<p class="total"><span class="lbl">Together</span> <strong>about ${e(formatTokens(cost.tokens_per_1k))} tokens per 1,000 calls</strong> `;
       h += `${cost.with_tokens < n ? `For the ${e(cost.with_tokens)} with a number, ${e(kind)}.` : `${e(kind.charAt(0).toUpperCase() + kind.slice(1))}.`}`;
       if (cost.question_tokens_per_1k > 0) h += ` <span class="oq">If the open questions hold, add about ${e(formatTokens(cost.question_tokens_per_1k))}.</span>`;
       h += `</p>`;
-      h += tokenBar(g.open);
+      h += tokenBar(g.open, o.rules);
     }
     if (g.questions.length > 0) h += `<p class="muted">Plus ${e(plural(g.questions.length, "open question"))} to confirm, listed after the findings.</p>`;
   }
   return `${h}</header>`;
+}
+
+// Capitalised words that stay capitalised after a colon: names of providers, tools and languages.
+const PROPER = new Set(
+  "Anthropic Claude OpenAI Gemini Google OpenRouter DeepInfra DeepSeek Qwen Llama Mistral Groq Together Azure Bedrock Vertex LangChain LlamaIndex LiteLLM Vercel Python Go Node TypeScript JavaScript Rust Java Ruby Windows Linux Codex Cursor OpenCode SGLang Ollama GitHub GitLab Bitbucket Monday Tuesday Wednesday Thursday Friday Saturday Sunday January February March April May June July August September October November December".split(" "),
+);
+
+/**
+ * Text joined after a colon reads as one sentence: lower-case its first word when that is an ordinary capitalised
+ * word ("When", "A"), and leave acronyms, code, names and "I" as they are ("LLM", "vLLM", "OpenAI", "Anthropic").
+ */
+export function afterColon(text: string): string {
+  const word = /^[^\s,.;:!?()"]*/.exec(text)![0];
+  if (!/^[A-Z][a-z'-]*$/.test(word) || word.replace(/['-].*$/, "") === "I" || PROPER.has(word.replace(/['-].*$/, ""))) return text;
+  return text.charAt(0).toLowerCase() + text.slice(1);
+}
+
+/** The finding's short title for the meter: the first sentence of its problem, or the rule's title, cut at a word. */
+export function shortTitle(f: Finding, rules: Map<string, RuleInfo>, max = 80): string {
+  const lead = (f.problem ? splitLead(f.problem)[0] : ruleTitle(f, rules)).trim().replace(/[.:;,]$/, "");
+  if (lead.length <= max) return lead;
+  const cut = lead.slice(0, max - 1);
+  const sp = cut.lastIndexOf(" ");
+  return `${(sp > max / 2 ? cut.slice(0, sp) : cut).replace(/[\s,;:.(]+$/, "")}\u2026`;
 }
 
 /** `client.ts:42`: the file's name and line, for the legend. */
@@ -208,7 +232,7 @@ const shortWhere = (f: Finding): string => (f.file === EXTERNAL ? whereText(f) :
  * The meter: one row per finding with a number, largest first. Each row carries the card's number, where it is,
  * a bar scaled to its share of the total, and the figures as text, so neither colour nor length carries meaning alone.
  */
-function tokenBar(open: Finding[]): string {
+function tokenBar(open: Finding[], rules: Map<string, RuleInfo>): string {
   const withT = open.filter((f) => (tokensOf(f) ?? 0) > 0);
   const total = withT.reduce((a, f) => a + tokensOf(f)!, 0);
   if (total <= 0 || withT.length < 1) return "";
@@ -219,8 +243,9 @@ function tokenBar(open: Finding[]): string {
     const share = (100 * t) / total;
     const n = open.indexOf(f) + 1;
     const pct = share >= 1 ? `${Math.round(share)}%` : "under 1%";
-    html += `<li><a href="#f${n}" aria-label="${e(`Finding ${n}, ${shortWhere(f)}: ${formatTokens(t)} tokens per 1,000 calls, ${pct} of the total`)}">`;
-    html += `<span class="mn" aria-hidden="true">${n}</span><code class="mw" aria-hidden="true">${e(shortWhere(f))}</code>`;
+    const title = shortTitle(f, rules);
+    html += `<li><a href="#f${n}" aria-label="${e(`Finding ${n}, ${title}, ${shortWhere(f)}: ${formatTokens(t)} tokens per 1,000 calls, ${pct} of the total`)}">`;
+    html += `<span class="mn" aria-hidden="true">${n}</span><span class="ml" aria-hidden="true"><span class="mtt">${e(title)}</span><code class="mw">${e(shortWhere(f))}</code></span>`;
     html += `<span class="mt" aria-hidden="true">${e(formatTokens(t))}</span><span class="mp" aria-hidden="true">${e(pct)}</span>`;
     html += `<span class="track" aria-hidden="true"><span class="fill" style="width:${((100 * t) / max).toFixed(2)}%"></span></span></a></li>`;
   });
@@ -500,7 +525,7 @@ export function renderReport(o: ReportInput): string {
     handoffSection(o) +
     scoreSection(o.score) +
     shareSection(o);
-  const footer = `<footer class="page-foot muted">Made by leanprompt ${e(version)}, on your machine; this page loads nothing from the network. <a href="${REPO}">${REPO}</a></footer>`;
+  const footer = `<footer class="page-foot muted">Made by leanprompt ${e(version)}, by the LM Warden Team, on your machine; this page loads nothing from the network. <a href="${REPO}">${REPO}</a></footer>`;
   return readFileSync(TEMPLATE, "utf8")
     .replace("{{TITLE}}", () => `leanprompt report: ${e(o.project)}`)
     .replace("{{NAV}}", () => navRail(o, g, cost))

@@ -6,14 +6,14 @@ license: CC-BY-4.0
 
 # measure-loop
 
-Makes every change to an LLM-calling app answer to numbers: measure, change one thing, measure again, then prove it with a score anyone can rerun. The other skills say what to change (`prefill-cache`, `generation-economy`); this one says how to know it worked and how to keep it working.
+Makes every change to an LLM-calling app answer to numbers: measure, change one thing, measure again, then prove it with a score anyone can rerun. The other skills say what to change (`prefill-cache`, `generation-economy`, `prompt-diet`); this one says how to know it worked and how to keep it working.
 
 ## When to use
 
 - You changed a prompt builder, a tool registry, a history store, a retry or a token budget, and want to know what it did to cache reuse and output tokens.
 - You want a test in CI that fails when the stable head of a request changes (a timestamp added to a system prompt, a tool reordered, old messages re-serialised).
 - You want a score for the badge or the report: `npx leanprompt score`, optionally `leanprompt calibrate`.
-- The `prefill-cache` or `generation-economy` skill sent you here for a rule's "Verify" step.
+- The `prefill-cache`, `generation-economy` or `prompt-diet` skill sent you here for a rule's "Verify" step.
 
 ## Ask first
 
@@ -22,7 +22,7 @@ Before you edit the app's code, install a package, add a file outside `.leanprom
 ## Workflow
 
 1. **Measure.** Propose adding the usage logger (below) as a small diff, and add it only if the user says yes. Then ask the user to run a fixed scenario through the app, or ask whether you may run it (it sends real, billed requests): several sessions, with follow-up turns, not one request repeated. Keep the scenario so the next run is comparable.
-2. **Change one rule at a time.** Propose a single rule's fix from `prefill-cache` or `generation-economy` as a diff, with its "Don't break meaning" check, and apply it only after the user says yes. If two things change together, the result cannot be credited to either.
+2. **Change one rule at a time.** Propose a single rule's fix from `prefill-cache`, `generation-economy` or `prompt-diet` as a diff, with its "Don't break meaning" check, and apply it only after the user says yes. If two things change together, the result cannot be credited to either.
 3. **Measure again.** Replay the same scenario against the same model, or collect real traffic. A replay sends real requests to the provider, which are billed: ask the user to run it, or ask before you run it yourself. Compare the same fields: cached tokens against prompt tokens, output tokens, number of calls, `finish: "length"`, retries.
 4. **Prove.** `npx leanprompt score` writes `.leanprompt/score.json` (the badge source) from the usage log. With no log yet, `npx leanprompt score --static` scores the audit's findings instead and labels it "static". To fit the static score to your app, run `leanprompt calibrate` ([docs/calibration.md](../../docs/calibration.md)).
 5. **Keep it.** Offer the stable-head test (below) as its own small diff, and add it only after the user says yes, so the change cannot quietly come undone.
@@ -151,4 +151,4 @@ The user reads the exact text, edits it, and opens the issue themselves: the com
 
 ## What this skill does not do
 
-It does not decide what to change (that is `prefill-cache` and `generation-economy`), it does not make answers right (any change that can alter answers needs its own answer check), and it does not turn a small log into a trustworthy score.
+It does not decide what to change (that is `prefill-cache`, `generation-economy` and `prompt-diet`), it does not make answers right (any change that can alter answers needs its own answer check), and it does not turn a small log into a trustworthy score.

@@ -2,10 +2,11 @@
 
 Status: **draft for the owner's decision**, 2026-11-22. Design only: no skills
 content, no code, nothing published. Name chosen by the owner on 2026-11-22.
-Identity: the PodWarden Team. Planned home: `github.com/Podwarden/leanprompt`
+Identity: the LM Warden Team (until 0.1.0-dev.7 the identity read differently; see the owner decisions at the end). Planned home: `github.com/Podwarden/leanprompt`
 (section 12).
 
-Tagline: **Stop paying for the same prompt twice.**
+Headline (from 0.1.0-dev.7): **Get more from every LLM call your app makes.** The first
+tagline, "Stop paying for the same prompt twice", covered caching and wasted output only.
 
 leanprompt is the separate, public checklist repo that the Prompt Lens design
 proposed under the working name `Podwarden/prompt-cache-checklist` (that
@@ -408,7 +409,7 @@ report shows money separately, with the price card and its date).
   Claims say what was measured, on what, and its limits.
 - **Contributions**: issues and pull requests welcome; a new rule needs a
   "Verify" section and either a measured example or a dated provider-doc
-  source. DCO sign-off, as kvsig. Maintainers: the PodWarden Team.
+  source. DCO sign-off, as kvsig. Maintainers: the LM Warden Team.
 - **Corrections**: a wrong provider fact is fixed within a week of a report,
   with a CHANGELOG line.
 
@@ -417,7 +418,7 @@ report shows money separately, with the price card and its date).
 Code (the CLI, the score calculator, the eval harness, example apps) under
 Apache-2.0; documentation and the skills text (`skills/`, `providers/`,
 `docs/`, README) under CC BY 4.0, as in kvsig. Copyright and authorship: the
-PodWarden Team. "PodWarden" and "LM Warden" are trademarks of their owners;
+LM Warden Team. "PodWarden" and "LM Warden" are trademarks of their owners;
 the NOTICE says so, as kvsig's does.
 
 ---
@@ -439,8 +440,8 @@ free. The PyPI name is taken; leanprompt does not need a Python package (the
 installer is npm, and kvsig is the Python package), and if one is ever needed
 it can be `leanprompt-cli`. The real risk is search confusion with two small
 same-name repos in the token-saving space; at 0 to 3 stars each, a launched
-repo will outrank them quickly, but the README should say "by the PodWarden
-Team" in its first line. Recommended path: **`github.com/Podwarden/leanprompt`**,
+repo will outrank them quickly, but the README should say "by the LM Warden
+Team" near its top. Recommended path: **`github.com/Podwarden/leanprompt`**,
 npm package `leanprompt`, docs on the README (no domain needed for launch).
 
 ---
@@ -462,8 +463,8 @@ real run; the numbers in the GIF are the numbers in `eval/results/`.
 
 **Where, in order.**
 
-1. **Show HN**: "Show HN: leanprompt, skills that teach your coding assistant
-   to stop paying for the same prompt twice". First comment: the evidence
+1. **Show HN**: "Show HN: leanprompt, get more from every LLM call your app
+   makes". First comment: the evidence
    table (E1, E6, E7), with the dates experiment as the counterintuitive
    finding ("moving the date to the end made answers worse and did not help
    the cache").
@@ -582,3 +583,8 @@ Every price, threshold and lifetime lives in a dated fact table with a source li
 - The HTML page is for people: it explains in plain English what is wrong with the app's LLM calls, what to change and why, from per-finding fields the audit writes (`problem`, `change`, `why`, `estimate`, `assumptions`, `verify`). It hands off to the user's coding agent with a copyable, self-contained block (verify each finding first, fix one at a time with consent, prove with `measure-loop`).
 - Money is shown only from the user's own volume and a price with its source and checked date (`volume:`, `prices:` in `leanprompt.yaml`), as a separate block labelled as an estimate (or measured); never invented and never in the score (section 8).
 - The star, the share message and the badge are offered only after the page has shown concrete value (an estimate or a measured score), and the badge snippet only when it can work (a public-host remote; `score.json` committed).
+
+## Owner decisions (2026-11-26, 0.1.0-dev.7)
+- Headline: **Get more from every LLM call your app makes.** Supporting line: effective, efficient and affordable: your coding assistant makes prompts cacheable, cuts dead weight, stops wasted output and speeds up first tokens, without changing the answers. It replaces "Stop paying for the same prompt twice" at the top of the README and in the package and plugin descriptions.
+- Attribution: "by the LM Warden Team" wherever the README, docs, skills, NOTICE, package metadata and the report page name a team. The GitHub address (`github.com/Podwarden/leanprompt`) and the commit identity are unchanged.
+- A sixth skill, `prompt-diet` (`LP-PD-*`), for dead weight in what each call sends: tools a route cannot use, instructions said twice, per-turn boilerplate, whole tool results and retrieved context, stale history, padded serialisation. Every trim needs an answer check (measure-loop, before and after on the same scenario, answers unchanged or better); a trim of the shared cacheable head is weighed against the cache loss (`prefill-cache`); E11 is the standing reason not to strip blindly. Compaction stays in LP-PC-08 and is cross-referenced, not restated. Output formats stay in `generation-economy`.

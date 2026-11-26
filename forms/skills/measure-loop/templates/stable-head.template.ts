@@ -35,4 +35,4 @@ export function assertStableHead<T>(build: (input: T) => Built, inputs: [T, T], 
     if (a.nodes[i] !== b.nodes[i]) { bad.push(`\`nodes[${i}]\` differs: the prompt up to message ${i} changed (a history message was rewritten, or the head above changed)`); break; }
   if (bad.length) throw new Error(`The stable head changed between the two inputs:\n- ${bad.join("\n- ")}`);
 }
-// leanprompt:generated v0.1.0-dev.6 — managed by npx leanprompt init; local edits are replaced on update
+// leanprompt:generated v0.1.0-dev.7 — managed by npx leanprompt init; local edits are replaced on update

@@ -52,7 +52,7 @@ afterEach(() => {
 });
 
 describe("init", () => {
-  it("installs all five skills into a .claude project", () => {
+  it("installs all six skills into a .claude project", () => {
     mkdirSync(join(dir, ".claude"));
     const r = init({ dir });
     expect(r.detected.map((d) => d.assistant)).toEqual(["claude"]);

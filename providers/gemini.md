@@ -44,6 +44,14 @@ Used by the `generation-economy` rules.
 | Structured output | `response_format` with a JSON `schema` and `mime_type: application/json` (Interactions API examples); `responseMimeType` / `responseJsonSchema` on generateContent. Output is syntactically valid JSON, but "always validate values in your application"; some constraints (`minLength`, `maxLength`, ...) are stripped, not enforced; a too complex schema returns 400 | https://aistudio.google.com/docs/structured-output |
 | Client disconnect | Not stated on the pages above. OpenRouter lists Google and Google AI Studio among providers that keep generating (and billing) after a stream is aborted (`providers/openrouter.md`) | OpenRouter streaming docs |
 
+## Prompt size facts (docs, checked 2026-11-26)
+
+Used by the `prompt-diet` rules.
+
+| Fact | Value | Source |
+|---|---|---|
+| Function declarations are input | "Every function declaration you send is billed as input tokens on every request"; past a few dozen tools the page suggests retrieving tools instead of sending all of them. It also describes an `allowed_tools` list in `tool_choice`; whether that keeps the implicit cache is not stated | https://aistudio.google.com/docs/function-calling (first 100,000 of 135,989 characters read) |
+
 ## Not stated in the docs
 
 - Implicit-caching TTL: not stated in the docs (checked 2026-11-26). The 3-5 minute figure comes from OpenRouter's notes.
