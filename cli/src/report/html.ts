@@ -7,7 +7,7 @@ import { optionsFor } from "../help.js";
 import { REPO } from "../forms.js";
 import { loadRuleIds } from "../lint/rules.js";
 import { loadProfile, type Profile } from "../profile.js";
-import { EXTERNAL, isOpenQuestion, parseFindings, type AverageCall, type Finding, type Severity } from "../score/static.js";
+import { EXTERNAL, isOpenQuestion, parseFindings, type AverageCall, type Finding, type KvsigUse, type Severity } from "../score/static.js";
 import { costSummary, formatDollars, formatTokens, type CostSummary } from "./cost.js";
 import { filterIgnored, FINDINGS_FILE, PACKAGE_ROOT } from "../score/write.js";
 
@@ -44,6 +44,8 @@ export interface ReportInput {
   profile?: Profile | null;
   /** The audit's average call, from findings.json, for the share of the bill. */
   average_call?: AverageCall;
+  /** Whether the app already uses kvsig, from findings.json. Shown as one line; it does not change the score. */
+  kvsig?: KvsigUse;
   /** Local git facts for the badge snippet. */
   git?: GitInfo;
 }
@@ -69,9 +71,13 @@ function kindLabel(s: ScoreFile): string {
   return s.weights === "calibrated" ? "static, calibrated" : "static";
 }
 
-function scoreSection(score: ScoreFile | null): string {
+/** The quiet line for an app that already gives its prompt parts kvsig ids. */
+export const KVSIG_LINE = "This app already gives its prompt parts kvsig ids, so the stability checks use them.";
+
+function scoreSection(score: ScoreFile | null, kvsig?: KvsigUse): string {
+  const kv = kvsig?.used ? `<p class="muted kvsig">${e(KVSIG_LINE)}</p>` : "";
   if (!score || num(score.score) === undefined) {
-    return `<section class="score-sec" id="s-score"><h2>Score</h2><p class="card">No score yet: run <code>npx leanprompt score</code></p></section>`;
+    return `<section class="score-sec" id="s-score"><h2>Score</h2><p class="card">No score yet: run <code>npx leanprompt score</code></p>${kv}</section>`;
   }
   const measured = score.kind === "measured";
   const i = score.inputs ?? {};
@@ -99,7 +105,7 @@ function scoreSection(score: ScoreFile | null): string {
     html += `<p class="muted">A static score is an estimate from the audit's findings, not a measurement.</p>`;
   }
   if (typeof score.date === "string") html += `<p class="muted">Scored ${e(score.date)}.</p>`;
-  html += `</div></section>`;
+  html += `</div>${kv}</section>`;
   return html;
 }
 
@@ -512,7 +518,7 @@ export function renderReport(o: ReportInput): string {
     costSection(cost) +
     findingsSection(o, g, version) +
     handoffSection(o) +
-    scoreSection(o.score) +
+    scoreSection(o.score, o.kvsig) +
     shareSection(o);
   const footer = `<footer class="page-foot muted">Made by leanprompt ${e(version)}, by the LM Warden Team, on your machine; this page loads nothing from the network. <a href="${REPO}">${REPO}</a></footer>`;
   return readFileSync(TEMPLATE, "utf8")
@@ -568,6 +574,7 @@ export async function reportCommand(args: string[]): Promise<number> {
   let findings: Finding[] = [];
   let ignored = 0;
   let average_call: AverageCall | undefined;
+  let kvsig: KvsigUse | undefined;
   const profile = loadProfile(dir);
   const fpath = join(dir, FINDINGS_FILE);
   if (existsSync(fpath)) {
@@ -576,6 +583,7 @@ export async function reportCommand(args: string[]): Promise<number> {
     findings = filterIgnored(parsed.findings, profile);
     ignored = parsed.findings.length - findings.length;
     average_call = parsed.average_call;
+    kvsig = parsed.kvsig;
   }
   const html = renderReport({
     findings,
@@ -585,6 +593,7 @@ export async function reportCommand(args: string[]): Promise<number> {
     project: basename(dir),
     profile,
     ...(average_call ? { average_call } : {}),
+    ...(kvsig ? { kvsig } : {}),
     git: readGit(dir),
   });
   const target = resolve(dir, values.out ?? DEFAULT_OUT);

@@ -53,6 +53,16 @@ export interface AverageCall {
   output_tokens: number;
 }
 
+/**
+ * Whether the app already uses kvsig (imports it, or depends on it), and where. Recognition only:
+ * the score never reads it, so a findings file scores the same with or without it.
+ */
+export interface KvsigUse {
+  used: boolean;
+  /** Where the app uses it, as `file:line` (or a dependency file), for example "src/llm/hosted.ts:12". */
+  where?: string[];
+}
+
 /** The plain-English text fields of a finding, and their length limit. */
 export const TEXT_FIELDS = ["problem", "change", "why", "estimate", "assumptions", "verify"] as const;
 export const TEXT_MAX = 600;
@@ -97,7 +107,7 @@ export function scoreFrom({ E, S, G }: { E: number; S: number; G: number }): num
 export function parseFindings(
   text: string,
   ruleIds: ReadonlySet<string>,
-): { findings: Finding[]; errors: string[]; average_call?: AverageCall } {
+): { findings: Finding[]; errors: string[]; average_call?: AverageCall; kvsig?: KvsigUse } {
   const findings: Finding[] = [];
   const errors: string[] = [];
   let doc: unknown;
@@ -117,9 +127,21 @@ export function parseFindings(
       average_call = { prompt_tokens: a.prompt_tokens as number, output_tokens: a.output_tokens as number };
     } else errors.push("average_call must be {prompt_tokens, output_tokens}, both positive numbers");
   }
+  let kvsig: KvsigUse | undefined;
+  if (d.kvsig !== undefined) {
+    const k = d.kvsig as Record<string, unknown> | null;
+    const okWhere = (w: unknown): w is string[] =>
+      Array.isArray(w) && w.length > 0 && w.every((x) => typeof x === "string" && x.trim() !== "" && x.length <= TEXT_MAX);
+    if (!k || typeof k !== "object" || Array.isArray(k) || typeof k.used !== "boolean" || Object.keys(k).some((x) => x !== "used" && x !== "where")) {
+      errors.push("kvsig must be {used: true or false, where: [\"file:line\", ...]}");
+    } else if (k.where !== undefined && !okWhere(k.where)) errors.push("kvsig.where must be a non-empty list of non-empty strings");
+    else if (k.used && k.where === undefined) errors.push("kvsig.where is required when kvsig.used is true: list where the app uses it");
+    else kvsig = { used: k.used, ...(k.where !== undefined ? { where: [...(k.where as string[])] } : {}) };
+  }
+  const extra = { ...(average_call ? { average_call } : {}), ...(kvsig ? { kvsig } : {}) };
   if (!Array.isArray(d.findings)) {
     errors.push("findings must be an array");
-    return { findings, errors, ...(average_call ? { average_call } : {}) };
+    return { findings, errors, ...extra };
   }
   d.findings.forEach((raw: unknown, i: number) => {
     const at = `findings[${i}]`;
@@ -176,7 +198,7 @@ export function parseFindings(
     if (tokens) out.tokens_per_1k = tokens;
     findings.push(out);
   });
-  return { findings, errors, ...(average_call ? { average_call } : {}) };
+  return { findings, errors, ...extra };
 }
 
 /**

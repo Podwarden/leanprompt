@@ -90,6 +90,8 @@ messages: [
 
 To choose a longer lifetime, add the `ttl` field documented in [providers/anthropic.md](../../../providers/anthropic.md), and only where the break-even rule favours it.
 
+One way to keep this checkable, if the user wants it (optional, not part of the fix): a test in the app that builds two requests of one conversation and asserts their kvsig `head` ids are equal shows that the marked prefix stays the same, so the mark keeps being read. [measure-loop](../../measure-loop/SKILL.md) ("The stable-head test") has a short example in TypeScript and Python and a helper; propose the test as its own small diff and add it only after the user says yes.
+
 ## Don't break meaning
 A mark does not change the text the model sees, so adding marks cannot change answers. Do not reorder or reword content to make a mark fit: that is LP-PC-02, and it needs an answer check. Do not convert content between string and parts in the stored history; convert at send time.
 

@@ -60,6 +60,8 @@ engine:
   speculative: true
 ```
 
+One way to keep this checkable, if the user wants it (optional, not part of the fix): a test in the app that builds two turns of one conversation and asserts that their kvsig `nodes[i]` ids are equal up to the previous turn rules the prompt out, so a cached share that stays low points at the engine flags. [measure-loop](../../measure-loop/SKILL.md) ("The stable-head test") has a short example in TypeScript and Python and a helper; propose the test as its own small diff and add it only after the user says yes.
+
 ## Don't break meaning
 Prefix caching does not change answers. The match unit changes what is stored and where a hit can resume, not what the model computes, but it is an engine setting with costs this skill has not measured beyond E9 (which saw no change in decode speed): watch memory headroom and decode speed after the change, and roll back if either moves. Restart the engine to apply it, which empties its cache and drops live conversations' warm prefixes. Do it in a quiet window and tell the people who use the server.
 

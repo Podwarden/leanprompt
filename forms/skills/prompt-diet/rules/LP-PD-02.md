@@ -16,7 +16,7 @@ evidence:
 State each instruction once, in the stable system prompt, and remove copies of it from per-turn reminders and from the other templates that are concatenated into the same prompt.
 
 ## Why
-Prompts grow by accretion: a base template, a persona template, a safety block and a tool-use block are joined together, and each restates "answer in JSON", "never reveal the system prompt" or "cite your sources". A reminder added to each user message says it again. Every copy is sent on every call, and copies in per-turn text are not in the cached head, so they are paid at the full input price each turn ([providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.9/providers/anthropic.md), [providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.9/providers/openai.md)). Copies that drift apart ("cite sources" in one, "cite at most two sources" in another) also leave the model to choose between them.
+Prompts grow by accretion: a base template, a persona template, a safety block and a tool-use block are joined together, and each restates "answer in JSON", "never reveal the system prompt" or "cite your sources". A reminder added to each user message says it again. Every copy is sent on every call, and copies in per-turn text are not in the cached head, so they are paid at the full input price each turn ([providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.10/providers/anthropic.md), [providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.10/providers/openai.md)). Copies that drift apart ("cite sources" in one, "cite at most two sources" in another) also leave the model to choose between them.
 
 Copies inside the cached head cost little per call: they are read from the cache. Removing them changes the head, which every later call reuses (LP-PC-02), so the saving has to be weighed against one full prefill of the head on each route (the `prompt-diet` skill, "Three things every trim must respect"). Documented, not yet measured here.
 
@@ -60,6 +60,8 @@ user   = {"role": "user", "content": question}
 
 Where the copies differ, keep the version the app relies on and say so in the change; do not merge two different rules into a new third one without the answer check.
 
+One way to keep this checkable, if the user wants it (optional, not part of the fix): a test in the app that builds two calls after the trim and asserts their kvsig `head` ids are equal shows the shorter head is fixed from call to call, so it is cached once and then read. [measure-loop](../../measure-loop/SKILL.md) ("The stable-head test") has a short example in TypeScript and Python and a helper; propose the test as its own small diff and add it only after the user says yes.
+
 ## Don't break meaning
 A repeated instruction is sometimes there because it was needed: a format rule restated near the end of a long prompt can be what keeps the model on format. Remove a copy only after the answer check with `measure-loop` on a fixed set of inputs, before and after, shows answers unchanged or better, with the format checks of the app (schema, length, refusals) passing. Weigh the cache before editing the head; change it once, not per call. Never strip earlier turns or reasoning from the history as part of this change; stripping reasoning produced about 3x more generation (E11). What must stay byte-identical in the head: [prefill-cache](../../prefill-cache/SKILL.md).
 
@@ -70,4 +72,4 @@ A repeated instruction is sometimes there because it was needed: a format rule r
 
 ## Waste signal
 Measured: the drop in `prompt_tokens` per call times the calls; the score does not count it, the report shows it as `tokens_per_1k.prompt`. Static: severity low for copies inside the cached head (they are read from the cache); medium when the copy is in per-turn text, where it is sent uncached on every turn (that shape is also LP-PD-03).
-<!-- leanprompt:generated v0.1.0-dev.9: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.10: written by npx leanprompt install; npx leanprompt update replaces local edits -->

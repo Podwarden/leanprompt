@@ -15,7 +15,7 @@ evidence:
 Put each image, file or document in the message where it first appears and keep it there, with the same bytes or the same reference, for the rest of the session; never move it, re-encode it or re-upload it per call.
 
 ## Why
-Images and attachments are often the largest part of a prompt, and they are part of the prefix like any text. On Anthropic, adding or removing images invalidates the message blocks ([providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.9/providers/anthropic.md)); on OpenAI images count toward the prefix that must match ([providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.9/providers/openai.md)). Documented, not yet measured here.
+Images and attachments are often the largest part of a prompt, and they are part of the prefix like any text. On Anthropic, adding or removing images invalidates the message blocks ([providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.10/providers/anthropic.md)); on OpenAI images count toward the prefix that must match ([providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.10/providers/openai.md)). Documented, not yet measured here.
 
 The shapes that break it:
 - "the current screenshot" attached to the newest message and removed from the older ones on every turn;
@@ -73,4 +73,4 @@ If the app removed old images so the model would look only at the latest one, ke
 
 ## Waste signal
 Measured: lowers S on every turn that moves or re-encodes an attachment. Static: severity medium for a per-call presign, re-encode or re-upload, or for attachments removed from older messages each turn.
-<!-- leanprompt:generated v0.1.0-dev.9: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.10: written by npx leanprompt install; npx leanprompt update replaces local edits -->

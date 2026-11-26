@@ -1,6 +1,6 @@
 {
   "name": "leanprompt",
-  "version": "0.1.0-dev.9",
+  "version": "0.1.0-dev.10",
   "description": "Get more from every LLM call your app makes: skills that make prompts cacheable, cut dead weight, stop wasted output and speed up first tokens, without changing the answers, plus a CLI to measure the result.",
   "type": "module",
   "license": "Apache-2.0 AND CC-BY-4.0",

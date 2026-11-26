@@ -84,6 +84,8 @@ messages = [{"role": "system", "content": SYSTEM},
 
 When a tenant has a large block of its own (its documents), it can go at the end of the system prompt, after the shared part, so that tenant's users share it.
 
+One way to keep this checkable, if the user wants it (optional, not part of the fix): a test in the app that builds the first request for two users and asserts their kvsig `head` ids are equal catches per-user text that moves back into the shared head. [measure-loop](../../measure-loop/SKILL.md) ("The stable-head test") has a short example in TypeScript and Python and a helper; propose the test as its own small diff and add it only after the user says yes.
+
 ## Don't break meaning
 The model must still know whom it serves: keep the user and tenant blocks labelled, and update instructions that referred to them by position. If per-user settings are meant to override the shared defaults, say so in the user block ("These preferences take precedence over the defaults above"). Run the answer check on a few personalised cases before and after. Moving redaction off the shared head must not let personal data through: the shared head must hold none to begin with (it is the same for everyone), and every per-user part must still pass through the transform. If the head does contain personal data, remove it from the head; do not keep scrubbing it per user.
 

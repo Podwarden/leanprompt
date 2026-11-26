@@ -66,6 +66,8 @@ for _, name := range slices.Sorted(maps.Keys(toolsByName)) { tools = append(tool
 
 A tool loaded later in the session goes at the end, not into its sorted position (LP-PC-05). Serialise a tool result once, when it is first added to the history, and keep that string (LP-PC-06).
 
+One way to keep this checkable, if the user wants it (optional, not part of the fix): a test in the app that builds the request twice, in two process starts or with two seeds, and asserts its kvsig `tools` id is equal catches a refactor that changes the tool order or the key order. [measure-loop](../../measure-loop/SKILL.md) ("The stable-head test") has a short example in TypeScript and Python and a helper; propose the test as its own small diff and add it only after the user says yes.
+
 ## Don't break meaning
 Some models favour tools listed earlier. If the existing order was deliberate (the most important tool first), keep that order and make it fixed rather than sorting. After a change of order, run the app's tool-choice check on a fixed set of tasks. Key order inside JSON does not change its meaning; field descriptions and `required` lists must stay as they were.
 

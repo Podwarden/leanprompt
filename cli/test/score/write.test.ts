@@ -149,6 +149,21 @@ describe("score --static", () => {
     expect(out).not.toMatch(/every share is a severity default/);
   });
 
+  it("scores the same with and without the kvsig field: recognising kvsig gives no points", async () => {
+    const fs = [finding(), finding({ rule: "LP-GE-01", saves: "generation", severity: "medium", share: 0.3 })];
+    lp("findings.json", findings(...fs));
+    expect(await scoreCommand(["--static", "--dir", dir])).toBe(0);
+    const { date: _a, ...without } = readScore();
+    lp("findings.json", JSON.stringify({ v: 1, kvsig: { used: true, where: ["src/llm/hosted.ts:12", "package.json"] }, findings: fs }));
+    expect(await scoreCommand(["--static", "--dir", dir])).toBe(0);
+    const { date: _b, ...withKvsig } = readScore();
+    expect(withKvsig).toEqual(without);
+    lp("findings.json", JSON.stringify({ v: 1, kvsig: { used: false }, findings: fs }));
+    expect(await scoreCommand(["--static", "--dir", dir])).toBe(0);
+    const { date: _c, ...notUsed } = readScore();
+    expect(notUsed).toEqual(without);
+  });
+
   it("a bare --static scores .leanprompt/findings.json even when a usage log exists (the hint the measured refusal prints)", async () => {
     lp("usage.jsonl", readFileSync(USAGE, "utf8"));
     lp("findings.json", findings(finding()));

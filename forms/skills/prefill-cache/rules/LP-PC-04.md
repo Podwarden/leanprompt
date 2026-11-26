@@ -15,7 +15,7 @@ evidence:
 Build the tool list in one fixed order and serialise every JSON value in the prompt (tool schemas, tool-call arguments, tool results, structured context) the same way every time.
 
 ## Why
-The tool list is part of the prefix: first on Anthropic; after the system prompt on OpenAI and DeepInfra as observed, not documented (render-order rows in [providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.9/providers/openai.md) and [providers/deepinfra.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.9/providers/deepinfra.md)); wherever the chat template puts it on a self-hosted engine. A different tool order, or the same schema with its keys in a different order, is a different prompt even though it means the same thing. On Anthropic a change to the tool definitions invalidates tools, system and messages ([providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.9/providers/anthropic.md)); OpenAI requires the whole rendered prefix to match ([providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.9/providers/openai.md)). Documented, not yet measured here.
+The tool list is part of the prefix: first on Anthropic; after the system prompt on OpenAI and DeepInfra as observed, not documented (render-order rows in [providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.10/providers/openai.md) and [providers/deepinfra.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.10/providers/deepinfra.md)); wherever the chat template puts it on a self-hosted engine. A different tool order, or the same schema with its keys in a different order, is a different prompt even though it means the same thing. On Anthropic a change to the tool definitions invalidates tools, system and messages ([providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.10/providers/anthropic.md)); OpenAI requires the whole rendered prefix to match ([providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.10/providers/openai.md)). Documented, not yet measured here.
 
 Common causes: a registry filled in import or plugin-load order; MCP servers whose tools are listed in registration order, which depends on which server connected first; tools collected from concurrent discovery in completion order; a `set` of tools; Go `map` iteration, which is randomised on every run; dicts built in varying order and dumped without sorting; a schema generator whose field order changed between library versions.
 
@@ -66,6 +66,8 @@ for _, name := range slices.Sorted(maps.Keys(toolsByName)) { tools = append(tool
 
 A tool loaded later in the session goes at the end, not into its sorted position (LP-PC-05). Serialise a tool result once, when it is first added to the history, and keep that string (LP-PC-06).
 
+One way to keep this checkable, if the user wants it (optional, not part of the fix): a test in the app that builds the request twice, in two process starts or with two seeds, and asserts its kvsig `tools` id is equal catches a refactor that changes the tool order or the key order. [measure-loop](../../measure-loop/SKILL.md) ("The stable-head test") has a short example in TypeScript and Python and a helper; propose the test as its own small diff and add it only after the user says yes.
+
 ## Don't break meaning
 Some models favour tools listed earlier. If the existing order was deliberate (the most important tool first), keep that order and make it fixed rather than sorting. After a change of order, run the app's tool-choice check on a fixed set of tasks. Key order inside JSON does not change its meaning; field descriptions and `required` lists must stay as they were.
 
@@ -76,4 +78,4 @@ Some models favour tools listed earlier. If the existing order was deliberate (t
 
 ## Waste signal
 Measured: order that varies per process or per conversation shows as several `tools` ids for one tool set and a short shared prefix on first requests; order that varies per call inside a conversation lowers S. Static: severity high for a tool list built by iterating a map, set or registry without a fixed order, medium for unsorted JSON serialisation of content that goes back into the prompt.
-<!-- leanprompt:generated v0.1.0-dev.9: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.10: written by npx leanprompt install; npx leanprompt update replaces local edits -->

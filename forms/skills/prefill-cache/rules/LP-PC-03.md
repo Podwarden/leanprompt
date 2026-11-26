@@ -16,7 +16,7 @@ Inside one session these values do not change, so the loss is across sessions: e
 - A coding harness writes the working directory into its long system prompt. Across sessions in different directories a self-hosted vLLM reused only the 7,920 tokens before that line (E5).
 - Another harness puts a per-session version suffix and the working directory on its first system line. Anthropic still reused 12,895 tokens across sessions, because it renders tools first and the tools were equal; a route that renders the system prompt first loses everything after line 1 (E4).
 
-Render order decides how much survives: tools, then system, then messages on Anthropic ([providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.9/providers/anthropic.md)); system before tools on OpenAI and DeepInfra as observed, not documented (render-order rows in [providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.9/providers/openai.md) and [providers/deepinfra.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.9/providers/deepinfra.md)); on a self-hosted engine, whatever the model's chat template says. A path or id in a tool description breaks the tool block itself, which on Anthropic comes before everything else. Dates are the mild case (they change once a day; LP-PC-02); ids and timestamps change every session or every call.
+Render order decides how much survives: tools, then system, then messages on Anthropic ([providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.10/providers/anthropic.md)); system before tools on OpenAI and DeepInfra as observed, not documented (render-order rows in [providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.10/providers/openai.md) and [providers/deepinfra.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.10/providers/deepinfra.md)); on a self-hosted engine, whatever the model's chat template says. A path or id in a tool description breaks the tool block itself, which on Anthropic comes before everything else. Dates are the mild case (they change once a day; LP-PC-02); ids and timestamps change every session or every call.
 
 ## Detect in code
 Python:
@@ -62,6 +62,8 @@ first := fmt.Sprintf("<environment>\nWorking directory: %s\n</environment>\n\n%s
 
 Keep the version out of the prompt entirely unless the model needs it; log it instead.
 
+One way to keep this checkable, if the user wants it (optional, not part of the fix): a test in the app that builds the first request of two sessions (two directories, two versions) and asserts their kvsig `head` ids are equal catches the value coming back to the top of the prompt. [measure-loop](../../measure-loop/SKILL.md) ("The stable-head test") has a short example in TypeScript and Python and a helper; propose the test as its own small diff and add it only after the user says yes.
+
 ## Don't break meaning
 The model still needs the value. Keep it labelled ("Working directory: ..."), and update any instruction that pointed at it by position ("the directory above"). A tool description that named a path must still be correct in general terms, with the concrete path given in the environment block. Run the app's answer check on a task that depends on the moved value.
 
@@ -72,4 +74,4 @@ The model still needs the value. Keep it labelled ("Working directory: ..."), an
 
 ## Waste signal
 Measured: the score's S counts only requests that continue an earlier one, so this cross-session loss shows mostly as many distinct `head` ids among the first requests of an app whose head should be one, and as a short shared prefix on each first request. Static: severity high for a per-session or per-call value in the first lines of the system prompt or in a tool definition.
-<!-- leanprompt:generated v0.1.0-dev.9: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.10: written by npx leanprompt install; npx leanprompt update replaces local edits -->

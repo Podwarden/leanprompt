@@ -62,6 +62,8 @@ first := fmt.Sprintf("<environment>\nWorking directory: %s\n</environment>\n\n%s
 
 Keep the version out of the prompt entirely unless the model needs it; log it instead.
 
+One way to keep this checkable, if the user wants it (optional, not part of the fix): a test in the app that builds the first request of two sessions (two directories, two versions) and asserts their kvsig `head` ids are equal catches the value coming back to the top of the prompt. [measure-loop](../../measure-loop/SKILL.md) ("The stable-head test") has a short example in TypeScript and Python and a helper; propose the test as its own small diff and add it only after the user says yes.
+
 ## Don't break meaning
 The model still needs the value. Keep it labelled ("Working directory: ..."), and update any instruction that pointed at it by position ("the directory above"). A tool description that named a path must still be correct in general terms, with the concrete path given in the environment block. Run the app's answer check on a task that depends on the moved value.
 

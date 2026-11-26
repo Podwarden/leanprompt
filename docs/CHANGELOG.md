@@ -41,6 +41,15 @@ The first release.
 - `npm run check:numbers`: every number with a unit in the README, the public docs and the skills cites an evidence row or a measured result.
 - Apache-2.0 for code, CC BY 4.0 for the skills and docs; README, CONTRIBUTING, GOVERNANCE and SECURITY (the last three under `.github/`).
 
+## 0.1.0-dev.10 – 2026-11-26
+
+kvsig in the audit and the fixes.
+
+### Added
+
+- **The audit recognises kvsig.** When the app imports kvsig or depends on it (`@kvsig/core` on npm, `kvsig` on PyPI), `llm-call-audit` notes per call site which prompt parts carry ids and uses the app's own tests or logs of those ids to check stability exactly, instead of estimating it from the code (`SKILL.md`, "When the app already uses kvsig"; `call-shapes.md`, "kvsig in the app"). `.leanprompt/findings.json` takes an optional top-level `kvsig: {"used": true, "where": ["src/llm/hosted.ts:12"]}`, which `score` validates, and the report page says in one line in the score section that the stability checks use the app's ids. The score does not read the field: a findings file scores the same with it or without it.
+- **The fixes suggest kvsig.** The "Fix" of LP-PC-01, LP-PC-02, LP-PC-03, LP-PC-04, LP-PC-05, LP-PC-07, LP-PC-08, LP-LW-01, LP-PD-01 and LP-PD-02 ends with one optional way to keep the fix checkable: a test in the app that asserts a kvsig id stays equal. `measure-loop` ("The stable-head test") has the short TypeScript and Python example next to the helper templates.
+
 ## 0.1.0-dev.9 – 2026-11-26
 
 ### Changed

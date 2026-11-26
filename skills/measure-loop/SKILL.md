@@ -104,16 +104,39 @@ Use `nodesUpTo` only when the inputs leave the first messages equal: a request t
 
 Assert only on `kvsig/1` exact ids and `loose/1` ids; never on `loose/2`, which is experimental. The test uses exact ids for what the provider caches and the loose ids only to explain a failure.
 
+The shortest form needs no helper: build the request for two inputs that must not change the head, and assert the `head` id is equal. Use the dialect the app sends (`openai.chat`, `openai.responses` or `anthropic.messages`). Here `buildRequest` and `build_request` stand for the app's own request builder. When kvsig cannot read a request, `canonicalize` returns `null` (`None` in Python) and these short forms fail with a less clear error than the helper's. The rules whose fix keeps the head stable suggest this test as one optional way to keep the fix checkable; offer it the same way as the helper, as its own diff, on a yes.
+
+```ts
+import { canonicalize, ids, TEST_KEY } from "@kvsig/core";
+const head = (body: unknown) => ids(canonicalize(body, "openai.chat")!, TEST_KEY).head;
+it("the head is the same on two days", () =>
+  expect(head(buildRequest({ now: new Date("2026-11-03") }))).toBe(head(buildRequest({ now: new Date("2026-11-04") }))));
+```
+
+```python
+from datetime import date
+from kvsig import TEST_KEY, canonicalize, ids
+def head(body): return ids(canonicalize(body, "openai.chat"), TEST_KEY).head
+def test_the_head_is_the_same_on_two_days():
+    assert head(build_request(now=date(2026, 11, 3))) == head(build_request(now=date(2026, 11, 4)))
+```
+
+When the app already uses kvsig, write the test with the app's own kvsig import and the published test key, `TEST_KEY`, rather than adding a second way to compute ids; the app's own key stays out of tests.
+
 ### Which id to assert for each rule
 
 | Rule | Assert equal across the two inputs | Inputs to vary |
 |---|---|---|
+| [LP-PC-01](../prefill-cache/rules/LP-PC-01.md) | `head`, and `nodes[0..i]` up to the marked message | two requests of one conversation |
 | [LP-PC-02](../prefill-cache/rules/LP-PC-02.md), [LP-PC-03](../prefill-cache/rules/LP-PC-03.md) | `sys`, then `head` | the date, a user id, a working directory, a version |
 | [LP-PC-04](../prefill-cache/rules/LP-PC-04.md) | `tools` | process restarts or seeds (registration order) |
 | [LP-PC-05](../prefill-cache/rules/LP-PC-05.md) | `sys` every turn; `tools` only on turns that add a tool | a session that loads a tool mid-way |
 | [LP-PC-06](../prefill-cache/rules/LP-PC-06.md), [LP-PC-09](../prefill-cache/rules/LP-PC-09.md) | `nodes[0..i]` between consecutive turns | a two-turn session; the later request starts with all earlier `nodes` |
 | [LP-PC-07](../prefill-cache/rules/LP-PC-07.md) | `head` | two users |
 | [LP-PC-08](../prefill-cache/rules/LP-PC-08.md) | `head` before and after a compaction (`conv` is expected to change) | a session long enough to compact |
+| [LP-LW-01](../lmwarden/rules/LP-LW-01.md) | `nodes[0..i]` up to the previous turn | two turns of one conversation |
+| [LP-PD-01](../prompt-diet/rules/LP-PD-01.md) | `tools` within one route | two calls of the same route |
+| [LP-PD-02](../prompt-diet/rules/LP-PD-02.md) | `head` | two calls after the trim |
 
 ### Reading a failure
 

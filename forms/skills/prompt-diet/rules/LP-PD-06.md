@@ -16,7 +16,7 @@ evidence:
 Serialise the data the app puts into the prompt (tool results, records, retrieved rows, examples) compactly and the same way every time: no pretty-printing indentation, and a table or a list of rows instead of a list of objects that repeats every key.
 
 ## Why
-Whitespace and repeated keys are tokens. `json.dumps(rows, indent=2)` adds a line break and indentation for every field, and a list of objects writes every key name once per row; a hundred rows with eight keys write each key a hundred times. The model reads the data just as well in compact JSON, or as a header line followed by rows. Anthropic counts `tool_result` content as input tokens ([providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.9/providers/anthropic.md)); data in the history is sent again on every later call ([providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.9/providers/openai.md)). Documented, not yet measured here; count the two forms with the provider's tokenizer before claiming a saving.
+Whitespace and repeated keys are tokens. `json.dumps(rows, indent=2)` adds a line break and indentation for every field, and a list of objects writes every key name once per row; a hundred rows with eight keys write each key a hundred times. The model reads the data just as well in compact JSON, or as a header line followed by rows. Anthropic counts `tool_result` content as input tokens ([providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.10/providers/anthropic.md)); data in the history is sent again on every later call ([providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.10/providers/openai.md)). Documented, not yet measured here; count the two forms with the provider's tokenizer before claiming a saving.
 
 Serialisation is also a cache question. Whatever form you choose, produce it the same way every time (fixed key order, fixed separators), and never re-serialise data already in the history in a new form (LP-PC-04, LP-PC-06).
 
@@ -65,4 +65,4 @@ Compact JSON carries the same data; a header and rows changes the shape, so the 
 
 ## Waste signal
 Measured: the drop in `prompt_tokens` per call that carries the data, times those calls; the score does not count it, the report shows it as `tokens_per_1k.prompt`. Static: severity low for indented JSON or repeated keys in tool results or prompt data; medium when the data is large (hundreds of rows) and sits in an agent loop's history, where every later turn carries it.
-<!-- leanprompt:generated v0.1.0-dev.9: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.10: written by npx leanprompt install; npx leanprompt update replaces local edits -->

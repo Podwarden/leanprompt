@@ -55,6 +55,8 @@ const tools = ALL_TOOLS;                       // one list for the session; stee
 
 On Anthropic, load every tool the session may need before the first request. If a late tool cannot be avoided, a mark on the last original tool (LP-PC-01) may keep the tool block; this is untested here, so check it with step (a) of Verify before relying on it.
 
+One way to keep this checkable, if the user wants it (optional, not part of the fix): a test in the app that builds every turn of a session that loads a tool part way through and asserts the kvsig `sys` id is equal on every turn catches a late tool that rewrites the system prompt. [measure-loop](../../measure-loop/SKILL.md) ("The stable-head test") has a short example in TypeScript and Python and a helper; propose the test as its own small diff and add it only after the user says yes.
+
 ## Don't break meaning
 More tools in view can change which tool the model picks, so run the app's tool-choice check on a fixed set of tasks after declaring tools up front. Tools gated for permission or safety stay gated: a tool the user may not use must not be exposed to save cache. Enforce the gate in the code that executes tool calls and say so in the instructions, or keep the gated tools out of the session's list from the start. Replacing per-turn filtering with one list needs the same tool-choice check.
 

@@ -54,6 +54,8 @@ history = [{"role": "user", "content": "Summary of the conversation so far:\n" +
 
 Keep the tools exactly as they were (same list, same order, same serialisation). To stop the summarising call from calling a tool, say so in the instruction rather than changing `tool_choice`: on OpenAI `"none"` drops the tools from the rendered prompt, and on Anthropic a `tool_choice` change invalidates the message blocks ([providers/openai.md](../../../providers/openai.md), [providers/anthropic.md](../../../providers/anthropic.md)).
 
+One way to keep this checkable, if the user wants it (optional, not part of the fix): a test in the app that builds a request before and after a compaction and asserts their kvsig `head` ids are equal (`conv` is expected to change) catches a compaction that rewrites the system prompt or the tools. [measure-loop](../../measure-loop/SKILL.md) ("The stable-head test") has a short example in TypeScript and Python and a helper; propose the test as its own small diff and add it only after the user says yes.
+
 ## Don't break meaning
 The summary must still be read as context: label it ("Summary of the conversation so far"), and if the system prompt used to say how to treat the summary, keep that instruction in the stable system prompt. A summariser call made as a continuation sees the agent's own instructions; ask for a summary in plain terms, and compare a few post-compaction answers on a fixed long conversation before and after the change.
 

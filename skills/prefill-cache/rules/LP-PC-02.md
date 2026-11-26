@@ -63,6 +63,8 @@ const today = new Date().toISOString().slice(0, 10);
 const system = `${INSTRUCTIONS}\n\nToday's date is ${today}. Use it to resolve relative dates.`;
 ```
 
+One way to keep this checkable, if the user wants it (optional, not part of the fix): a test in the app that builds the request for two days and asserts its kvsig `sys` id, then its `head` id, is equal catches a date or other per-call value coming back into the system prompt. [measure-loop](../../measure-loop/SKILL.md) ("The stable-head test") has a short example in TypeScript and Python and a helper; propose the test as its own small diff and add it only after the user says yes.
+
 ## Don't break meaning
 In the reorder experiment, moving date lines to the end of the prompt cut correct date answers from 10/12 to 1/12, lowered the control question too, and did not help caching (E6). A value must stay next to the text that tells the model how to use it: "Today's date is 2026-11-26. Use it to resolve relative dates." moves as one unit or not at all.
 

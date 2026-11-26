@@ -96,3 +96,15 @@ From each call site, trace the arguments back:
 - **Request options:** `max_tokens`, `thinking`, `reasoning_effort`, `temperature`, `n`, `tool_choice`, `prompt_cache_key`, `cache_control`, timeouts and retries (on the client and in decorators around the call).
 
 The rule files of [prefill-cache](../prefill-cache/SKILL.md), [generation-economy](../generation-economy/SKILL.md), [prompt-diet](../prompt-diet/SKILL.md) and [lmwarden](../lmwarden/SKILL.md) give the `rg` patterns and code shapes for each rule; use them once the call sites are known.
+
+## kvsig in the app
+
+Some apps already give their prompt parts keyed ids with [kvsig](https://github.com/Podwarden/kvsig), the library behind the stable-head test and the measured score. Check once per app, during the inventory:
+
+```
+rg -n "kvsig" -g '!{node_modules,.venv,venv,vendor,dist,build}/**'
+```
+
+A hit counts as use when it is an import (`from "@kvsig/core"`, `require("@kvsig/core")`, `from kvsig import`, `import kvsig`) or a dependency (`@kvsig/core` in `package.json`; `kvsig` in `pyproject.toml` or a `requirements*.txt` file). The npm package is `@kvsig/core` and the PyPI package is `kvsig`. A mention in a comment, a README or a lock file alone is not use. The leanprompt usage logger computes kvsig ids too, but that is leanprompt measuring the app, not the app's own use, so it does not count here.
+
+When the app uses it, note per call site which prompt parts carry ids (`sys`, `tools`, `head`, `nodes`, `conv`, or a `loose_*` form) and where the app computes or checks them: a test, a log line, a gateway. [SKILL.md](SKILL.md) ("When the app already uses kvsig") says how the findings use them.

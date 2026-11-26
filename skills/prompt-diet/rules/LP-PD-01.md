@@ -66,6 +66,8 @@ On OpenAI, when one conversation needs a smaller set for some turns, keep the li
 tool_choice={"type": "allowed_tools", "mode": "auto", "tools": [{"type": "function", "name": "search_docs"}]}
 ```
 
+One way to keep this checkable, if the user wants it (optional, not part of the fix): a test in the app that builds two calls of one route and asserts their kvsig `tools` id is equal shows each route keeps one fixed tool list, so the smaller list is still cached. [measure-loop](../../measure-loop/SKILL.md) ("The stable-head test") has a short example in TypeScript and Python and a helper; propose the test as its own small diff and add it only after the user says yes.
+
 ## Don't break meaning
 Remove a tool from a route only when the code shows the model can never use it there: no handler for it on that route, or a flow that forbids it. A tool the model rarely calls may still be the one it needs; check the logs or the code path, not your intuition. Run the answer check with `measure-loop` on a fixed set of inputs for that route, before and after: answers unchanged or better, and no new "I cannot do that" replies. Weigh the cache before changing the agent's own list: the tools are the start of its cached head, so change them once, in one release, and never per call. Do not drop tool calls or tool results from the history to match the new list; stripping what the model already did made it redo the work: about 3x more generation (E11). The head and what keeps it cached: [prefill-cache](../../prefill-cache/SKILL.md).
 

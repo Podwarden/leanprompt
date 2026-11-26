@@ -170,4 +170,25 @@ describe("parseFindings: the plain-English fields and token estimates", () => {
     const bad = parseFindings(JSON.stringify({ v: 1, average_call: { prompt_tokens: -1 }, findings: [] }), IDS);
     expect(bad.errors[0]).toMatch(/average_call/);
   });
+  it("reads an optional top-level kvsig: whether the app already uses it, and where", () => {
+    const doc = (kvsig: unknown) => JSON.stringify({ v: 1, kvsig, findings: [f()] });
+    const ok = parseFindings(doc({ used: true, where: ["src/llm/hosted.ts:12"] }), IDS);
+    expect(ok.errors).toEqual([]);
+    expect(ok.kvsig).toEqual({ used: true, where: ["src/llm/hosted.ts:12"] });
+    expect(parseFindings(doc({ used: false }), IDS).kvsig).toEqual({ used: false });
+    expect(parseFindings(file([f()]), IDS).kvsig).toBeUndefined();
+    for (const bad of [true, [], { used: "yes" }, { used: true }, { used: true, where: [] }, { used: true, where: [""] }, { used: true, where: "a.ts:1" }, { used: true, where: ["a.ts:1"], ids: [] }]) {
+      const r = parseFindings(doc(bad), IDS);
+      expect(r.errors[0], JSON.stringify(bad)).toMatch(/kvsig/);
+      expect(r.kvsig).toBeUndefined();
+      expect(r.findings).toEqual([f()]);
+    }
+  });
+  it("the kvsig field never changes the score", () => {
+    const fs = parseFindings(JSON.stringify({ v: 1, findings: [f(), f({ rule: "LP-GE-01", saves: "generation", share: 0.3 })] }), IDS);
+    const kv = parseFindings(JSON.stringify({ v: 1, kvsig: { used: true, where: ["a.ts:1"] }, findings: [f(), f({ rule: "LP-GE-01", saves: "generation", share: 0.3 })] }), IDS);
+    expect(kv.findings).toEqual(fs.findings);
+    expect(staticScore(kv.findings)).toEqual(staticScore(fs.findings));
+    expect(staticScore(kv.findings, W({ k_prefill: 1.4 }))).toEqual(staticScore(fs.findings, W({ k_prefill: 1.4 })));
+  });
 });

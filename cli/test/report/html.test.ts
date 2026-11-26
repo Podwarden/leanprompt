@@ -202,6 +202,16 @@ describe("renderReport", () => {
     expect(() => render([], { kind: "measured" } as ScoreFile)).not.toThrow();
   });
 
+  it("one quiet line in the score section when the app already uses kvsig, and none otherwise", () => {
+    const line = "This app already gives its prompt parts kvsig ids, so the stability checks use them.";
+    const used = render([f()], staticScore, { kvsig: { used: true, where: ["src/llm/hosted.ts:12"] } });
+    expect(between(used, 'id="s-score"', "</section>")).toContain(line);
+    expect(used.split(line).length).toBe(2);
+    expect(between(render([f()], null, { kvsig: { used: true, where: ["a.ts:1"] } }), 'id="s-score"', "</section>")).toContain(line);
+    expect(render([f()], staticScore, { kvsig: { used: false } })).not.toContain(line);
+    expect(render([f()])).not.toContain(line);
+    expect(between(used, 'id="s-score"', "</section>").replace(`<p class="muted kvsig">${line}</p>`, "")).toBe(between(render([f()]), 'id="s-score"', "</section>"));
+  });
   it("reports the ignored count", () => expect(render([f()], staticScore, { ignored: 4 })).toContain("4 ignored by the profile"));
 
   describe("If this helped", () => {
@@ -454,6 +464,13 @@ describe("report command", () => {
     expect(html).not.toContain("skip.ts");
     expect(html).toContain("1 ignored by the profile");
     expect(html).toContain("No score yet");
+  });
+
+  it("reads kvsig from findings.json for the score section line", async () => {
+    mkdirSync(join(dir, ".leanprompt"));
+    writeFileSync(join(dir, ".leanprompt", "findings.json"), JSON.stringify({ v: 1, kvsig: { used: true, where: ["src/llm.ts:4"] }, findings: [f()] }));
+    expect(await main(["report", "--html", "--dir", dir])).toBe(0);
+    expect(readFileSync(join(dir, ".leanprompt", "report.html"), "utf8")).toContain("This app already gives its prompt parts kvsig ids, so the stability checks use them.");
   });
 
   it("honours --out", async () => {

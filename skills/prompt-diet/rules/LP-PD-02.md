@@ -60,6 +60,8 @@ user   = {"role": "user", "content": question}
 
 Where the copies differ, keep the version the app relies on and say so in the change; do not merge two different rules into a new third one without the answer check.
 
+One way to keep this checkable, if the user wants it (optional, not part of the fix): a test in the app that builds two calls after the trim and asserts their kvsig `head` ids are equal shows the shorter head is fixed from call to call, so it is cached once and then read. [measure-loop](../../measure-loop/SKILL.md) ("The stable-head test") has a short example in TypeScript and Python and a helper; propose the test as its own small diff and add it only after the user says yes.
+
 ## Don't break meaning
 A repeated instruction is sometimes there because it was needed: a format rule restated near the end of a long prompt can be what keeps the model on format. Remove a copy only after the answer check with `measure-loop` on a fixed set of inputs, before and after, shows answers unchanged or better, with the format checks of the app (schema, length, refusals) passing. Weigh the cache before editing the head; change it once, not per call. Never strip earlier turns or reasoning from the history as part of this change; stripping reasoning produced about 3x more generation (E11). What must stay byte-identical in the head: [prefill-cache](../../prefill-cache/SKILL.md).
 
