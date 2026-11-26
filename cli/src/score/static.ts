@@ -20,7 +20,42 @@ export interface Finding {
   where?: string;
   /** The fact that would confirm or dismiss the finding. Required with `status: "needs-facts"`. */
   confirm?: string;
+  /** Plain-English explanation for the report and the page (each at most 600 characters). */
+  problem?: string;
+  change?: string;
+  why?: string;
+  /** The estimate as words, for example "about 138k tokens per 1,000 calls". */
+  estimate?: string;
+  assumptions?: string;
+  verify?: string;
+  /** The model this finding's calls use: the key into `prices:` in leanprompt.yaml. */
+  model?: string;
+  /** Tokens this finding loses per 1,000 calls of the whole app, by how they are billed (see TokensLost). */
+  tokens_per_1k?: TokensLost;
 }
+
+/**
+ * Tokens lost per 1,000 calls of the whole app. `prompt`: prompt tokens sent that need not be sent at all
+ * (a retry, a repeated context), billed at the full input price. `uncached`: prompt tokens the cache could
+ * have served and did not, billed at the input price less the cached-input price. `output`: output tokens
+ * thrown away. `measured_calls`: set when the numbers come from a usage log of that many calls.
+ */
+export interface TokensLost {
+  prompt?: number;
+  uncached?: number;
+  output?: number;
+  measured_calls?: number;
+}
+
+/** The audit's assumed average call, for the share of the bill a fix saves. */
+export interface AverageCall {
+  prompt_tokens: number;
+  output_tokens: number;
+}
+
+/** The plain-English text fields of a finding, and their length limit. */
+export const TEXT_FIELDS = ["problem", "change", "why", "estimate", "assumptions", "verify"] as const;
+export const TEXT_MAX = 600;
 
 /** A finding the report lists under "Open questions": outside the repository, or waiting on a fact. */
 export const isOpenQuestion = (f: Finding): boolean => f.file === EXTERNAL || f.status === "needs-facts";
@@ -59,7 +94,10 @@ export function scoreFrom({ E, S, G }: { E: number; S: number; G: number }): num
  * Parse `.leanprompt/findings.json`. Invalid entries are dropped and reported in `errors`;
  * `ruleIds` is the set of known rule ids (see `loadRuleIds`).
  */
-export function parseFindings(text: string, ruleIds: ReadonlySet<string>): { findings: Finding[]; errors: string[] } {
+export function parseFindings(
+  text: string,
+  ruleIds: ReadonlySet<string>,
+): { findings: Finding[]; errors: string[]; average_call?: AverageCall } {
   const findings: Finding[] = [];
   const errors: string[] = [];
   let doc: unknown;
@@ -71,9 +109,17 @@ export function parseFindings(text: string, ruleIds: ReadonlySet<string>): { fin
   if (!doc || typeof doc !== "object" || Array.isArray(doc)) return { findings, errors: ["findings file must be an object"] };
   const d = doc as Record<string, unknown>;
   if (d.v !== 1) errors.push("v must be 1");
+  let average_call: AverageCall | undefined;
+  if (d.average_call !== undefined) {
+    const a = d.average_call as Record<string, unknown> | null;
+    const okNum = (v: unknown) => typeof v === "number" && Number.isFinite(v) && v > 0;
+    if (a && typeof a === "object" && !Array.isArray(a) && okNum(a.prompt_tokens) && okNum(a.output_tokens) && Object.keys(a).length === 2) {
+      average_call = { prompt_tokens: a.prompt_tokens as number, output_tokens: a.output_tokens as number };
+    } else errors.push("average_call must be {prompt_tokens, output_tokens}, both positive numbers");
+  }
   if (!Array.isArray(d.findings)) {
     errors.push("findings must be an array");
-    return { findings, errors };
+    return { findings, errors, ...(average_call ? { average_call } : {}) };
   }
   d.findings.forEach((raw: unknown, i: number) => {
     const at = `findings[${i}]`;
@@ -95,15 +141,42 @@ export function parseFindings(text: string, ruleIds: ReadonlySet<string>): { fin
     for (const k of ["where", "confirm"] as const) if (r[k] !== undefined && !text(r[k])) return bad(`${k} must be a non-empty string`);
     if (r.status !== undefined && r.status !== "needs-facts") return bad(`status must be needs-facts, not ${String(r.status)}`);
     if (r.status === "needs-facts" && r.confirm === undefined) return bad("a needs-facts finding needs `confirm`: the fact that would confirm or dismiss it");
+    for (const k of TEXT_FIELDS) {
+      const v = r[k];
+      if (v !== undefined && (!text(v) || v.length > TEXT_MAX)) return bad(`${k} must be a non-empty string of at most ${TEXT_MAX} characters`);
+    }
+    if (r.model !== undefined && !text(r.model)) return bad("model must be a non-empty string");
+    let tokens: TokensLost | undefined;
+    if (r.tokens_per_1k !== undefined) {
+      const t = r.tokens_per_1k as Record<string, unknown> | null;
+      if (!t || typeof t !== "object" || Array.isArray(t)) return bad("tokens_per_1k must be an object");
+      const keys = Object.keys(t);
+      if (keys.length === 0) return bad("tokens_per_1k needs prompt, uncached or output");
+      tokens = {};
+      for (const k of keys) {
+        const v = t[k];
+        if (k === "measured_calls") {
+          if (typeof v !== "number" || !Number.isInteger(v) || v < 1) return bad("tokens_per_1k.measured_calls must be a positive integer");
+          tokens.measured_calls = v;
+        } else if (k === "prompt" || k === "uncached" || k === "output") {
+          if (typeof v !== "number" || !Number.isFinite(v) || v < 0) return bad(`tokens_per_1k.${k} must be a number >= 0`);
+          tokens[k] = v;
+        } else return bad(`tokens_per_1k: unknown key ${k}`);
+      }
+      if (tokens.prompt === undefined && tokens.uncached === undefined && tokens.output === undefined) return bad("tokens_per_1k needs prompt, uncached or output");
+    }
     const out: Finding = { rule: r.rule, file: r.file, line: (r.line as number | undefined) ?? 0, saves: r.saves as Saves, severity: r.severity as Severity };
     if (r.share !== undefined) out.share = r.share as number;
     if (r.fixed !== undefined) out.fixed = r.fixed;
     if (r.status !== undefined) out.status = "needs-facts";
     if (r.where !== undefined) out.where = r.where as string;
     if (r.confirm !== undefined) out.confirm = r.confirm as string;
+    for (const k of TEXT_FIELDS) if (r[k] !== undefined) out[k] = r[k] as string;
+    if (r.model !== undefined) out.model = r.model as string;
+    if (tokens) out.tokens_per_1k = tokens;
     findings.push(out);
   });
-  return { findings, errors };
+  return { findings, errors, ...(average_call ? { average_call } : {}) };
 }
 
 /**

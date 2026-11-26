@@ -39,4 +39,6 @@ Commit `.leanprompt/score.json` and point shields.io's endpoint badge at its raw
 ![leanprompt](https://img.shields.io/endpoint?url=<raw URL of .leanprompt/score.json in your repo>)
 ```
 
-The file carries the score, its kind, its inputs, the number of calls, the date and the leanprompt version. There is no hosted service and no upload. Rerun it yourself: the file is the evidence.
+The report page (`leanprompt report --html`) fills the URL in for you when it can: it reads `git remote get-url origin` and the current branch (local git calls only, nothing goes over the network), and builds the raw URL for GitHub, GitLab.com and Bitbucket remotes. For any other host, or a repository with no remote, it says that the badge needs a public repository with `score.json` committed and shows no snippet, because shields.io could not read the file. When `score.json` is not tracked by git yet, it says to commit it first. The page offers the badge, a star and a message for a colleague only after it has shown something concrete: an estimate on a finding, or a measured score.
+
+Why the badge is honest: it reads your own committed file, not a number we host. The file carries the score, its kind, its inputs, the number of calls, the date and the leanprompt version. A static score is labelled `static` and is always grey, because it is an estimate from the audit's findings, not a measurement; only a measured score gets a colour. There is no hosted service and no upload. Anyone can rerun `leanprompt score` on the repository: the file is the evidence.

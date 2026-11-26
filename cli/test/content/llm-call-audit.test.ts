@@ -181,14 +181,34 @@ describe("llm-call-audit SKILL.md workflow", () => {
 });
 
 describe("llm-call-audit report-template.md", () => {
-  it("has the sections Inventory, Findings, Score, Next steps, in that order", () => {
+  it("mirrors the page: costs, findings, hand-off, score, then inventory and next steps", () => {
     const heads = [...read("report-template.md").matchAll(/^## (.+)$/gm)].map((m) => m[1]!.trim());
-    expect(heads).toEqual(["Inventory", "Findings", "Score", "Next steps"]);
+    expect(heads).toEqual(["What this costs you", "What's wrong and what to change", "Fix it with your coding agent", "Score", "Inventory", "Next steps"]);
+  });
+  it("opens with a plain-English headline and labels the total as an estimate", () => {
+    const t = read("report-template.md");
+    expect(t).toMatch(/places? where this app pays for tokens it doesn't need/);
+    expect(t).toMatch(/estimate from the code, not a measurement/);
+  });
+  it("each finding carries problem, change, why, estimate, assumptions and how to check the fix", () => {
+    const t = read("report-template.md");
+    for (const k of ["**Problem:**", "**What to change:**", "**Why it matters:**", "**Estimate:**", "**Assumes:**", "**How to check the fix:**"]) expect(t).toContain(k);
+  });
+  it("carries the hand-off block for any coding agent", () => {
+    expect(read("report-template.md")).toContain("npx github:Podwarden/leanprompt init");
+    expect(read("report-template.md")).toMatch(/Check each finding against the code before you change anything/);
+    expect(read("report-template.md")).toMatch(/only after I say yes/);
+  });
+  it("money only from the user's volume and a dated price; otherwise tokens and what to add", () => {
+    const t = read("report-template.md");
+    expect(t).toMatch(/calls_per_month/);
+    expect(t).toMatch(/checked/);
+    expect(t).toMatch(/never (invent|guess)/i);
   });
   it("carries the inventory columns, per-finding fields and the score kind", () => {
     const t = read("report-template.md");
     for (const c of ["File", "Provider", "Model", "Call kind"]) expect(t).toContain(c);
-    for (const c of ["tokens lost per 1,000 calls", "Fix", "Verify"]) expect(t).toContain(c);
+    for (const c of ["tokens lost per 1,000 calls", "What to change", "How to check the fix"]) expect(t).toContain(c);
     expect(t).toMatch(/static|measured/);
   });
 });
@@ -306,5 +326,29 @@ describe("llm-call-audit: issue #4 decisions", () => {
     expect(TEMPLATE()).toMatch(/assumptions/i);
     expect(TEMPLATE()).toMatch(/default share/);
     expect(section(SKILL(), "Calibrating a static score")).toMatch(/only the default shares[^.]*matters less|matters less[^.]*default shares/);
+  });
+});
+
+describe("llm-call-audit: findings explain themselves (0.1.0-dev.6)", () => {
+  it("the findings file asks for problem, change, why, estimate, assumptions, verify on every finding, with tokens_per_1k", () => {
+    const s = section(SKILL(), "The findings file");
+    for (const k of ["problem", "change", "why", "estimate", "assumptions", "verify", "tokens_per_1k", "model"]) expect(s, k).toContain(`\`${k}\``);
+    expect(s).toMatch(/every finding/);
+    expect(s).toMatch(/600 characters/);
+    expect(s).toMatch(/"problem":/);
+    expect(s).toMatch(/plain/i);
+  });
+  it("asks for the monthly volume and offers to look up a dated price, saved to leanprompt.yaml only on a yes", () => {
+    const s = section(SKILL(), "Volume and prices");
+    expect(s).toMatch(/calls a month|calls_per_month/);
+    expect(s).toMatch(/usage log/);
+    expect(s).toMatch(/pricing page/);
+    expect(s).toMatch(/checked/);
+    expect(s).toMatch(/only on a yes/);
+    expect(s).toMatch(/never (invent|guess)/i);
+    expect(s).toContain("prefill_tokens_per_second");
+  });
+  it("presenting.md points at the page's hand-off block", () => {
+    expect(PRESENTING()).toMatch(/Fix it with your coding agent/);
   });
 });

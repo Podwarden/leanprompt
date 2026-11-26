@@ -11,7 +11,7 @@ evidence: [E6]
 Put the content that is the same across requests first; make a dynamic value stable (a date instead of a timestamp) or move it into the newest user message together with the text that refers to it, and re-check answers after any reordering.
 
 ## Why
-Every prefix cache matches from the first token and stops at the first difference; everything after a changed byte is recomputed. Render order decides what "first" means: Anthropic renders tools, then system, then messages; on OpenAI and DeepInfra the system prompt appears to render before the tools (observed, not documented: the render-order rows in [providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.5/providers/openai.md) and [providers/deepinfra.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.5/providers/deepinfra.md)); self-hosted engines follow the model's chat template, which you can read. A value that changes per request near the top (a timestamp, a user's name, the retrieved chunks for this query) makes the long stable text after it unreusable.
+Every prefix cache matches from the first token and stops at the first difference; everything after a changed byte is recomputed. Render order decides what "first" means: Anthropic renders tools, then system, then messages; on OpenAI and DeepInfra the system prompt appears to render before the tools (observed, not documented: the render-order rows in [providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.6/providers/openai.md) and [providers/deepinfra.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.6/providers/deepinfra.md)); self-hosted engines follow the model's chat template, which you can read. A value that changes per request near the top (a timestamp, a user's name, the retrieved chunks for this query) makes the long stable text after it unreusable.
 
 The obvious fix, "move everything dynamic to the end", is not always safe. Text that tells the model what a value means can end up far from the value, and answers that depend on it get worse. The general rule is therefore stable first without hurting meaning, not dynamic last (E6).
 
@@ -77,4 +77,4 @@ In the reorder experiment, moving date lines to the end of the prompt cut correc
 
 ## Waste signal
 Measured: a value that changes on every turn lowers S, because each request shares little with the turn before; a value that changes per user or per day shows as more distinct `sys` and `head` ids than the app has prompts. Static: severity high when a per-call value (timestamp, id, query, retrieved chunks) comes before long stable text.
-<!-- leanprompt:generated v0.1.0-dev.5 — managed by npx leanprompt init; local edits are replaced on update -->
+<!-- leanprompt:generated v0.1.0-dev.6 — managed by npx leanprompt init; local edits are replaced on update -->

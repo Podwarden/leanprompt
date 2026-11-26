@@ -32,7 +32,7 @@
 2. Ask your assistant: *audit this app's LLM calls*.
 3. It writes `leanprompt-report.md` and `.leanprompt/findings.json`, then proposes one fix at a time and asks before it edits anything.
 4. Score it with `npx leanprompt score`: measured from your usage log when there is one, static from the findings otherwise. Until the npm release, run every `npx leanprompt <cmd>` as `npx github:Podwarden/leanprompt <cmd>`, and install the usage logger from GitHub (`npm i github:Podwarden/leanprompt#v0.1.0-dev.1`, or for Python `pip install "git+https://github.com/Podwarden/leanprompt#subdirectory=python"`; details in [docs/install.md](docs/install.md)).
-5. Optional: `npx leanprompt report --html` writes a local page, `.leanprompt/report.html`.
+5. `npx leanprompt report --html` writes a local page, `.leanprompt/report.html`: what is wrong with the app's LLM calls and what to change, in plain English, with a block to paste into your coding agent to verify and fix each finding.
 
 ## The problem
 
@@ -67,7 +67,7 @@ Five skills, each a folder with a `SKILL.md` and one file per rule:
 | `leanprompt init` | Installs the skills for the assistants the project uses; `--dry-run` previews ([docs/install.md](docs/install.md)) |
 | `leanprompt score` | Writes `.leanprompt/score.json`, measured or static ([docs/score.md](docs/score.md)) |
 | `leanprompt calibrate` | Fits the static score's weights to your app from a trial run ([docs/calibration.md](docs/calibration.md)) |
-| `leanprompt report --html` | Writes the findings, ranked by severity, and the score to `.leanprompt/report.html` |
+| `leanprompt report --html` | Writes a local page, `.leanprompt/report.html`: the findings in plain English, largest first, what they cost (with your volume and prices), a hand-off block for your coding agent, and the score |
 | `leanprompt profile detect --lmwarden <url>` | Reads engine cache facts from LM Warden into `leanprompt.yaml` ([docs/profile.md](docs/profile.md)) |
 | `leanprompt lesson` | Drafts a lesson-learned issue on your machine (needs a measured score or `--rule <id>`); sends nothing |
 | `leanprompt eval-audit` | Scores an audit's findings against the seeded example cases |

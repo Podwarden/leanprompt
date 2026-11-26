@@ -20,6 +20,19 @@ engine:                      # self-hosted only
   match_unit_tokens: 16      # prefix match unit; when set, it replaces block_tokens
   speculative: true          # speculative decoding (MTP, EAGLE) on or off
   kv_memory_gb: 16           # KV cache memory, positive number
+  prefill_tokens_per_second: 8000   # measured prefill throughput, for GPU time (optional)
+
+volume:                      # optional: calls a month, for money figures on the report page
+  calls_per_month: 30000
+  source: our dashboard, Nov 2026
+
+prices:                      # optional: per model, US dollars per 1M tokens, with source and date
+  example-model:
+    input: 0.50
+    cached_input: 0.05
+    output: 2.00
+    source: https://provider.example/pricing
+    checked: 2026-11-26
 
 priority: cost               # cost | speed | quality, or weights (below)
 
@@ -133,6 +146,30 @@ over those defaults:
 
 Engine values have no effect on providers that cache automatically or with
 breakpoints.
+
+### `volume` and `prices`
+
+Optional. With both, the report page (`leanprompt report --html`) turns the audit's
+token estimates into money: what the findings cost a month, and what fixing them
+saves. Without them it shows tokens per 1,000 calls and says what to add. leanprompt
+never invents a volume or a price, and money is never part of the score.
+
+- `volume.calls_per_month`: how many calls the whole app makes a month, a positive
+  integer, with an optional `source` (where the number came from). With `targets:`,
+  give each entry its own `volume:` instead; the page uses their sum, and only when
+  every entry has one. A top-level `volume:` next to `targets:` is an error.
+- `prices.<model>`: `input` and `output` (required), `cached_input` (needed to price
+  prompt tokens the cache could have served) and `cache_write`, in US dollars per
+  million tokens, with `source` (the pricing page's URL, or where your own price comes
+  from) and `checked` (the date you read it, `YYYY-MM-DD`). A price without a source
+  or a date is rejected. With several models, the audit sets `model` on each finding.
+- `engine.prefill_tokens_per_second` (self-hosted): your engine's measured prefill
+  throughput. With a volume, the page shows the GPU prefill time the findings cost a
+  month and the first-token time they add.
+
+The figures are your own: your volume, your price, the audit's estimate of the tokens
+each finding loses. The page shows every input next to the result, so each figure can
+be checked by hand. The values in the schema above are illustrative.
 
 ### `ignore`
 

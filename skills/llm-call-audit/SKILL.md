@@ -17,7 +17,7 @@ The audit owns no rules of its own. It finds the calls and applies the rules of 
 
 The audit never edits code without asking. It proposes one fix per finding, the user decides, and each applied fix is handed to `measure-loop` to prove.
 
-Ask first: before you edit the app's code, install a package, add a file outside `.leanprompt/`, or run anything that sends requests to a provider (they are billed), show the change or the command and ask. The user may prefer to run it themselves. No ask is needed for the audit's own `leanprompt-report.md` and `.leanprompt/findings.json`, or for `npx leanprompt score` and `npx leanprompt calibrate`, which only read and write files under `.leanprompt/` and make no network calls (`calibrate` still writes `.leanprompt/weights.json` only after `y` or `--yes`). Offering to share a lesson (below) needs no ask, but running `npx leanprompt lesson` does: it writes `.leanprompt/lesson.md`, so run it only after the user says yes.
+Ask first: before you edit the app's code, install a package, add a file outside `.leanprompt/`, or run anything that sends requests to a provider (they are billed), show the change or the command and ask. The user may prefer to run it themselves. No ask is needed for the audit's own `leanprompt-report.md` and `.leanprompt/findings.json`, or for `npx leanprompt score`, `npx leanprompt report --html` and `npx leanprompt calibrate`, which only read and write files under `.leanprompt/` and make no network calls (`calibrate` still writes `.leanprompt/weights.json` only after `y` or `--yes`). Offering to share a lesson (below) needs no ask, but running `npx leanprompt lesson` does: it writes `.leanprompt/lesson.md`, so run it only after the user says yes.
 
 ## When to use
 
@@ -33,12 +33,13 @@ For a single change you are writing right now (a new prompt builder, a new retry
 2. **Inventory the calls.** Find every call site with [call-shapes.md](call-shapes.md): SDKs, frameworks, raw HTTP (search the path without the version too, `chat/completions`, `/messages`, `/responses`, because the base URL usually ends in `/v1`, and the request body with a `messages` list near the HTTP call), and the app's own wrappers. A search hit is a candidate: open it and confirm it is a request the app really sends before listing it (a doc comment or a test string is not a call). For each, record file and line, provider, model and call kind (chat, agent loop, one-shot, batch), and follow it back to where its system prompt, tools, history and request options are built.
 3. **Check the rules.** For each call site, walk the parts of the request through the rule map below and open a rule file when its "Detect in code" pattern matches. With several backends, evaluate the rules per backend: a call site that can go to either is checked once for each, and `applies_to` is checked against each finding's backend, not against the app as a whole. Raise a rule when its `applies_to` frontmatter includes the target, or includes `any`: a rule marked `any` is provider-independent (the fix is the same on every target) and applies to every call, including calls to a host with no provider table (DeepSeek, Groq, Together, Azure and other OpenAI-compatible hosts); `applies_to` restricts only the provider-specific rules. For a provider-specific rule on a host with no table, raise it only if that host's own documentation shows the feature (say which page); otherwise write "unknown, check the provider's docs" and do not assume. Drop any finding whose rule and file are on the `ignore:` list.
 4. **Read the usage, if there is any.** If `.leanprompt/usage.jsonl` exists, run `npx leanprompt score` first and read its inputs and its heads diagnostic (below); they confirm, correct or add to what the code shows.
-5. **Estimate and rank.** Give each finding an estimate of the tokens it loses per 1,000 calls (below), labelled as an estimate or as measured, and rank by it. Turn each estimate into the finding's `share` ("The findings file", below). Before proposing any cache mark, apply the break-even rule (below).
-6. **Write the files.** Write `.leanprompt/findings.json` (format below), run `npx leanprompt score`, and write `leanprompt-report.md` at the project root from [report-template.md](report-template.md).
-7. **Present and decide.** Show the summary first, then one finding at a time as a decision, as [presenting.md](presenting.md) describes. For each finding the user wants fixed, show one fix as a small diff and apply it only after the user says yes.
-8. **Prove each fix.** Ask before running anything that sends requests or adds files, then hand over to `measure-loop` (below), mark the finding `fixed` and rescore.
-9. **Offer calibration** after a static score (below).
-10. **Offer to share a lesson** after a measured result or a rule that misled (below).
+5. **Estimate and rank.** Give each finding an estimate of the tokens it loses per 1,000 calls (below), labelled as an estimate or as measured, and rank by it. Turn each estimate into the finding's `share` and `tokens_per_1k`, and write its plain-English `problem`, `change`, `why`, `estimate`, `assumptions` and `verify` ("The findings file", below). Before proposing any cache mark, apply the break-even rule (below).
+6. **Ask for volume and prices.** Ask how many calls the app makes a month and offer to look up the current price ("Volume and prices", below), so the report can say what the findings cost. Skip it if the user declines: the report then shows tokens only.
+7. **Write the files.** Write `.leanprompt/findings.json` (format below), run `npx leanprompt score`, write `leanprompt-report.md` at the project root from [report-template.md](report-template.md), and run `npx leanprompt report --html` for the page the user reads and shares.
+8. **Present and decide.** Show the summary first, then one finding at a time as a decision, as [presenting.md](presenting.md) describes. For each finding the user wants fixed, show one fix as a small diff and apply it only after the user says yes.
+9. **Prove each fix.** Ask before running anything that sends requests or adds files, then hand over to `measure-loop` (below), mark the finding `fixed` and rescore.
+10. **Offer calibration** after a static score (below).
+11. **Offer to share a lesson** after a measured result or a rule that misled (below).
 
 ## Rule map: where each rule looks
 
@@ -72,6 +73,16 @@ Apply the provider's limits before you multiply: a prefix shorter than the provi
 
 With a usage log, measure instead. `.leanprompt/usage.jsonl` holds `prompt_tokens`, `cached_tokens` and `output_tokens` per call and no file or line, so match records to a call site by provider, model and `ids.head`, and count the prompt tokens that were not cached on calls that continue a conversation, and the output tokens of repeated, retried and parse-failed calls ([generation-economy](../generation-economy/SKILL.md), "Reading the usage record"). Where a record cannot be matched to one call site, keep the code estimate for that finding.
 
+## Volume and prices
+
+The tokens a finding loses per 1,000 calls become money only with two facts the code does not hold: how many calls the app makes, and what a token costs. leanprompt never invents either, and the page and the report show tokens only until both are known.
+
+- **Volume.** Ask how many calls the app makes a month. With a usage log, infer it from the log instead (records over the days the log covers, scaled to a month) and say that is where it came from. Record it as `volume: {calls_per_month: N, source: "..."}`; with `targets:`, give each entry its own `volume:`.
+- **Prices.** Offer to look up the current price of each model on the provider's pricing page, and give the date you read it; or take the user's own price (a contract, a reseller). Record it under `prices:` by model name, in US dollars per million tokens: `input`, `output`, `cached_input` (needed to price tokens the cache could have served) and `cache_write` when the provider charges for it, with `source` (the page's URL, or where the user's price comes from) and `checked` (the date, `YYYY-MM-DD`). A price without a source and a date is rejected.
+- **Self-hosted.** There is no token price; offer `prefill_tokens_per_second` under `engine:` (or the entry's `engine_facts:`), the engine's measured prefill throughput, so the page can show GPU prefill time a month and the first-token time a finding adds.
+
+Show the lines that would be written and offer to save them to `leanprompt.yaml`; write them only on a yes, as for the other answers ([docs/profile.md](../../docs/profile.md)). If a finding's calls go to one of several priced models, set its `model` to that model's name in `prices:`.
+
 ## The break-even rule for cache marks
 
 Before recommending a cache mark, apply the break-even rule in [LP-PC-01](../prefill-cache/rules/LP-PC-01.md): where the provider charges a premium for cache writes, a prefix that is not read again within the cache lifetime costs more marked than unmarked. Estimate how often each marked prefix returns within the lifetime: from the usage log, by the time between records with the same `ids.head` or `ids.nodes` prefix; from the code, by the call kind (a chat or agent loop returns within seconds, a one-shot prompt may never return, a nightly job returns once a day). Then advise one of four things: mark, don't mark, longer lifetime, restructure (move the varying part after the stable one so a mark can cover more). The write and read prices and the lifetimes are in [providers/anthropic.md](../../providers/anthropic.md) and the other provider tables; LP-PC-11 covers pauses longer than the lifetime.
@@ -87,14 +98,24 @@ After `npx leanprompt score` writes a measured score, read `diagnostics.heads` i
 ```json
 {
   "v": 1,
+  "average_call": { "prompt_tokens": 4500, "output_tokens": 900 },
   "findings": [
-    { "rule": "LP-PC-03", "file": "src/agent/prompt.ts", "line": 12, "saves": "prefill", "severity": "high" },
+    { "rule": "LP-PC-03", "file": "src/agent/prompt.ts", "line": 12, "saves": "prefill", "severity": "high", "share": 0.42,
+      "tokens_per_1k": { "uncached": 1890000 },
+      "problem": "The system prompt starts with the current time, so it is different on every call and the provider cannot reuse any of it.",
+      "change": "Move the time out of the system prompt into the newest user message.",
+      "why": "Every call pays full price for the whole 1,900-token system prompt instead of the cached price.",
+      "estimate": "about 1.9M prompt tokens per 1,000 calls not served from cache",
+      "assumptions": "every call goes through this prompt; the system prompt is about 1,900 tokens",
+      "verify": "On the second of two requests a minute apart, cached tokens rise from 0 to about the size of the system prompt." },
     { "rule": "LP-GE-05", "file": "app/llm.py", "line": 40, "saves": "generation", "severity": "high", "fixed": true },
     { "rule": "LP-LW-01", "file": "<external>", "where": "vLLM launch flags on the inference host", "saves": "prefill", "severity": "high",
       "status": "needs-facts", "confirm": "the engine's block size and whether --prefix-match-unit is set" }
   ]
 }
 ```
+
+The numbers in this example are illustrative, not from a real app.
 
 - `rule`: an existing rule id. An unknown id, or any malformed entry, makes `score` stop with an error that names it.
 - `file`: the path relative to the project root, with forward slashes. The `ignore:` list matches on this exact string. For a finding that lives outside the repository (an engine's launch flags, a gateway's config, a server you only call), write `"<external>"` and say where in `where`.
@@ -105,6 +126,10 @@ After `npx leanprompt score` writes a measured score, read `diagnostics.heads` i
 - `severity`: `high`, `medium` or `low`, as the rule's "Waste signal" assigns it for the shape you found (several rules give different severities for different shapes).
 - `share` (required for every finding): the fraction, from 0 to 1, of the app's prompt tokens (prefill) or output tokens (generation) this finding wastes, derived from its tokens-lost-per-1,000-calls estimate above: share = estimated tokens lost on the affected side per 1,000 calls ÷ that side's tokens for the same 1,000 calls (prompt tokens for `prefill`, output tokens for `generation`, over all the app's calls, not only the affected ones). Write the assumptions behind both numbers in the report (call mix, tokens per call, how often the affected path runs). For a `both` finding the score applies the one share on each side: compute it for both, record the larger, and give both in the report. Fall back to the severity default (leave `share` out) only when no estimate is possible, and say so in the report, with the reason. `npx leanprompt score --static` prints how many findings used a default (`default_shares: N of M`). `leanprompt calibrate` does not rescale a share you set.
 - `fixed` (optional): `true` once the fix is applied and proved. The score skips fixed findings.
+- `tokens_per_1k` (on every finding you can estimate): the tokens it loses per 1,000 calls of the whole app, split by how they are billed: `uncached` (prompt tokens the cache could have served), `prompt` (prompt tokens sent that need not be sent at all, such as a retry's), `output` (output tokens thrown away), and `measured_calls` when the numbers come from a usage log of that many calls. The page sums them, ranks by them, and with a volume and prices turns them into money ("Volume and prices", above).
+- `model` (optional): the model name in `prices:` this finding's calls use, when there are several.
+- The plain-English fields, on every finding: `problem` (what is wrong, in one or two sentences a person who has not read the rule follows; no rule ids or jargon), `change` (what to change), `why` (why it costs tokens or time), `estimate` (the number as words, for example `"about 138k tokens per 1,000 calls"`), `assumptions` (what the estimate assumes) and `verify` (how to prove the fix). Plain text, each at most 600 characters: the page and the hand-off block for the user's coding agent are built from them. Older files without them stay valid.
+- `average_call` (top level, optional): the average call's `prompt_tokens` and `output_tokens` you assumed for the shares, so the page can give the saving as a share of the bill.
 
 Record every finding you have grounds for, even when it is outside the repository or waits on a fact: leaving it out because it has no file and line hides what may be the largest item. `"<external>"` and `needs-facts` findings count in the static score with their share and severity like any other; the report lists them under "Open questions" with their `confirm` text, so the user can settle each one.
 

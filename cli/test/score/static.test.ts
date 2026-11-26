@@ -129,3 +129,45 @@ describe("parseFindings", () => {
     expect(parseFindings(file([f({ rule: "LP-GE-10" })]), ids).errors).toEqual([]);
   });
 });
+
+describe("parseFindings: the plain-English fields and token estimates", () => {
+  const words = {
+    problem: "The app retries a cut-off answer unchanged.", change: "Read finish_reason and raise the budget.",
+    why: "Each retry pays the whole prompt again.", estimate: "about 138k tokens per 1,000 calls",
+    assumptions: "5% of calls truncate", verify: "No retry follows a length stop.",
+  };
+  it("keeps problem, change, why, estimate, assumptions, verify, model and tokens_per_1k", () => {
+    const tokens = { prompt: 1000, uncached: 2000, output: 300, measured_calls: 120 };
+    const r = parseFindings(file([{ ...f(), ...words, model: "example-model", tokens_per_1k: tokens }]), IDS);
+    expect(r.errors).toEqual([]);
+    expect(r.findings[0]).toEqual({ ...f(), ...words, model: "example-model", tokens_per_1k: tokens });
+  });
+  it("old files without them stay valid", () => {
+    expect(parseFindings(file([f()]), IDS).findings[0]).toEqual(f());
+  });
+  it("rejects empty, non-string and over-long text fields", () => {
+    for (const k of Object.keys(words)) {
+      for (const v of ["", "  ", 3, "x".repeat(601)]) {
+        const r = parseFindings(file([{ ...f(), [k]: v }]), IDS);
+        expect(r.findings, `${k}=${String(v).slice(0, 5)}`).toEqual([]);
+        expect(r.errors[0]).toMatch(new RegExp(`${k} must be`));
+      }
+      expect(parseFindings(file([{ ...f(), [k]: "x".repeat(600) }]), IDS).errors).toEqual([]);
+    }
+  });
+  it("validates tokens_per_1k and model", () => {
+    for (const t of [3, [], { prompt: -1 }, { output: "9" }, { uncached: Infinity }, { measured_calls: 1.5 }, { other: 1 }, {}]) {
+      const r = parseFindings(file([{ ...f(), tokens_per_1k: t }]), IDS);
+      expect(r.findings, JSON.stringify(t)).toEqual([]);
+      expect(r.errors[0]).toMatch(/tokens_per_1k/);
+    }
+    expect(parseFindings(file([{ ...f(), model: "" }]), IDS).errors[0]).toMatch(/model must be/);
+  });
+  it("reads an optional average_call for the share of the bill", () => {
+    const ok = parseFindings(JSON.stringify({ v: 1, average_call: { prompt_tokens: 4500, output_tokens: 900 }, findings: [] }), IDS);
+    expect(ok.errors).toEqual([]);
+    expect(ok.average_call).toEqual({ prompt_tokens: 4500, output_tokens: 900 });
+    const bad = parseFindings(JSON.stringify({ v: 1, average_call: { prompt_tokens: -1 }, findings: [] }), IDS);
+    expect(bad.errors[0]).toMatch(/average_call/);
+  });
+});

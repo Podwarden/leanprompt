@@ -17,7 +17,7 @@ Ask your assistant to *audit this app's LLM calls*. The [`llm-call-audit`](../sk
 3. Proposes one fix per finding, with the rule's "Don't break meaning" check, and asks before editing anything.
 4. Hands each fix to [`measure-loop`](../skills/measure-loop/SKILL.md) to prove it with a before and after number.
 
-The audit writes `leanprompt-report.md` and `.leanprompt/findings.json`. The report follows [report-template.md](../skills/llm-call-audit/report-template.md): the call inventory, the findings ranked by tokens lost, the score and the next steps. `leanprompt report --html` turns the findings and the score into a single local page (`.leanprompt/report.html`). If you tell the audit you are on a particular provider or self-hosted engine, or that speed matters more than cost, put it in [`leanprompt.yaml`](profile.md) and the findings are ranked for that target.
+The audit writes `leanprompt-report.md` and `.leanprompt/findings.json`. The report follows [report-template.md](../skills/llm-call-audit/report-template.md): a plain-English headline, what the findings cost, each finding's problem, change and reason, a hand-off block for a coding agent, the score, the call inventory and the next steps. `leanprompt report --html` turns the same content into a single local page (`.leanprompt/report.html`) with copy buttons, for the person who reads the audit. If you tell the audit you are on a particular provider or self-hosted engine, or that speed matters more than cost, put it in [`leanprompt.yaml`](profile.md) and the findings are ranked for that target.
 
 <!-- pending: eval/results (an excerpt of a real leanprompt-report.md from an example app, once the audit has been run on it) -->
 

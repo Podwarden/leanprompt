@@ -239,3 +239,41 @@ const prof2 = (y: string) => {
   if (!r.profile) throw new Error(r.errors.join("; "));
   return r.profile;
 };
+
+describe("parseProfile volume and prices (cost estimates)", () => {
+  const price = "prices:\n  example-model: {input: 0.5, cached_input: 0.05, output: 2, source: https://example.com/pricing, checked: 2026-11-26}\n";
+  it("reads a top-level volume and dated prices per model", () => {
+    const r = parseProfile(`volume: {calls_per_month: 30000}\n${price}`);
+    expect(r.errors).toEqual([]);
+    expect(r.profile?.volume).toEqual({ calls_per_month: 30000 });
+    expect(r.profile?.prices).toEqual({ "example-model": { input: 0.5, cached_input: 0.05, output: 2, source: "https://example.com/pricing", checked: "2026-11-26" } });
+  });
+  it("a price needs input, output, a source and a checked date", () => {
+    for (const p of [
+      "{input: 1, output: 2, source: x}",
+      "{input: 1, output: 2, checked: 2026-11-26}",
+      "{input: 1, source: x, checked: 2026-11-26}",
+      "{input: -1, output: 2, source: x, checked: 2026-11-26}",
+      "{input: 1, output: 2, source: x, checked: yesterday}",
+      "{input: 1, output: 2, source: x, checked: 2026-11-26, currency: EUR}",
+      "{input: 1, output: 2, cache_write: nope, source: x, checked: 2026-11-26}",
+    ]) {
+      expect(parseProfile(`prices:\n  m: ${p}\n`).errors.length, p).toBeGreaterThan(0);
+    }
+    expect(parseProfile("prices:\n  m: {input: 1, output: 2, cache_write: 1.25, source: our contract, checked: 2026-11-01}\n").errors).toEqual([]);
+  });
+  it("validates volume", () => {
+    for (const v of ["{calls_per_month: 0}", "{calls_per_month: 1.5}", "{calls: 3}", "30000"]) expect(parseProfile(`volume: ${v}`).errors.length, v).toBeGreaterThan(0);
+    expect(parseProfile("volume: {calls_per_month: 100, source: \"usage log, 30 days\"}").profile?.volume).toEqual({ calls_per_month: 100, source: "usage log, 30 days" });
+  });
+  it("with targets, the volume goes on each entry, not at the top", () => {
+    const ok = parseProfile("targets:\n  - {engine: lm-warden, volume: {calls_per_month: 100}}\n  - {provider: deepseek, volume: {calls_per_month: 50}}\n");
+    expect(ok.errors).toEqual([]);
+    expect(ok.profile?.targets?.map((t) => t.volume?.calls_per_month)).toEqual([100, 50]);
+    expect(parseProfile("volume: {calls_per_month: 10}\ntargets:\n  - {provider: deepseek}\n").errors.join()).toMatch(/volume/);
+  });
+  it("reads prefill_tokens_per_second for a self-hosted engine", () => {
+    expect(parseProfile("engine: {prefill_tokens_per_second: 8000}").profile?.engine).toEqual({ prefill_tokens_per_second: 8000 });
+    expect(parseProfile("engine: {prefill_tokens_per_second: 0}").errors.length).toBeGreaterThan(0);
+  });
+});

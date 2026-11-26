@@ -21,7 +21,7 @@ The first release.
 - `init`: installs the skills for Claude Code, Codex, OpenCode, Cursor and any `AGENTS.md` reader, detected or forced with `--assistant`; `--global` for the home directory. Idempotent; leaves user text outside its marked block untouched and never overwrites files it did not generate.
 - `score`: writes `.leanprompt/score.json`, measured from the usage log (at least 50 measured calls) or static from the audit's findings; the file is also the shields.io endpoint badge source.
 - `calibrate`: fits the static score's weights to an app from a trial run.
-- `report --html`: a local HTML page of the findings and the score.
+- `report --html`: a local page for the person who reads the audit: the findings in plain English, what they cost, a hand-off block for their coding agent, the score, and the badge when it can work.
 - `profile detect --lmwarden <url>`: reads engine cache facts from LM Warden into `leanprompt.yaml`.
 - `eval-audit`: scores an audit's findings against the seeded example cases.
 - The target profile, `leanprompt.yaml` (target, engine, priority, ignore list).
@@ -38,6 +38,16 @@ The first release.
 - Per-assistant forms generated from one source and checked in CI; a Claude Code plugin marketplace in `.claude-plugin/`.
 - `npm run check:numbers`: every number with a unit in the README, the public docs and the skills cites an evidence row or a measured result.
 - Apache-2.0 for code, CC BY 4.0 for the skills and docs; README, CONTRIBUTING, GOVERNANCE and SECURITY (the last three under `.github/`).
+
+## 0.1.0-dev.6 – 2026-11-26
+
+The audit's HTML page is now written for the person who reads it, not for the tool.
+
+- **Findings explain themselves.** `.leanprompt/findings.json` takes optional plain-text fields per finding: `problem`, `change`, `why`, `estimate`, `assumptions` and `verify` (each at most 600 characters), plus `tokens_per_1k` (the tokens a finding loses per 1,000 calls, split into `prompt`, `uncached` and `output`, with `measured_calls` when measured), `model`, and a top-level `average_call`. Older files stay valid. The `llm-call-audit` skill writes them for every finding; `presenting.md` and `report-template.md` say how.
+- **`report --html`, top to bottom:** a plain-English headline (how many places the app pays for tokens it doesn't need, the biggest first, the total labelled as an estimate from the code or as measured), what the findings cost, one card per finding (problem, change, why, estimate, assumptions, how to check the fix, file:line, and a link to the rule), open questions with what to confirm, a "Fix it with your coding agent" block to paste into Claude Code, Codex, Cursor or any coding assistant (self-contained instructions and the findings list) with a Copy button, then the score card with one line on what it means. The page stays self-contained: one small inline script for the Copy buttons, and the text is selectable without it.
+- **What this costs you.** `leanprompt.yaml` takes an optional `volume: {calls_per_month}` (per `targets` entry when there are several), `prices:` per model (input, cached input, cache write, output per million tokens, each price with a `source` and a `checked` date), and `engine.prefill_tokens_per_second` for self-hosted engines. With them the page shows what the findings cost a month, what fixing them saves and, with an average call, the share of the bill; self-hosted, GPU prefill hours a month and the first-token time a finding adds. Every input is shown next to the result. Without them the page shows tokens per 1,000 calls and what to add; it never invents a volume or a price. Money is not part of the score.
+- **If this helped.** Only after the page has shown an estimate or a measured score: a star link, a short, plain message to send a colleague, and the README badge with its raw URL filled in from `git remote get-url origin` and the current branch (local git calls only) for GitHub, GitLab.com and Bitbucket remotes. For other hosts or no remote the page says the badge needs a public repository and shows no snippet; when `score.json` is not committed it says to commit it first.
+- Findings on the page and in the report are ranked by their token numbers when they have them, largest first.
 
 ## 0.1.0-dev.5 – 2026-11-26
 

@@ -11,6 +11,25 @@ export interface EngineFacts {
   match_unit_tokens?: number;
   speculative?: boolean;
   kv_memory_gb?: number;
+  /** Measured prefill throughput of the engine, for the GPU time a finding costs. */
+  prefill_tokens_per_second?: number;
+}
+
+/** How many calls the app (or one backend) makes a month; `source` says where the number came from. */
+export interface Volume {
+  calls_per_month: number;
+  source?: string;
+}
+
+/** Prices for one model, in US dollars per 1M tokens, with where they came from and when they were checked. */
+export interface Price {
+  input: number;
+  output: number;
+  cached_input?: number;
+  cache_write?: number;
+  source: string;
+  /** YYYY-MM-DD */
+  checked: string;
 }
 
 /** One backend: a hosted provider or a self-hosted engine (exactly one in a `targets` entry). */
@@ -23,6 +42,8 @@ export interface Target {
   files?: string[];
   /** `targets` engine entries only: this engine's cache facts, in place of the top-level `engine:`. */
   engine_facts?: EngineFacts;
+  /** `targets` entries only: this backend's monthly call volume. */
+  volume?: Volume;
 }
 
 export interface Profile {
@@ -33,12 +54,18 @@ export interface Profile {
   engine?: EngineFacts;
   priority: { cost: number; speed: number; quality: number };
   ignore?: { rule: string; file: string }[];
+  /** Calls a month, for the money estimate. With `targets`, each entry carries its own instead. */
+  volume?: Volume;
+  /** Model name -> price, for the money estimate. */
+  prices?: Record<string, Price>;
 }
 
-const KEYS = ["target", "targets", "engine", "priority", "ignore"];
+const KEYS = ["target", "targets", "engine", "priority", "ignore", "volume", "prices"];
 const TARGET_KEYS = ["provider", "engine", "model_family", "context_tokens"];
-const TARGETS_ENTRY_KEYS = [...TARGET_KEYS, "files", "engine_facts"];
-const ENGINE_KEYS = ["block_tokens", "match_unit_tokens", "speculative", "kv_memory_gb"];
+const TARGETS_ENTRY_KEYS = [...TARGET_KEYS, "files", "engine_facts", "volume"];
+const ENGINE_KEYS = ["block_tokens", "match_unit_tokens", "speculative", "kv_memory_gb", "prefill_tokens_per_second"];
+const PRICE_KEYS = ["input", "output", "cached_input", "cache_write", "source", "checked"];
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const PRIORITIES = ["cost", "speed", "quality"] as const;
 
 const isMap = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
@@ -79,7 +106,68 @@ function parseEngineFacts(raw: unknown, at: string, errors: string[]): EngineFac
   }
   if (e.speculative !== undefined) typeof e.speculative === "boolean" ? (engine.speculative = e.speculative) : errors.push(`${at}.speculative must be true or false`);
   if (e.kv_memory_gb !== undefined) isNum(e.kv_memory_gb) && e.kv_memory_gb > 0 ? (engine.kv_memory_gb = e.kv_memory_gb) : errors.push(`${at}.kv_memory_gb must be a positive number`);
+  if (e.prefill_tokens_per_second !== undefined) {
+    isNum(e.prefill_tokens_per_second) && e.prefill_tokens_per_second > 0
+      ? (engine.prefill_tokens_per_second = e.prefill_tokens_per_second)
+      : errors.push(`${at}.prefill_tokens_per_second must be a positive number`);
+  }
   return engine;
+}
+
+function parseVolume(raw: unknown, at: string, errors: string[]): Volume | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  if (!isMap(raw)) return void errors.push(`${at} must be a mapping: {calls_per_month: N}`);
+  unknownKeys(raw, ["calls_per_month", "source"], `${at}.`, errors);
+  if (!isPosInt(raw.calls_per_month)) return void errors.push(`${at}.calls_per_month must be a positive integer`);
+  const v: Volume = { calls_per_month: raw.calls_per_month };
+  if (raw.source !== undefined) isStr(raw.source) ? (v.source = raw.source) : errors.push(`${at}.source must be a string`);
+  return v;
+}
+
+/** A YAML date may arrive as a string or, under some schemas, a Date. */
+const dateText = (v: unknown): string | undefined =>
+  v instanceof Date && !Number.isNaN(v.getTime()) ? v.toISOString().slice(0, 10) : typeof v === "string" && DATE.test(v) ? v : undefined;
+
+function parsePrices(raw: unknown, errors: string[]): Record<string, Price> | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  if (!isMap(raw)) return void errors.push("prices must be a mapping of model name to price");
+  const out: Record<string, Price> = {};
+  for (const [model, p] of Object.entries(raw)) {
+    const at = `prices.${model}`;
+    if (!isMap(p)) {
+      errors.push(`${at} must be a mapping`);
+      continue;
+    }
+    unknownKeys(p, PRICE_KEYS, `${at}.`, errors);
+    let ok = true;
+    const price = { source: "", checked: "" } as Price;
+    for (const k of ["input", "output", "cached_input", "cache_write"] as const) {
+      const v = p[k];
+      if (v === undefined) {
+        if (k === "input" || k === "output") {
+          errors.push(`${at}.${k} is required (US dollars per 1M tokens)`);
+          ok = false;
+        }
+      } else if (isNum(v) && v >= 0) price[k] = v;
+      else {
+        errors.push(`${at}.${k} must be a number >= 0 (US dollars per 1M tokens)`);
+        ok = false;
+      }
+    }
+    if (isStr(p.source)) price.source = p.source;
+    else {
+      errors.push(`${at}.source is required: the pricing page's URL, or where your own price comes from`);
+      ok = false;
+    }
+    const checked = dateText(p.checked);
+    if (checked) price.checked = checked;
+    else {
+      errors.push(`${at}.checked is required: the date the price was read, as YYYY-MM-DD`);
+      ok = false;
+    }
+    if (ok) out[model] = price;
+  }
+  return out;
 }
 
 function parsePriority(raw: unknown, errors: string[]): Profile["priority"] {
@@ -159,6 +247,8 @@ export function parseProfile(text: string): { profile?: Profile; errors: string[
             if (f) entry.engine_facts = f;
           }
         }
+        const vol = parseVolume(raw.volume, `${at}.volume`, errors);
+        if (vol) entry.volume = vol;
         targets!.push(entry);
       });
     }
@@ -167,6 +257,11 @@ export function parseProfile(text: string): { profile?: Profile; errors: string[
   const engine = parseEngineFacts(doc.engine, "engine", errors);
 
   const priority = parsePriority(doc.priority, errors);
+  const volume = parseVolume(doc.volume, "volume", errors);
+  const prices = parsePrices(doc.prices, errors);
+  if (doc.volume !== undefined && doc.volume !== null && doc.targets !== undefined && doc.targets !== null) {
+    errors.push("with targets, set volume on each targets entry, not at the top level");
+  }
 
   let ignore: Profile["ignore"];
   if (doc.ignore !== undefined && doc.ignore !== null) {
@@ -193,6 +288,8 @@ export function parseProfile(text: string): { profile?: Profile; errors: string[
   if (targets) profile.targets = targets;
   if (engine) profile.engine = engine;
   if (ignore) profile.ignore = ignore;
+  if (volume) profile.volume = volume;
+  if (prices) profile.prices = prices;
   return { profile, errors };
 }
 

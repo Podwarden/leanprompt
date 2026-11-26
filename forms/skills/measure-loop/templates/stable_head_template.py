@@ -37,4 +37,4 @@ def assert_stable_head(build, inputs, expect):
             break
     if bad:
         raise AssertionError("The stable head changed between the two inputs:\n- " + "\n- ".join(bad))
-# leanprompt:generated v0.1.0-dev.5 — managed by npx leanprompt init; local edits are replaced on update
+# leanprompt:generated v0.1.0-dev.6 — managed by npx leanprompt init; local edits are replaced on update
