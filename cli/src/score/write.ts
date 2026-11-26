@@ -15,9 +15,10 @@ export type Kind = "measured" | "static";
 export const PACKAGE_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 const VERSION: string = (JSON.parse(readFileSync(join(PACKAGE_ROOT, "package.json"), "utf8")) as { version: string }).version;
 
-export const USAGE_FILE = join(".leanprompt", "usage.jsonl");
-export const FINDINGS_FILE = join(".leanprompt", "findings.json");
-export const WEIGHTS_FILE = join(".leanprompt", "weights.json");
+// Display names: always "/" (join() still makes native paths where a file is opened).
+export const USAGE_FILE = ".leanprompt/usage.jsonl";
+export const FINDINGS_FILE = ".leanprompt/findings.json";
+export const WEIGHTS_FILE = ".leanprompt/weights.json";
 const SCORE_FILE = join(".leanprompt", "score.json");
 
 /** shields.io colour for a score. Static scores are estimates from an audit, so they are always grey. */

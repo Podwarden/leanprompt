@@ -263,7 +263,7 @@ export async function initCommand(args: string[]): Promise<number> {
   const r = init({ dir, assistant: values.assistant as Assistant | undefined, global: values.global === true });
   const home = resolve(homedir());
   const base = values.global ? home : dir;
-  const show = (p: string) => (values.global ? "~/" : "") + relative(base, p);
+  const show = (p: string) => (values.global ? "~/" : "") + relative(base, p).split(sep).join("/");
   const out = (s: string) => process.stdout.write(s + "\n");
 
   out("Detected:");

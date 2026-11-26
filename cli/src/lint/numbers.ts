@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join, relative } from "node:path";
 import { isMain } from "../isMain.js";
-import { loadEvidenceIds, type LintIssue } from "./rules.js";
+import { loadEvidenceIds, posix, type LintIssue } from "./rules.js";
 
 /** The fields of an `eval/results/*.json` file this check reads (the full type is eval/run.ts `ResultFile`). */
 export interface ResultFile {
@@ -139,7 +139,7 @@ export function checkNumbersInRepo(root: string): LintIssue[] {
   const issues: LintIssue[] = [];
   if (!existsSync(join(root, "README.md"))) issues.push({ file: "README.md", level: "error", msg: "missing README.md" });
   for (const f of files) {
-    const rel = relative(root, f) || basename(f);
+    const rel = posix(relative(root, f)) || basename(f);
     for (const i of checkNumbers(readFileSync(f, "utf8"), results, evidence)) issues.push({ ...i, file: rel });
   }
   return issues;

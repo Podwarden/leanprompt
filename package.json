@@ -17,6 +17,7 @@
     "lint:rules": "tsx cli/src/lint/rules.ts",
     "lint:facts": "tsx cli/src/lint/facts.ts",
     "build:forms": "tsx scripts/build-forms.ts",
+    "build:diffs": "tsx scripts/readme-diffs.ts",
     "check:numbers": "tsx cli/src/lint/numbers.ts"
   },
   "dependencies": {

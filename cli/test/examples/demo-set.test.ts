@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import { mkdtempSync, readdirSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,6 +9,7 @@ import { parseUsageLog } from "../../src/log/record.js";
 import { dialectFor, stepClock } from "../../../examples/common.js";
 import { isLong } from "../../../examples/timeout-retry/data.js";
 import type { CreateApp } from "../../../examples/types.js";
+import { exampleDiff } from "../../../scripts/unified-diff.js";
 
 const ROOT = join(import.meta.dirname, "..", "..", "..");
 const APPS = ["dated-chat", "dict-tools-agent", "timeout-retry"] as const;
@@ -220,17 +220,11 @@ describe("demo set: timeout-retry", () => {
 
 describe("demo set: the README diff is the real diff", () => {
   for (const app of APPS) {
-    // diff(1) is not on a stock Windows PATH.
-    it.skipIf(process.platform === "win32")(`${app}: the diff block in its README matches diff -U1 of before/app.ts and after/app.ts`, () => {
+    it(`${app}: the diff block in its README is the diff of before/app.ts and after/app.ts`, () => {
       const dir = join(ROOT, "examples", app);
-      let actual = "";
-      try {
-        execFileSync("diff", ["-U1", join("before", "app.ts"), join("after", "app.ts")], { cwd: dir, encoding: "utf8" });
-      } catch (e) {
-        actual = (e as { stdout: string }).stdout; // diff exits 1 when the files differ
-      }
+      const actual = exampleDiff(dir);
       const body = (s: string): string[] => s.split("\n").filter((l) => !/^(---|\+\+\+) /.test(l) && l !== "");
-      const readme = readFileSync(join(dir, "README.md"), "utf8");
+      const readme = readFileSync(join(dir, "README.md"), "utf8").replace(/\r\n/g, "\n");
       const block = /```diff\n([\s\S]*?)```/.exec(readme)?.[1] ?? "";
       expect(block).not.toBe("");
       expect(body(block)).toEqual(body(actual));

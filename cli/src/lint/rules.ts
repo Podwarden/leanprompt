@@ -1,7 +1,10 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { parseDoc } from "../frontmatter.js";
 import { isMain } from "../isMain.js";
+
+/** A path for display: always "/" separators, whatever the OS. */
+export const posix = (p: string): string => p.split(sep).join("/");
 
 export interface LintIssue {
   file: string;
@@ -36,7 +39,7 @@ export function ruleFiles(root: string): string[] {
     if (!s.isDirectory() || s.name.startsWith("_")) continue;
     const dir = join(skills, s.name, "rules");
     if (!existsSync(dir)) continue;
-    for (const f of readdirSync(dir).sort()) if (f.endsWith(".md")) out.push(join("skills", s.name, "rules", f));
+    for (const f of readdirSync(dir).sort()) if (f.endsWith(".md")) out.push(posix(join("skills", s.name, "rules", f)));
   }
   return out;
 }

@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { CACHE_MODES } from "../facts.js";
 import { parseDoc } from "../frontmatter.js";
 import { isMain } from "../isMain.js";
-import type { LintIssue } from "./rules.js";
+import { posix, type LintIssue } from "./rules.js";
 
 export const STALE_DAYS = 90;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -25,7 +25,7 @@ export function lintFacts(root: string, today: string): LintIssue[] {
   for (const [dir, kind] of [["providers", "provider"], ["models", "model"]] as const) {
     const p = join(root, dir);
     if (!existsSync(p)) continue;
-    for (const f of readdirSync(p).sort()) if (f.endsWith(".md")) tables.push({ file: join(dir, f), kind });
+    for (const f of readdirSync(p).sort()) if (f.endsWith(".md")) tables.push({ file: posix(join(dir, f)), kind });
   }
 
   for (const { file, kind } of tables) {
