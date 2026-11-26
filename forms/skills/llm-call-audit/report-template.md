@@ -110,4 +110,4 @@ Money is not part of the score.
 ````
 
 Write the numbers with their kind every time: "(estimate)" next to a figure from code, "(measured, N calls)" next to a figure from the usage log. A static score is never presented as measured, and money is shown only from the user's own volume and a price with its source and checked date; never invent either.
-<!-- leanprompt:generated v0.1.0-dev.10: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.11: written by npx leanprompt install; npx leanprompt update replaces local edits -->

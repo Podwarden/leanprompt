@@ -7,4 +7,4 @@ against the leanprompt rules, rank the findings by tokens lost, and write
 `leanprompt-report.md` and `.leanprompt/findings.json`. Do not edit code without asking.
 
 Focus, if given: $ARGUMENTS
-<!-- leanprompt:generated v0.1.0-dev.10: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.11: written by npx leanprompt install; npx leanprompt update replaces local edits -->

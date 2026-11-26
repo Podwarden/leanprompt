@@ -43,7 +43,7 @@ describe("identity and headline", () => {
     const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as { description: string; author: string };
     expect(pkg.description.startsWith(HEADLINE.replace(/\.$/, ""))).toBe(true);
     expect(pkg.author).toBe("The LM Warden Team");
-    for (const f of [".claude-plugin/plugin.json", ".claude-plugin/marketplace.json"]) {
+    for (const f of [".claude-plugin/plugin.json", ".claude-plugin/marketplace.json", "plugin/.claude-plugin/plugin.json", ".cursor-plugin/plugin.json"]) {
       const text = readFileSync(join(ROOT, f), "utf8");
       expect(text, f).toContain(HEADLINE.replace(/\.$/, ""));
       expect(text, f).toContain("LM Warden Team");

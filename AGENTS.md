@@ -4,8 +4,8 @@ This repo is leanprompt: skills for AI coding assistants that cut wasted prefill
 generation in LLM calls, plus a TypeScript CLI. Contributors:
 
 - `skills/`, `providers/`, `models/`, `docs/` are the source of truth. Edit them, never `forms/`.
-- `npm run build:forms` regenerates `forms/`, `.claude-plugin/` and the block below; CI runs
-  `npm run build:forms -- --check` and fails when they are stale.
+- `npm run build:forms` regenerates `forms/`, `plugin/`, `.claude-plugin/`, `.cursor-plugin/` and
+  the block below; CI runs `npm run build:forms -- --check` and fails when they are stale.
 - Provider facts (limits, prices, TTLs) live only in `providers/` and `models/`, each with a
   `checked:` date and a `source:`. Every number in the docs links to its source.
 - Commits carry a DCO sign-off (`git commit -s`).

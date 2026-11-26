@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve, posix } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
-import { buildForms, SKILLS, BLOCK_BEGIN, BLOCK_END } from "../src/forms.js";
+import { buildForms, SKILLS, BLOCK_BEGIN, BLOCK_END, BINARY_COPIES, ICON_PATH, ICON_SOURCE } from "../src/forms.js";
 import { parseDoc } from "../src/frontmatter.js";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -111,13 +111,69 @@ describe("buildForms", () => {
     for (const p of mk.plugins) for (const k of schema.claude_marketplace_json.plugin_entry_required) expect(p).toHaveProperty(k);
     for (const k of schema.claude_plugin_json.required) expect(pl).toHaveProperty(k);
     expect(mk.plugins[0].name).toBe(pl.name);
-    expect(mk.plugins[0].source).toBe("./");
+    expect(mk.plugins[0].source).toBe("./plugin");
+    expect(JSON.parse(built.get("plugin/.claude-plugin/plugin.json")!).name).toBe(pl.name);
     expect(pl.version).toBe(pkg.version);
     expect(pl.author).toEqual({ name: "LM Warden Team" });
     for (const n of [mk.name, pl.name]) {
       expect(n).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
       expect(n).not.toMatch(/^(claude|anthropic)-/);
     }
+  });
+
+  it("plugin/ holds only a manifest, an icon, a README, the licences and the shared skills form", () => {
+    const keys = [...built.keys()].filter((k) => k.startsWith("plugin/"));
+    for (const k of keys) {
+      const rest = k.slice("plugin/".length);
+      expect(
+        ["README.md", "LICENSE", "LICENSE-DOCS", "NOTICE", ".claude-plugin/plugin.json"].includes(rest) || rest.startsWith("skills/"),
+        k,
+      ).toBe(true);
+      if (rest.startsWith("skills/")) expect(built.get(k)).toBe(built.get(`forms/${rest}`));
+    }
+    for (const [k, v] of built) if (k.startsWith("forms/skills/")) expect(built.get(`plugin/${k.slice(6)}`)).toBe(v);
+    // Anthropic's directory: under 512 files, nothing over 256 KiB but images, no package.json.
+    expect(keys.length + BINARY_COPIES.length).toBeLessThan(512);
+    for (const k of keys) expect(Buffer.byteLength(built.get(k)!), k).toBeLessThanOrEqual(256 * 1024);
+    expect(keys.some((k) => k.endsWith("package.json"))).toBe(false);
+    const pl = JSON.parse(built.get("plugin/.claude-plugin/plugin.json")!);
+    expect(pl.version).toBe(pkg.version);
+    expect(pl.icon).toBe("./.claude-plugin/icon.png");
+    expect(BINARY_COPIES.map(([, d]) => d)).toContain(ICON_PATH);
+    expect(existsSync(join(ROOT, ICON_SOURCE))).toBe(true);
+  });
+
+  it("the plugin README has at least 40 words outside code and says what it runs, sends and fetches", () => {
+    const readme = built.get("plugin/README.md")!;
+    const prose = readme.replace(/```[\s\S]*?```/g, "");
+    expect(prose.split(/\s+/).filter(Boolean).length).toBeGreaterThanOrEqual(40);
+    expect(readme).toContain("## What it runs, sends and fetches");
+    expect(readme).toMatch(/runs no code on its own/);
+    expect(readme).toMatch(/Nothing is sent anywhere/);
+    expect(readme).toMatch(/npx leanprompt/);
+    expect(relLinks(readme)).toEqual([]);
+  });
+
+  it("the icon is a square PNG of 512 to 2048 px", () => {
+    const png = readFileSync(join(ROOT, ICON_SOURCE));
+    expect(png.subarray(1, 4).toString("ascii")).toBe("PNG");
+    const w = png.readUInt32BE(16);
+    const h = png.readUInt32BE(20);
+    expect(w).toBe(h);
+    expect(w).toBeGreaterThanOrEqual(512);
+    expect(w).toBeLessThanOrEqual(2048);
+  });
+
+  it("the Cursor manifest uses only fields in Cursor's schema and points at the shared skills", () => {
+    // Fields from github.com/cursor/plugins schemas/plugin.schema.json (additionalProperties: false).
+    const allowed = ["name", "displayName", "description", "version", "minClientVersions", "author", "publisher", "homepage", "repository", "license", "logo", "keywords", "category", "tags", "commands", "agents", "skills", "rules", "hooks", "variables", "mcpServers"];
+    const cur = JSON.parse(built.get(".cursor-plugin/plugin.json")!);
+    for (const k of Object.keys(cur)) expect(allowed, k).toContain(k);
+    expect(cur.name).toMatch(/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/);
+    expect(cur.version).toBe(pkg.version);
+    expect(cur.skills).toBe("./plugin/skills/");
+    expect(cur.logo).toBe(ICON_PATH);
+    for (const s of SKILLS) expect(built.has(`plugin/skills/${s}/SKILL.md`), s).toBe(true);
   });
 });
 
@@ -136,7 +192,7 @@ describe("build:forms --check", () => {
 
   function copy(): string {
     const d = mkdtempSync(join(tmpdir(), "lp-forms-"));
-    for (const p of ["package.json", "skills", "providers", "models", "runtimes", "docs"]) cpSync(join(ROOT, p), join(d, p), { recursive: true });
+    for (const p of ["package.json", "LICENSE", "LICENSE-DOCS", "NOTICE", "skills", "providers", "models", "runtimes", "docs"]) cpSync(join(ROOT, p), join(d, p), { recursive: true });
     return d;
   }
 
@@ -155,6 +211,18 @@ describe("build:forms --check", () => {
     expect(run(d, "--check").status).toBe(1);
     expect(run(d).status).toBe(0);
     expect(existsSync(join(d, "forms/skills/ghost.md"))).toBe(false);
+    // plugin/ is covered too: an edited copy, a stray file and a changed icon all fail the check.
+    writeFileSync(join(d, "plugin/skills/prefill-cache/SKILL.md"), "edited\n");
+    expect(run(d, "--check").stderr).toContain("plugin/skills/prefill-cache/SKILL.md");
+    expect(run(d).status).toBe(0);
+    writeFileSync(join(d, "plugin/stray.md"), "x");
+    expect(run(d, "--check").stderr).toContain("plugin/stray.md (stale)");
+    expect(run(d).status).toBe(0);
+    expect(existsSync(join(d, "plugin/stray.md"))).toBe(false);
+    writeFileSync(join(d, ICON_PATH), "not a png");
+    expect(run(d, "--check").stderr).toContain(ICON_PATH);
+    expect(run(d).status).toBe(0);
+    expect(run(d, "--check").status).toBe(0);
   }, 60_000);
 
   it("keeps user text around the block in AGENTS.md", () => {

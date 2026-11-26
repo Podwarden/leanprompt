@@ -64,6 +64,8 @@ describe("packaging smoke test", () => {
       expect(files.filter((f) => f.startsWith("forms/claude/") || f.startsWith("forms/agents/"))).toEqual([]);
       expect(files).toContain("cli/dist/log/logger.d.ts");
       expect(files).not.toContain("README.outline.md");
+      // The plugin folders are for the registries, read from GitHub; the npm package stays lean.
+      expect(files.filter((f) => f.startsWith("plugin/") || f.startsWith(".claude-plugin/") || f.startsWith(".cursor-plugin/") || f.startsWith("docs/"))).toEqual([]);
     },
     60_000,
   );

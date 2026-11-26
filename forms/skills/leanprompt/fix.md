@@ -12,4 +12,4 @@ These are the same hand-off rules as the "Fix it with your coding agent" block o
 6. **Record it.** When a fix is proved, set `"fixed": true` on its finding and run `npx leanprompt score` again.
 
 After the last finding, say what changed: fixed, skipped and ignored counts, and the new score with its kind.
-<!-- leanprompt:generated v0.1.0-dev.10: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.11: written by npx leanprompt install; npx leanprompt update replaces local edits -->

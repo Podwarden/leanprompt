@@ -20,7 +20,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npx --yes leanprompt@0.1.0-dev.10 score --static --github
+      - run: npx --yes leanprompt@0.1.0-dev.11 score --static --github
 ```
 
 Pin a version, so a new release cannot change a build without a commit.

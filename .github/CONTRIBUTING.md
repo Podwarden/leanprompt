@@ -4,7 +4,7 @@ Issues and pull requests are welcome. leanprompt is maintained by the LM Warden 
 
 ## What to edit
 
-- `skills/`, `providers/`, `models/`, `runtimes/` and `docs/` are the source of truth. Never edit `forms/`, `.claude-plugin/` or the generated block in `AGENTS.md` by hand: `npm run build:forms` regenerates them, and CI fails when they are stale.
+- `skills/`, `providers/`, `models/`, `runtimes/` and `docs/` are the source of truth. Never edit `forms/`, `plugin/` (except its icon, copied from `docs/assets/icon.png`), `.claude-plugin/`, `.cursor-plugin/` or the generated block in `AGENTS.md` by hand: `npm run build:forms` regenerates them, and CI fails when they are stale.
 - Provider facts (limits, minimums, prices, cache lifetimes) live only in `providers/<name>.md` and `models/<family>.md`, each with a `checked: YYYY-MM-DD` date and a `source:` link. Defaults of HTTP clients and runtimes (timeouts) live in `runtimes/<name>.md` the same way, with a source URL on every table row. Rules link to those pages instead of repeating the facts. CI warns when an entry is older than 90 days.
 - Keep the tone of [docs/DESIGN.md](../docs/DESIGN.md) section 10: neutral about providers, no hype, no "up to" figures, no exclamation marks.
 
@@ -30,7 +30,7 @@ Node 20.19 or newer:
 npm ci
 npm run lint:rules          # rule frontmatter, sections, evidence ids
 npm run lint:facts          # provider and model tables
-npm run build:forms         # regenerate forms/, .claude-plugin/ and the AGENTS.md block
+npm run build:forms         # regenerate forms/, plugin/, .claude-plugin/, .cursor-plugin/ and the AGENTS.md block
 npm run build:forms -- --check
 npm run check:numbers
 npm run typecheck

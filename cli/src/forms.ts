@@ -26,8 +26,8 @@ This repo is leanprompt: skills that get more from every LLM call an app makes (
 prompts, no dead weight, no wasted output, faster first tokens), plus a TypeScript CLI. Contributors:
 
 - \`skills/\`, \`providers/\`, \`models/\`, \`runtimes/\`, \`docs/\` are the source of truth. Edit them, never \`forms/\`.
-- \`npm run build:forms\` regenerates \`forms/\`, \`.claude-plugin/\` and the block below; CI runs
-  \`npm run build:forms -- --check\` and fails when they are stale.
+- \`npm run build:forms\` regenerates \`forms/\`, \`plugin/\`, \`.claude-plugin/\`, \`.cursor-plugin/\` and
+  the block below; CI runs \`npm run build:forms -- --check\` and fails when they are stale.
 - Provider facts (limits, prices, TTLs) live only in \`providers/\` and \`models/\`, and HTTP client
   defaults in \`runtimes/\`, each with a \`checked:\` date and a \`source:\`. Every number in the docs links to its source.
 - Commits carry a DCO sign-off (\`git commit -s\`).
@@ -133,6 +133,71 @@ export function spliceBlock(existing: string | null, block: string): string {
   return text.slice(0, i) + b + text.slice(j + BLOCK_END.length);
 }
 
+const KEYWORDS = ["llm", "prompt-caching", "prompt-cache", "tokens", "cost", "latency", "skills"];
+
+/** The plugin icon: rendered from docs/assets/icon.svg, copied byte for byte by build:forms. */
+export const ICON_SOURCE = "docs/assets/icon.png";
+export const ICON_PATH = "plugin/.claude-plugin/icon.png";
+/** Binary files build:forms copies unchanged: [source, destination], repo-relative. */
+export const BINARY_COPIES: ReadonlyArray<readonly [string, string]> = [[ICON_SOURCE, ICON_PATH]];
+/** Generated trees whose files build:forms owns; anything else in them is stale. */
+export const GENERATED_DIRS = ["forms", "plugin"] as const;
+
+function pluginReadme(version: string): string {
+  return [
+    "# leanprompt",
+    "",
+    "**Get more from every LLM call your app makes.**",
+    "",
+    "leanprompt is a set of skills for your coding assistant, by the LM Warden Team. They help the assistant",
+    "find the places where the app you are building pays for the same tokens twice, and fix them without",
+    "changing the answers: prompts the provider's cache can reuse, no dead weight in what each call sends,",
+    "no wasted output, faster first tokens. Every fix says how to prove it with a before and after number.",
+    "",
+    "## Install",
+    "",
+    "In Claude Code (2.1.275 or later), inside a session:",
+    "",
+    "```",
+    "/plugin install leanprompt --marketplace Podwarden/leanprompt",
+    "```",
+    "",
+    "On older versions: `/plugin marketplace add Podwarden/leanprompt`, then `/plugin install leanprompt@leanprompt`.",
+    "",
+    "## Use",
+    "",
+    "Type `/leanprompt` to list the commands, then start with `/leanprompt init` and `/leanprompt audit`.",
+    "If another command already has that name, the full name is `/leanprompt:leanprompt`.",
+    "",
+    "| Skill | What it is for |",
+    "|---|---|",
+    ...SKILLS.map((s) => `| \`${s}\` | ${BLURB[s]} |`),
+    "",
+    "## What it runs, sends and fetches",
+    "",
+    "- The plugin is instructions only: Markdown skills and two small test templates. It has no hooks, no MCP",
+    "  servers and no executables, and it runs no code on its own.",
+    "- Nothing is sent anywhere. The skills ask before editing code, installing a package, or running anything",
+    "  that sends billed requests to a model provider.",
+    "- The command line tool is optional. Some commands (`score`, `report`, `calibrate`, `lesson`) run it as",
+    "  `npx leanprompt <command>`: npx downloads the `leanprompt` package from npm and runs it on your machine,",
+    "  where it reads and writes files in your project and makes no network calls. Only `profile detect",
+    "  --lmwarden <url>` reads from a server: the LM Warden server you name, for its engine facts.",
+    "- Links to provider tables and docs open pages on GitHub; the skills do not fetch them on their own.",
+    "",
+    "## More",
+    "",
+    `Source, documentation and other assistants (Codex, Cursor, OpenCode): ${REPO}. This folder is generated`,
+    `from that repository for version ${version}.`,
+    "",
+    "## Licence",
+    "",
+    "The skills and this README are licensed under CC BY 4.0 (LICENSE-DOCS); code is licensed under",
+    "Apache-2.0 (LICENSE). See NOTICE.",
+    "",
+  ].join("\n");
+}
+
 function json(v: unknown): string {
   return JSON.stringify(v, null, 2) + "\n";
 }
@@ -201,6 +266,7 @@ export function buildForms(root: string): Map<string, string> {
       homepage: REPO,
       repository: REPO,
       license: "Apache-2.0 AND CC-BY-4.0",
+      icon: `./${ICON_PATH}`,
     }),
   );
   out.set(
@@ -209,17 +275,61 @@ export function buildForms(root: string): Map<string, string> {
       name: "leanprompt",
       owner: { name: "LM Warden Team" },
       metadata: { description: pkg.description },
-      plugins: [{ name: "leanprompt", source: "./", description: pkg.description }],
+      plugins: [{ name: "leanprompt", source: "./plugin", description: pkg.description }],
+    }),
+  );
+
+  // plugin/: the small folder submitted to Anthropic's plugin directory and installed by the
+  // marketplace above. Only a manifest, a README, the licences and the shared skills form.
+  for (const [path, text] of [...out]) {
+    if (path.startsWith("forms/skills/")) out.set(`plugin/${path.slice("forms/".length)}`, text);
+  }
+  out.set(
+    "plugin/.claude-plugin/plugin.json",
+    json({
+      name: "leanprompt",
+      description: pkg.description,
+      version,
+      author: { name: "LM Warden Team" },
+      homepage: REPO,
+      repository: REPO,
+      license: "Apache-2.0 AND CC-BY-4.0",
+      keywords: KEYWORDS,
+      icon: "./.claude-plugin/icon.png",
+    }),
+  );
+  out.set("plugin/README.md", pluginReadme(version));
+  for (const f of ["LICENSE", "LICENSE-DOCS", "NOTICE"]) out.set(`plugin/${f}`, lf(readFileSync(join(root, f), "utf8")));
+
+  // Cursor reads .cursor-plugin/plugin.json at the repository root; `skills` points it at the
+  // same self-contained skills (links outside the skills tree are pinned GitHub URLs).
+  out.set(
+    ".cursor-plugin/plugin.json",
+    json({
+      name: "leanprompt",
+      displayName: "leanprompt",
+      description: pkg.description,
+      version,
+      author: { name: "LM Warden Team" },
+      homepage: REPO,
+      repository: REPO,
+      license: "Apache-2.0 AND CC-BY-4.0",
+      keywords: KEYWORDS,
+      logo: ICON_PATH,
+      skills: "./plugin/skills/",
     }),
   );
   return new Map([...out.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
 }
 
-/** Files under forms/ on disk that buildForms no longer produces. */
+/** Files under the generated trees (forms/, plugin/) on disk that buildForms no longer produces. */
 export function staleFiles(root: string, built: Map<string, string>): string[] {
-  const dir = join(root, "forms");
-  if (!existsSync(dir)) return [];
-  return listFiles(dir)
-    .map((f) => `forms/${f}`)
-    .filter((f) => !built.has(f));
+  const keep = new Set(BINARY_COPIES.map(([, dst]) => dst));
+  return GENERATED_DIRS.flatMap((d) => {
+    const dir = join(root, d);
+    if (!existsSync(dir)) return [];
+    return listFiles(dir)
+      .map((f) => `${d}/${f}`)
+      .filter((f) => !built.has(f) && !keep.has(f));
+  });
 }

@@ -37,9 +37,24 @@ The first release.
 
 ### Project
 
-- Per-assistant forms generated from one source and checked in CI; a Claude Code plugin marketplace in `.claude-plugin/`.
+- Per-assistant forms generated from one source and checked in CI; a Claude Code plugin marketplace in `.claude-plugin/` that installs the small `plugin/` folder, and a Cursor manifest in `.cursor-plugin/`.
 - `npm run check:numbers`: every number with a unit in the README, the public docs and the skills cites an evidence row or a measured result.
 - Apache-2.0 for code, CC BY 4.0 for the skills and docs; README, CONTRIBUTING, GOVERNANCE and SECURITY (the last three under `.github/`).
+
+## 0.1.0-dev.11 – 2026-11-26
+
+Ready for the plugin directories.
+
+### Added
+
+- **A small plugin folder, `plugin/`**, for Anthropic's plugin directory: `.claude-plugin/plugin.json`, an icon, a README that says what the plugin runs, sends and fetches, the licences (LICENSE, LICENSE-DOCS, NOTICE) and the seven skills, copied from the shared skills form. `npm run build:forms` writes it and `--check` fails when it is stale; it has 51 files and none over 256 KiB. This repository's marketplace now installs that folder (`"source": "./plugin"`), so `/plugin install leanprompt@leanprompt` gets the same files as the directory listing. `claude plugin validate --strict` passes on the repository root and on `plugin/`.
+- **An icon**: a lean gauge with its needle low, in the report page's graphite, indigo and white. The source is `docs/assets/icon.svg`; `docs/assets/icon.png` (1024 px) is copied to `plugin/.claude-plugin/icon.png`.
+- **A Cursor manifest**, `.cursor-plugin/plugin.json`, generated with the others; its `skills` field points Cursor at `plugin/skills/`, and its `logo` at the icon.
+
+### Changed
+
+- `docs/registries.md` is now a short runbook per registry for the owner: the page to open, the account, and what to paste.
+- The npm package is unchanged: `plugin/`, `.claude-plugin/` and `.cursor-plugin/` are not in it.
 
 ## 0.1.0-dev.10 – 2026-11-26
 
