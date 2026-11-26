@@ -406,3 +406,84 @@ describe.skipIf(isWin)("scripts/install.sh", () => {
     expect(r.stderr).toMatch(/node and npx are required/);
   });
 });
+
+describe("init, both claude and AGENTS.md present", () => {
+  it("auto-detect installs skills once, to .claude/skills, and still adds the AGENTS.md block", () => {
+    mkdirSync(join(dir, ".claude"));
+    put(join(dir, "AGENTS.md"), "mine\n");
+    const r = init({ dir });
+    expect(r.detected.map((d) => d.assistant).sort()).toEqual(["agents-md", "claude"]);
+    expect(existsSync(join(dir, ".claude/skills/llm-call-audit/SKILL.md"))).toBe(true);
+    expect(existsSync(join(dir, ".agents"))).toBe(false);
+    expect(rd(join(dir, "AGENTS.md"))).toContain(BLOCK_BEGIN);
+    expect(r.detected.find((d) => d.assistant === "agents-md")!.why).toContain(".claude/skills");
+  });
+
+  it("is idempotent in that case", () => {
+    mkdirSync(join(dir, ".claude"));
+    put(join(dir, "AGENTS.md"), "mine\n");
+    init({ dir });
+    const again = init({ dir });
+    expect(again.written).toEqual([]);
+    expect(again.updated).toEqual([]);
+  });
+
+  it("an explicit codex (.codex/ present) still gets .agents/skills next to .claude/skills", () => {
+    mkdirSync(join(dir, ".claude"));
+    mkdirSync(join(dir, ".codex"));
+    put(join(dir, "AGENTS.md"), "mine\n");
+    init({ dir });
+    expect(existsSync(join(dir, ".claude/skills/llm-call-audit/SKILL.md"))).toBe(true);
+    expect(existsSync(join(dir, ".agents/skills/llm-call-audit/SKILL.md"))).toBe(true);
+  });
+
+  it("--assistant agents-md forces .agents/skills even when claude is present", () => {
+    mkdirSync(join(dir, ".claude"));
+    init({ dir, assistant: "agents-md" });
+    expect(existsSync(join(dir, ".agents/skills/llm-call-audit/SKILL.md"))).toBe(true);
+    expect(existsSync(join(dir, ".claude/skills"))).toBe(false);
+  });
+
+  it("the command says which assistants were found and how to force another", async () => {
+    const out: string[] = [];
+    vi.spyOn(process.stdout, "write").mockImplementation((s) => (out.push(String(s)), true));
+    mkdirSync(join(dir, ".claude"));
+    put(join(dir, "AGENTS.md"), "mine\n");
+    expect(await main(["init", "--dir", dir])).toBe(0);
+    const text = out.join("");
+    expect(text).toContain("claude: found .claude/");
+    expect(text).toContain("agents-md: found AGENTS.md");
+    expect(text).toContain("--assistant");
+  });
+});
+
+describe("init --dry-run", () => {
+  it("lists what would be written and writes nothing", async () => {
+    const out: string[] = [];
+    vi.spyOn(process.stdout, "write").mockImplementation((s) => (out.push(String(s)), true));
+    mkdirSync(join(dir, ".claude"));
+    put(join(dir, "AGENTS.md"), "mine\n");
+    expect(await main(["init", "--dry-run", "--dir", dir])).toBe(0);
+    const text = out.join("");
+    expect(text).toContain("would write .claude/skills/llm-call-audit/SKILL.md");
+    expect(text).toContain("would update AGENTS.md");
+    expect(text).toContain("dry run");
+    expect(existsSync(join(dir, ".claude/skills"))).toBe(false);
+    expect(rd(join(dir, "AGENTS.md"))).toBe("mine\n");
+  });
+
+  it("reports skips (a user's own file, up to date) without touching anything", () => {
+    mkdirSync(join(dir, ".claude"));
+    init({ dir });
+    put(join(dir, ".claude/skills/llm-call-audit/SKILL.md"), "mine\n");
+    const r = init({ dir, dryRun: true });
+    expect(r.skippedWhy.some((s) => /not a leanprompt file/.test(s.reason))).toBe(true);
+    expect(rd(join(dir, ".claude/skills/llm-call-audit/SKILL.md"))).toBe("mine\n");
+  });
+
+  it("creates no directory in a fresh project", () => {
+    init({ dir, dryRun: true });
+    expect(existsSync(join(dir, ".agents"))).toBe(false);
+    expect(existsSync(join(dir, "AGENTS.md"))).toBe(false);
+  });
+});

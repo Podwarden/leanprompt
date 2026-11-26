@@ -4,6 +4,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import { optionsFor, usageLine, spec } from "../help.js";
 import { loadCacheFacts, type CacheFacts } from "../facts.js";
 import { loadRuleIds } from "../lint/rules.js";
 import { parseUsageLog, type UsageRecord } from "../log/record.js";
@@ -168,7 +169,8 @@ async function askStdin(question: string): Promise<boolean> {
   }
 }
 
-const USAGE_TEXT = "usage: leanprompt calibrate [--findings <findings.json>] [--usage <usage.jsonl>] [--synthetic] [--yes] [--dir <project>]\n";
+const USAGE_TEXT = `usage: ${usageLine(spec("calibrate"))}
+`;
 
 /** `leanprompt calibrate`: print before/after, ask, then write `.leanprompt/weights.json`. */
 export async function calibrateCommand(args: string[], io: CalibrateIo = {}): Promise<number> {
@@ -176,7 +178,7 @@ export async function calibrateCommand(args: string[], io: CalibrateIo = {}): Pr
   try {
     values = parseArgs({
       args,
-      options: { findings: { type: "string" }, usage: { type: "string" }, synthetic: { type: "boolean" }, yes: { type: "boolean" }, dir: { type: "string" } },
+      options: optionsFor("calibrate"),
       strict: true,
     }).values;
   } catch (e) {

@@ -63,21 +63,27 @@ describe("renderReport", () => {
     expect(() => render([], { kind: "measured" } as ScoreFile)).not.toThrow();
   });
 
-  it("groups by file, sorts high to low then line, marks fixed, shows rule id, title, line", () => {
+  const rowsOf = (html: string): string[] =>
+    [...html.matchAll(/<tr[^>]*><td><span class="sev[^"]*">(\w+)<\/span><\/td>.*?<td class="loc"><code>([^<]+)<\/code><\/td>/g)].map((m) => `${m[1]} ${m[2]}`);
+
+  it("ranks all findings in one table: open before fixed, severity, share, then file:line, and shows file:line", () => {
     const html = render([
       f({ file: "b.ts", line: 9, severity: "low", rule: "LP-GE-01" }),
       f({ file: "a.ts", line: 20, severity: "high" }),
       f({ file: "a.ts", line: 5, severity: "medium", rule: "LP-PC-02" }),
       f({ file: "a.ts", line: 1, severity: "high", fixed: true }),
-      f({ file: "a.ts", line: 2, severity: "high" }),
+      f({ file: "b.ts", line: 2, severity: "high", share: 0.4 }),
+      f({ file: "a.ts", line: 2, severity: "high", share: 0.1 }),
+      f({ file: "a.ts", line: 3, severity: "high", share: 0.4 }),
     ]);
-    expect(html.indexOf("<code>a.ts</code>")).toBeLessThan(html.indexOf("<code>b.ts</code>"));
-    const a = html.slice(html.indexOf("<code>a.ts</code>"), html.indexOf("<code>b.ts</code>"));
-    const lines = [...a.matchAll(/<td>(\d+)<\/td><td>(open|<span class="tag">fixed<\/span>)<\/td>/g)].map((m) => `${m[1]}${m[2]!.length > 4 ? "F" : ""}`);
-    expect(lines).toEqual(["2", "20", "5", "1F"]);
+    expect(rowsOf(html)).toEqual(["high a.ts:3", "high b.ts:2", "high a.ts:2", "high a.ts:20", "medium a.ts:5", "low b.ts:9", "high a.ts:1"]);
+    expect(html.match(/<table/g)).toHaveLength(1);
+    expect(html).not.toContain("<h3>");
     expect(html).toContain(rules.get("LP-PC-01")!.title);
-    expect(html).toContain("4 open, 1 fixed");
+    expect(html).toContain("6 open, 1 fixed");
   });
+
+  it("keeps a rule id on one line", () => expect(render()).toMatch(/td\.rule|class="rule"/));
 
   it("reports the ignored count", () => expect(render([f()], staticScore, { ignored: 4 })).toContain("4 ignored by the profile"));
 

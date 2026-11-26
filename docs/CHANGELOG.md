@@ -39,6 +39,16 @@ The first release.
 - `npm run check:numbers`: every number with a unit in the README, the public docs and the skills cites an evidence row or a measured result.
 - Apache-2.0 for code, CC BY 4.0 for the skills and docs; README, CONTRIBUTING, GOVERNANCE and SECURITY (the last three under `.github/`).
 
+## 0.1.0-dev.3 – 2026-11-26
+
+CLI fixes from the first audit of a real project ([#4](https://github.com/Podwarden/leanprompt/issues/4); the design items there stay open).
+
+- `leanprompt --help`, `leanprompt help` and `leanprompt <command> --help` print the flags each command accepts, and exit 0. The help and the argument parsers read one table of command specs, so they cannot drift. An unknown command still exits 2 and now points at `--help`.
+- `init` with auto-detect no longer installs the skills twice. When Claude Code is detected, the skills go to `.claude/skills` only, and an `AGENTS.md` that is present gets the block pointing at them (OpenCode reads `.claude/skills` too). `.agents/skills` is installed when Codex is detected or asked for, when Claude Code is absent, or with `--assistant agents-md`. `init` prints why each assistant was detected and how to name another.
+- `init --dry-run` lists what would be written, updated or skipped, and writes nothing.
+- `report --html` lists the findings in one table ranked by severity, then estimated share of tokens lost (when the finding has a `share`), then file and line; each row shows `file:line`. Rule ids no longer wrap on a phone.
+- `lesson` exits 2 when there is no measured score and no `--rule`, and says what is missing: a measured before and after, or a rule that misled you. `--rule <id>` still works after a static score.
+
 ## 0.1.0-dev.2 – 2026-11-26
 
 Fixes from the first audit of a real project ([#1](https://github.com/Podwarden/leanprompt/issues/1), [#2](https://github.com/Podwarden/leanprompt/issues/2), [#3](https://github.com/Podwarden/leanprompt/issues/3)).

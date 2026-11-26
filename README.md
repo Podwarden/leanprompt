@@ -60,14 +60,16 @@ Five skills, each a folder with a `SKILL.md` and one file per rule:
 
 ## Commands
 
+`leanprompt --help` lists them; `leanprompt <command> --help` lists a command's options.
+
 | Command | What it does |
 |---|---|
-| `leanprompt init` | Installs the skills for the assistants the project uses ([docs/install.md](docs/install.md)) |
+| `leanprompt init` | Installs the skills for the assistants the project uses; `--dry-run` previews ([docs/install.md](docs/install.md)) |
 | `leanprompt score` | Writes `.leanprompt/score.json`, measured or static ([docs/score.md](docs/score.md)) |
 | `leanprompt calibrate` | Fits the static score's weights to your app from a trial run ([docs/calibration.md](docs/calibration.md)) |
-| `leanprompt report --html` | Writes the findings and the score to `.leanprompt/report.html` |
+| `leanprompt report --html` | Writes the findings, ranked by severity, and the score to `.leanprompt/report.html` |
 | `leanprompt profile detect --lmwarden <url>` | Reads engine cache facts from LM Warden into `leanprompt.yaml` ([docs/profile.md](docs/profile.md)) |
-| `leanprompt lesson` | Drafts a lesson-learned issue on your machine; sends nothing |
+| `leanprompt lesson` | Drafts a lesson-learned issue on your machine (needs a measured score or `--rule <id>`); sends nothing |
 | `leanprompt eval-audit` | Scores an audit's findings against the seeded example cases |
 
 ## Learn more

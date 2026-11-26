@@ -2,6 +2,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import { optionsFor } from "./help.js";
 import { loadRuleIds } from "./lint/rules.js";
 import { parseFindings, type Finding } from "./score/static.js";
 import { PACKAGE_ROOT } from "./score/write.js";
@@ -108,7 +109,7 @@ export async function evalAuditCommand(args: string[]): Promise<number> {
   };
   let parsed: { values: { form?: string }; positionals: string[] };
   try {
-    parsed = parseArgs({ args, options: { form: { type: "string" } }, allowPositionals: true, strict: true });
+    parsed = parseArgs({ args, options: optionsFor("eval-audit"), allowPositionals: true, strict: true });
   } catch (e) {
     return fail((e as Error).message);
   }

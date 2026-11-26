@@ -2,6 +2,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { isMap, parseDocument } from "yaml";
+import { optionsFor } from "./help.js";
 import { parseProfile, type Profile } from "./profile.js";
 
 const USAGE = "usage: leanprompt profile detect --lmwarden <url> [--token-env LMWARDEN_API_KEY] [--model <name>]\n";
@@ -71,7 +72,7 @@ export async function detectCommand(args: string[], deps: DetectDeps = {}): Prom
   };
   let values: { lmwarden?: string; "token-env"?: string; model?: string };
   try {
-    values = parseArgs({ args, options: { lmwarden: { type: "string" }, "token-env": { type: "string" }, model: { type: "string" } }, strict: true }).values;
+    values = parseArgs({ args, options: optionsFor("profile detect"), strict: true }).values;
   } catch (e) {
     // Never echo a bare value: it may be a key pasted in the wrong place.
     let msg = (e as Error).message;

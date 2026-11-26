@@ -80,7 +80,25 @@ describe("scanLesson", () => {
 
 describe("leanprompt lesson", () => {
   it("is registered in the CLI", async () => {
+    lp("score.json", score());
     expect(await main(["lesson", "--dir", dir])).toBe(0);
+  });
+
+  it("refuses with exit 2 and says what is missing when there is no score and no --rule", async () => {
+    expect(await main(["lesson", "--dir", dir])).toBe(2);
+    expect(err).toMatch(/no score yet/);
+    expect(err).toMatch(/measured before and after/);
+    expect(err).toMatch(/--rule/);
+    expect(existsSync(join(dir, ".leanprompt", "lesson.md"))).toBe(false);
+  });
+
+  it("refuses after a static score alone, but --rule is still a valid lesson", async () => {
+    lp("score.json", score({ kind: "static", score: 53 }));
+    expect(await lessonCommand(["--dir", dir])).toBe(2);
+    expect(err).toMatch(/static, not measured|not measured/);
+    expect(existsSync(join(dir, ".leanprompt", "lesson.md"))).toBe(false);
+    expect(await lessonCommand(["--rule", "LP-PC-03", "--dir", dir])).toBe(0);
+    expect(draft()).toContain("LP-PC-03");
   });
 
   it("writes a draft with rule, target, current score as after and the four empty sections", async () => {
@@ -98,9 +116,9 @@ describe("leanprompt lesson", () => {
     for (const h of ["What changed", "Edge case (in general terms)", "Credit (optional): name", "Credit (optional): project and link"]) expect(t).toMatch(new RegExp(`^## ${h.replace(/[()]/g, "\\$&")}\\n(?:\\n(?=##)|\\s*$)`, "m"));
   });
 
-  it("prefers the engine over the provider and writes blanks without a score or profile", async () => {
+  it("prefers the engine over the provider and writes blanks without a score", async () => {
     writeFileSync(join(dir, "leanprompt.yaml"), "target:\n  engine: vllm\n");
-    expect(await lessonCommand(["--dir", dir])).toBe(0);
+    expect(await lessonCommand(["--rule", "LP-PC-03", "--dir", dir])).toBe(0);
     expect(draft()).toContain("vllm");
     expect(draft()).toMatch(/\| Score \| \s*\| \s*\|/);
   });
@@ -119,7 +137,7 @@ describe("leanprompt lesson", () => {
     expect(err).toContain("LP-XX-99");
     expect(existsSync(join(dir, ".leanprompt", "lesson.md"))).toBe(false);
     lp("bad.json", "{not json");
-    await expect(lessonCommand(["--before", join(dir, ".leanprompt", "bad.json"), "--dir", dir])).rejects.toThrow(/bad\.json/);
+    await expect(lessonCommand(["--rule", "LP-PC-03", "--before", join(dir, ".leanprompt", "bad.json"), "--dir", dir])).rejects.toThrow(/bad\.json/);
   });
 
   it("the draft has no path, code, model output or prompt text, and passes its own scan", async () => {
@@ -148,7 +166,7 @@ describe("leanprompt lesson", () => {
   });
 
   it("prints what it found and no link when the draft is not clean", async () => {
-    expect(await lessonCommand(["--dir", dir])).toBe(0);
+    expect(await lessonCommand(["--rule", "LP-PC-03", "--dir", dir])).toBe(0);
     const p = join(dir, ".leanprompt", "lesson.md");
     writeFileSync(p, `${draft()}\nI edited /Users/jane/app/prompt.ts and mailed jane@example.org with sk-abcdEFGH1234567890abcd\n`);
     out = "";
@@ -163,7 +181,7 @@ describe("leanprompt lesson", () => {
   });
 
   it("does not overwrite a draft the user is editing; it checks it", async () => {
-    await lessonCommand(["--dir", dir]);
+    await lessonCommand(["--rule", "LP-PC-03", "--dir", dir]);
     const p = join(dir, ".leanprompt", "lesson.md");
     writeFileSync(p, `${draft()}\nMy own words.\n`);
     out = "";

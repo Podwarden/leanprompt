@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import { optionsFor } from "./help.js";
 import { loadRuleIds } from "./lint/rules.js";
 import { loadProfile } from "./profile.js";
 import { PACKAGE_ROOT } from "./score/write.js";
@@ -163,7 +164,7 @@ const ruleOf = (text: string): string => /^Rule id:[ \t]*(LP-[A-Z]{2}-\d{2})\b/m
 export async function lessonCommand(args: string[]): Promise<number> {
   let values: { rule?: string; before?: string; dir?: string };
   try {
-    values = parseArgs({ args, options: { rule: { type: "string" }, before: { type: "string" }, dir: { type: "string" } }, strict: true }).values;
+    values = parseArgs({ args, options: optionsFor("lesson"), strict: true }).values;
   } catch (e) {
     process.stderr.write(`leanprompt: ${(e as Error).message}\n`);
     return 2;
@@ -184,6 +185,13 @@ export async function lessonCommand(args: string[]): Promise<number> {
     const profile = loadProfile(dir);
     const target = profile?.target.engine ?? profile?.target.provider ?? "";
     const after = readScore(join(dir, SCORE_FILE));
+    if (values.rule === undefined && after?.kind !== "measured") {
+      const have = after === null ? "there is no score yet" : `the score is ${after.kind ?? "of unknown kind"}, not measured`;
+      process.stderr.write(
+        `leanprompt lesson: nothing to share yet: ${have}, and no --rule was given. A lesson needs a measured before and after (run leanprompt score --measured after your fix) or a rule that misled you (leanprompt lesson --rule <id>).\n`,
+      );
+      return 2;
+    }
     const before = values.before === undefined ? null : readScore(resolve(values.before));
     if (values.before !== undefined && before === null) throw new Error(`${resolve(values.before)}: no such file`);
     text = buildDraft(values.rule ?? "", target, before, after);

@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import { optionsFor } from "./help.js";
 import { BLOCK_BEGIN, BLOCK_END, isGenerated, listFiles } from "./forms.js";
 
 export type Assistant = "claude" | "codex" | "opencode" | "cursor" | "agents-md";
@@ -12,6 +13,8 @@ export interface InitOptions {
   dir: string;
   assistant?: Assistant;
   global?: boolean;
+  /** Plan and report, write nothing. */
+  dryRun?: boolean;
   /** Home directory for `--global`; defaults to the user's. */
   home?: string;
 }
@@ -107,7 +110,7 @@ function readForm(sub: string): { rel: string; text: string }[] {
   return listFiles(root).map((rel) => ({ rel, text: readFileSync(join(root, rel), "utf8") }));
 }
 
-function targetsFor(assistant: Assistant, base: string, global: boolean, plan: Plan, notes: string[]): void {
+function targetsFor(assistant: Assistant, base: string, global: boolean, plan: Plan, notes: string[], skillsViaClaude: boolean): void {
   const put = (path: string, text: string) => plan.files.set(path, text);
   // One shared skills form serves both .claude/skills and .agents/skills.
   const skills = (dir: string) => {
@@ -124,7 +127,8 @@ function targetsFor(assistant: Assistant, base: string, global: boolean, plan: P
       addAgentsMd(global ? ".codex/AGENTS.md" : "AGENTS.md");
       break;
     case "agents-md":
-      skills(join(".agents", "skills"));
+      // With claude detected, the block points at .claude/skills; a second copy would show every skill twice.
+      if (!skillsViaClaude) skills(join(".agents", "skills"));
       addAgentsMd(global ? ".codex/AGENTS.md" : "AGENTS.md");
       break;
     case "opencode": {
@@ -176,10 +180,17 @@ export function init(o: InitOptions): InitResult {
   const base = global ? resolve(o.home ?? homedir()) : resolve(o.dir);
   const result: InitResult = { written: [], updated: [], skipped: [], skippedWhy: [], detected: [], notes: [] };
   result.detected = o.assistant ? [{ assistant: o.assistant, why: "--assistant" }] : detect(base, global);
+  // Auto-detect only: claude and an AGENTS.md reader share one copy, in .claude/skills (OpenCode reads it too).
+  // .agents/skills is for codex (detected or asked) or when claude is absent; --assistant agents-md forces it.
+  const skillsViaClaude = !o.assistant && result.detected.some((d) => d.assistant === "claude");
+  if (skillsViaClaude) {
+    const d = result.detected.find((x) => x.assistant === "agents-md");
+    if (d) d.why = `${d.why}; its block points at .claude/skills, so no second copy in .agents/skills`;
+  }
 
   const plan: Plan = { files: new Map(), agents: new Set() };
   for (const { assistant } of ASSISTANTS.map((a) => result.detected.find((d) => d.assistant === a)).filter((d) => d !== undefined)) {
-    targetsFor(assistant, base, global, plan, result.notes);
+    targetsFor(assistant, base, global, plan, result.notes, skillsViaClaude);
   }
 
   const skip = (path: string, reason: string) => {
@@ -205,8 +216,10 @@ export function init(o: InitOptions): InitResult {
       result.notes.push(`via symlink ${link} \u2192 ${realpathSync(link)}: ${path}`);
     }
     try {
-      mkdirSync(dirname(path), { recursive: true });
-      writeFileSync(path, content);
+      if (!o.dryRun) {
+        mkdirSync(dirname(path), { recursive: true });
+        writeFileSync(path, content);
+      }
     } catch (e) {
       return skip(path, `cannot write: ${(e as NodeJS.ErrnoException).code ?? (e as Error).message}`);
     }
@@ -244,13 +257,13 @@ function isLink(p: string): boolean {
 }
 
 export async function initCommand(args: string[]): Promise<number> {
-  let values;
+  let values: { assistant?: string; global?: boolean; "dry-run"?: boolean; dir?: string };
   try {
     values = parseArgs({
       args,
-      options: { assistant: { type: "string" }, global: { type: "boolean" }, dir: { type: "string" } },
+      options: optionsFor("init"),
       strict: true,
-    }).values;
+    }).values as typeof values;
   } catch (e) {
     process.stderr.write(`leanprompt: ${(e as Error).message}\n`);
     return 2;
@@ -260,21 +273,27 @@ export async function initCommand(args: string[]): Promise<number> {
     return 2;
   }
   const dir = resolve(values.dir ?? ".");
-  const r = init({ dir, assistant: values.assistant as Assistant | undefined, global: values.global === true });
+  const r = init({ dir, assistant: values.assistant as Assistant | undefined, global: values.global === true, dryRun: values["dry-run"] === true });
   const home = resolve(homedir());
   const base = values.global ? home : dir;
   const show = (p: string) => (values.global ? "~/" : "") + relative(base, p).split(sep).join("/");
   const out = (s: string) => process.stdout.write(s + "\n");
 
+  const dry = values["dry-run"] === true;
   out("Detected:");
   for (const d of r.detected) out(`  ${d.assistant}: ${d.why}`);
+  if (values.assistant === undefined) out(`  To install for another assistant instead, name it: leanprompt init --assistant <${ASSISTANTS.join("|")}>`);
   for (const n of r.notes) out(n);
-  for (const p of r.written) out(`  wrote ${show(p)}`);
-  for (const p of r.updated) out(`  updated ${show(p)}`);
+  for (const p of r.written) out(`  ${dry ? "would write" : "wrote"} ${show(p)}`);
+  for (const p of r.updated) out(`  ${dry ? "would update" : "updated"} ${show(p)}`);
   const skippedNew = r.skippedWhy.filter((s) => s.reason !== "already up to date");
   for (const s of skippedNew) out(`  skipped ${show(s.path)}: ${s.reason}`);
   const same = r.skippedWhy.length - skippedNew.length;
   if (same > 0) out(`  ${same} file${same === 1 ? "" : "s"} already up to date`);
+  if (dry) {
+    out("dry run: nothing was written");
+    return 0;
+  }
   out(CLOSING_LINE);
   return 0;
 }

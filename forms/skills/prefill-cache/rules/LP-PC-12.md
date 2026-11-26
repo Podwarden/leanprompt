@@ -18,8 +18,8 @@ Send requests that share a long prefix to the same model, the same provider rout
 A KV cache is computed by one model's weights, so two models never share one, and a cache lives with the provider (and the key, and on self-hosted servers the replica) that wrote it. Traffic that shares a prefix but is spread over several of them gives each part its own cold cache. This follows from how KV caches work; the cited pages document the key and routing behaviour. Not yet measured here.
 
 - Models: an A/B test assigned per request; a cheap model for some turns of a session and a large one for others; a fallback chain that moves a conversation on the first error.
-- Routes: a router load-balancing one model over several upstream providers. OpenRouter keeps a conversation with one provider only while that provider's cache is warm and the conditions in [providers/openrouter.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.2/providers/openrouter.md) hold; fallbacks are on by default.
-- Keys: OpenAI's `prompt_cache_key` routes requests that share it together ([providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.2/providers/openai.md)); a key unique per request, or per user when the prefix is per tenant, splits the group. On self-hosted servers a per-request `cache_salt` or session scope does the same.
+- Routes: a router load-balancing one model over several upstream providers. OpenRouter keeps a conversation with one provider only while that provider's cache is warm and the conditions in [providers/openrouter.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.3/providers/openrouter.md) hold; fallbacks are on by default.
+- Keys: OpenAI's `prompt_cache_key` routes requests that share it together ([providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.3/providers/openai.md)); a key unique per request, or per user when the prefix is per tenant, splits the group. On self-hosted servers a per-request `cache_salt` or session scope does the same.
 - Replicas of one self-hosted model: reuse needs the request to reach the replica that holds the prefix. That is engine-side routing, covered in the `lmwarden` skill.
 
 ## Detect in code
@@ -70,4 +70,4 @@ Pinning a route removes automatic fallbacks: keep error handling that moves the 
 
 ## Waste signal
 Measured: lowers E. kvsig says the prefix was seen before, the provider reports no read because the earlier request went to another model, route or key. Static: severity medium for a per-request model choice, per-request cache key or unpinned router on long sessions.
-<!-- leanprompt:generated v0.1.0-dev.2 — managed by npx leanprompt init; local edits are replaced on update -->
+<!-- leanprompt:generated v0.1.0-dev.3 — managed by npx leanprompt init; local edits are replaced on update -->

@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { parseDoc } from "../frontmatter.js";
+import { optionsFor } from "../help.js";
 import { REPO } from "../forms.js";
 import { loadRuleIds, ruleFiles } from "../lint/rules.js";
 import { loadProfile } from "../profile.js";
@@ -111,7 +112,20 @@ function findingRow(f: Finding, rules: Map<string, RuleInfo>, version: string): 
   const r = rules.get(f.rule);
   const id = r ? `<a href="${REPO}/blob/v${e(version)}/skills/${e(r.skill)}/rules/${e(f.rule)}.md">${e(f.rule)}</a>` : e(f.rule);
   const status = f.fixed ? `<span class="tag">fixed</span>` : "open";
-  return `<tr${f.fixed ? ` class="fixed"` : ""}><td><span class="sev sev-${f.severity}">${e(f.severity)}</span></td><td>${id}</td><td>${e(r?.title ?? "")}</td><td>${e(f.line)}</td><td>${status}</td></tr>`;
+  const share = f.share === undefined ? "" : `${Math.round(f.share * 100)}%`;
+  return `<tr${f.fixed ? ` class="fixed"` : ""}><td><span class="sev sev-${f.severity}">${e(f.severity)}</span></td><td class="rule">${id}</td><td>${e(r?.title ?? "")}</td><td class="loc"><code>${e(f.file)}:${e(f.line)}</code></td><td>${share}</td><td>${status}</td></tr>`;
+}
+
+/** Rank: open before fixed, severity high to low, estimated share of tokens lost (when given) high to low, then file:line. */
+export function rankFindings(findings: Finding[]): Finding[] {
+  return [...findings].sort(
+    (a, b) =>
+      Number(!!a.fixed) - Number(!!b.fixed) ||
+      SEV_ORDER[a.severity] - SEV_ORDER[b.severity] ||
+      (b.share ?? 0) - (a.share ?? 0) ||
+      (a.file < b.file ? -1 : a.file > b.file ? 1 : 0) ||
+      a.line - b.line,
+  );
 }
 
 function findingsSection(o: ReportInput, version: string): string {
@@ -119,18 +133,11 @@ function findingsSection(o: ReportInput, version: string): string {
   const fixed = o.findings.length - open;
   let html = `<section><h2>Findings</h2><p class="muted">${open} open, ${fixed} fixed`;
   if (o.ignored) html += `, ${o.ignored} ignored by the profile`;
-  html += `.</p>`;
+  html += `. Ranked by severity, then estimated share of tokens lost, then location.</p>`;
   if (o.findings.length === 0) return html + `</section>`;
-  const byFile = new Map<string, Finding[]>();
-  for (const f of o.findings) byFile.set(f.file, [...(byFile.get(f.file) ?? []), f]);
-  const cmp = (a: Finding, b: Finding): number =>
-    Number(!!a.fixed) - Number(!!b.fixed) || SEV_ORDER[a.severity] - SEV_ORDER[b.severity] || a.line - b.line;
-  for (const [file, list] of [...byFile].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
-    html += `<h3><code>${e(file)}</code></h3><div class="tablewrap"><table><thead><tr><th>Severity</th><th>Rule</th><th>Title</th><th>Line</th><th>Status</th></tr></thead><tbody>`;
-    html += list.sort(cmp).map((f) => findingRow(f, o.rules, version)).join("");
-    html += `</tbody></table></div>`;
-  }
-  return html + `</section>`;
+  html += `<div class="tablewrap"><table><thead><tr><th>Severity</th><th>Rule</th><th>Title</th><th>Where</th><th>Share</th><th>Status</th></tr></thead><tbody>`;
+  html += rankFindings(o.findings).map((f) => findingRow(f, o.rules, version)).join("");
+  return html + `</tbody></table></div></section>`;
 }
 
 /** One self-contained HTML document: inline CSS, no script, no network. */
@@ -161,7 +168,7 @@ function readScore(file: string): ScoreFile | null {
 export async function reportCommand(args: string[]): Promise<number> {
   let values: { html?: boolean; out?: string; dir?: string };
   try {
-    values = parseArgs({ args, options: { html: { type: "boolean" }, out: { type: "string" }, dir: { type: "string" } }, strict: true }).values;
+    values = parseArgs({ args, options: optionsFor("report"), strict: true }).values;
   } catch (err) {
     process.stderr.write(`leanprompt: ${(err as Error).message}\n`);
     return 2;

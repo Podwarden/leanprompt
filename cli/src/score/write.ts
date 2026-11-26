@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import { optionsFor } from "../help.js";
 import { loadCacheFacts } from "../facts.js";
 import { loadRuleIds } from "../lint/rules.js";
 import { parseUsageLog } from "../log/record.js";
@@ -79,7 +80,7 @@ export async function scoreCommand(args: string[]): Promise<number> {
   // parseArgs has no optional-value strings: give a bare flag an empty value, resolved below.
   const argv = args.map((a, i) => ((a === "--static" || a === "--measured") && (args[i + 1] === undefined || args[i + 1]!.startsWith("--")) ? `${a}=` : a));
   try {
-    values = parseArgs({ args: argv, options: { measured: { type: "string" }, static: { type: "string" }, dir: { type: "string" } }, strict: true }).values;
+    values = parseArgs({ args: argv, options: optionsFor("score"), strict: true }).values;
   } catch (e) {
     process.stderr.write(`leanprompt: ${(e as Error).message}\n`);
     return 2;
