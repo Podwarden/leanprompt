@@ -1,0 +1,92 @@
+import { fileURLToPath } from "node:url";
+import { describe, expect, it } from "vitest";
+import { loadRuleIds } from "../../src/lint/rules.js";
+import { parseFindings, staticScore, type Finding, type Weights } from "../../src/score/static.js";
+
+const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
+const IDS = new Set(["LP-PC-01", "LP-GE-01"]);
+const f = (o: Partial<Finding> = {}): Finding => ({
+  rule: "LP-PC-01", file: "a.ts", line: 1, saves: "prefill", severity: "high", ...o,
+});
+const file = (findings: unknown[], v: unknown = 1) => JSON.stringify({ v, findings });
+const W = (o: Partial<Weights> = {}): Weights => ({
+  v: 1, shares: { high: 0.5, medium: 0.2, low: 0.05 }, k_prefill: 1, k_gen: 1, source: "real", calls: 100, date: "2026-11-26", ...o,
+});
+
+describe("staticScore", () => {
+  it("no findings gives 100", () => {
+    expect(staticScore([])).toEqual({ score: 100, inputs: { E: 1, S: 1, G: 0 }, weights: "default" });
+  });
+  it("one high prefill finding gives 70", () => {
+    const r = staticScore([f()]);
+    expect(r.inputs).toEqual({ E: 0.5, S: 1, G: 0 });
+    expect(r.score).toBe(70);
+  });
+  it("prefill shares multiply", () => {
+    expect(staticScore([f(), f()]).inputs.E).toBe(0.25);
+  });
+  it("one medium generation finding gives G 0.2 and 92", () => {
+    const r = staticScore([f({ saves: "generation", severity: "medium" })]);
+    expect(r.inputs.G).toBeCloseTo(0.2);
+    expect(r.score).toBe(92);
+  });
+  it("default low share is 0.05", () => {
+    expect(staticScore([f({ severity: "low" })]).inputs.E).toBe(0.95);
+  });
+  it("both counts on both sides", () => {
+    const r = staticScore([f({ saves: "both", severity: "medium" })]);
+    expect(r.inputs.E).toBeCloseTo(0.8);
+    expect(r.inputs.G).toBeCloseTo(0.2);
+  });
+  it("fixed findings are ignored", () => {
+    expect(staticScore([f({ fixed: true })]).score).toBe(100);
+  });
+  it("explicit share overrides the severity default", () => {
+    expect(staticScore([f({ share: 0.1 })]).inputs.E).toBeCloseTo(0.9);
+  });
+  it("weights scale default shares by k, capped at 0.95, and mark calibrated", () => {
+    const r = staticScore([f()], W({ k_prefill: 3 }));
+    expect(r.weights).toBe("calibrated");
+    expect(r.inputs.E).toBeCloseTo(0.05);
+    expect(staticScore([f({ saves: "generation" })], W({ k_gen: 0.5 })).inputs.G).toBeCloseTo(0.25);
+  });
+  it("weights do not scale an explicit share", () => {
+    expect(staticScore([f({ share: 0.1 })], W({ k_prefill: 3 })).inputs.E).toBeCloseTo(0.9);
+  });
+});
+
+describe("parseFindings", () => {
+  it("parses a valid file", () => {
+    const r = parseFindings(file([f(), f({ rule: "LP-GE-01", saves: "generation", share: 0.3, fixed: true })]), IDS);
+    expect(r.errors).toEqual([]);
+    expect(r.findings).toHaveLength(2);
+  });
+  it("unknown rule id is an error and the finding is dropped", () => {
+    const r = parseFindings(file([f({ rule: "LP-PC-99" })]), IDS);
+    expect(r.findings).toEqual([]);
+    expect(r.errors[0]).toMatch(/unknown rule LP-PC-99/);
+  });
+  it("validates every field", () => {
+    const bad = [
+      { ...f(), file: "" }, { ...f(), line: 0 }, { ...f(), line: 1.5 }, { ...f(), saves: "x" },
+      { ...f(), severity: "x" }, { ...f(), share: 1.1 }, { ...f(), share: -0.1 }, { ...f(), fixed: "yes" }, "str",
+    ];
+    const r = parseFindings(file(bad), IDS);
+    expect(r.findings).toEqual([]);
+    expect(r.errors).toHaveLength(bad.length);
+  });
+  it("accepts share 0 and 1", () => {
+    expect(parseFindings(file([f({ share: 0 }), f({ share: 1 })]), IDS).errors).toEqual([]);
+  });
+  it("reports bad json, bad version, missing findings array", () => {
+    expect(parseFindings("{", IDS).errors[0]).toMatch(/not valid JSON/);
+    expect(parseFindings(file([], 2), IDS).errors[0]).toMatch(/v must be 1/);
+    expect(parseFindings(JSON.stringify({ v: 1 }), IDS).errors[0]).toMatch(/findings must be an array/);
+  });
+  it("accepts real rule ids from skills/*/rules", () => {
+    const ids = loadRuleIds(ROOT);
+    expect(ids.has("LP-PC-01")).toBe(true);
+    expect(ids.has("LP-GE-10")).toBe(true);
+    expect(parseFindings(file([f({ rule: "LP-GE-10" })]), ids).errors).toEqual([]);
+  });
+});

@@ -1,0 +1,22 @@
+[
+  {
+    "rule": "LP-PC-01",
+    "file": "before/bot.py",
+    "line": 24
+  },
+  {
+    "rule": "LP-PC-02",
+    "file": "before/bot.py",
+    "line": 15
+  },
+  {
+    "rule": "LP-PC-03",
+    "file": "before/bot.py",
+    "line": 16
+  },
+  {
+    "rule": "LP-PC-07",
+    "file": "before/bot.py",
+    "line": 17
+  }
+]

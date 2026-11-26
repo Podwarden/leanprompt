@@ -1,0 +1,10 @@
+# Test fixture only. These are not real prices.
+models:
+  - provider: testprov
+    model: test-model
+    input: 0.4
+    cached_input: 0.04
+    cache_write: 0.5
+    output: 1.6
+    checked: 2026-11-26
+    source: fixture

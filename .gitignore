@@ -1,0 +1,8 @@
+node_modules/
+cli/dist/
+python/dist/
+__pycache__/
+.venv/
+.superpowers/
+.worktrees/
+python/uv.lock

@@ -1,0 +1,4 @@
+{
+  "contents": [{"role": "user", "parts": [{"text": "hello SECRET-PROMPT-TEXT"}]}],
+  "generationConfig": {"temperature": 0.2}
+}

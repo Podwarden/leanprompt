@@ -1,0 +1,27 @@
+[
+  {
+    "rule": "LP-PC-04",
+    "file": "before/agent.py",
+    "line": 29
+  },
+  {
+    "rule": "LP-PC-05",
+    "file": "before/agent.py",
+    "line": 60
+  },
+  {
+    "rule": "LP-PC-06",
+    "file": "before/agent.py",
+    "line": 37
+  },
+  {
+    "rule": "LP-PC-08",
+    "file": "before/agent.py",
+    "line": 52
+  },
+  {
+    "rule": "LP-PC-09",
+    "file": "before/agent.py",
+    "line": 61
+  }
+]

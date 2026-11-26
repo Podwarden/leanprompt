@@ -1,0 +1,95 @@
+{
+  "dialect": "openai.chat",
+  "params": {
+    "temperature": 0.2,
+    "top_p": 1,
+    "max_tokens": 256
+  },
+  "body": {
+    "model": "m",
+    "messages": [
+      {
+        "role": "system",
+        "content": "Be brief. Café ☕ 日本語 😀"
+      },
+      {
+        "role": "user",
+        "content": "hi"
+      },
+      {
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "id": "c1",
+            "type": "function",
+            "function": {
+              "name": "f",
+              "arguments": "{\"b\":1,\"a\":[2,3.5]}"
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "tool_call_id": "c1",
+        "content": "ok"
+      },
+      {
+        "role": "user",
+        "content": "thanks 😀"
+      }
+    ],
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "f",
+          "description": "d",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "b": {
+                "type": "integer"
+              },
+              "a": {
+                "type": "array"
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "expected": {
+    "ids": {
+      "conv": "00afa39c99af8749325f10832484b7ea6a",
+      "head": "00562b722f5d44bdcd88b898ff5dbbc8ac",
+      "nodes": [
+        "00c97b7d4cc22bac7ce40785295ffeed51",
+        "00c5721552c4d9298eaa5e8915a798e5b6",
+        "004c6842acb57fdcbe4740105918be723b",
+        "00179eeb5b3d5f8538c8cb241cd440a495"
+      ]
+    },
+    "node_chars": [
+      245,
+      345,
+      430,
+      483
+    ],
+    "params": "3c355f4ccfcbcc64"
+  },
+  "expected_raw_key": {
+    "ids": {
+      "conv": "01fdf8c7cdcb117a8ee31374faac200656",
+      "head": "01562b722f5d44bdcd88b898ff5dbbc8ac",
+      "nodes": [
+        "01455f1faafadb5bb093350aa5465245ed",
+        "01e5565bf0b3635e02544d5a86c4f6e0e0",
+        "01bd28cf16feacf1b87ed95dea47b43384",
+        "0116e5f41446c477af1648bf0143fea54e"
+      ]
+    }
+  }
+}

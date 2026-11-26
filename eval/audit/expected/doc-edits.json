@@ -1,0 +1,32 @@
+[
+  {
+    "rule": "LP-PC-10",
+    "file": "before/edit.py",
+    "line": 24
+  },
+  {
+    "rule": "LP-PC-11",
+    "file": "before/edit.py",
+    "line": 37
+  },
+  {
+    "rule": "LP-PC-12",
+    "file": "before/edit.py",
+    "line": 31
+  },
+  {
+    "rule": "LP-GE-04",
+    "file": "before/edit.py",
+    "line": 12
+  },
+  {
+    "rule": "LP-GE-05",
+    "file": "before/edit.py",
+    "line": 18
+  },
+  {
+    "rule": "LP-GE-09",
+    "file": "before/edit.py",
+    "line": 31
+  }
+]

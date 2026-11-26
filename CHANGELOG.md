@@ -1,0 +1,40 @@
+# Changelog
+
+All notable changes to leanprompt. Versions follow semantic versioning; a change to the score formula is a minor version.
+
+## 0.1.0 – unreleased
+
+The first release.
+
+### Skills
+
+- `llm-call-audit`: finds every LLM call in an app, checks it against the rules, ranks the findings and writes `leanprompt-report.md` and `.leanprompt/findings.json`; asks before editing code, installing a package or running billed requests.
+- `prefill-cache`: rules LP-PC-01 to LP-PC-12 for prompts a provider's prefix cache can reuse.
+- `generation-economy`: rules LP-GE-01 to LP-GE-10 for calls and output that are not wasted.
+- `measure-loop`: the usage logger, the stable-head CI test (vitest and pytest templates on kvsig ids), replay before and after, and the score.
+- `lmwarden`: rules LP-LW-01 to LP-LW-03 for self-hosted engines, and reading engine facts from LM Warden. Prompt Lens is described as planned.
+- Dated provider tables (Anthropic, OpenAI, Gemini, OpenRouter, DeepInfra, vLLM, SGLang) and per-model notes (Qwen, OpenAI reasoning, Anthropic thinking), each with a `checked:` date and a source.
+- The evidence table, `docs/evidence.md` (rows E1 to E12, with sources and limits).
+
+### CLI (`npx leanprompt`)
+
+- `init`: installs the skills for Claude Code, Codex, OpenCode, Cursor and any `AGENTS.md` reader, detected or forced with `--assistant`; `--global` for the home directory. Idempotent; leaves user text outside its marked block untouched and never overwrites files it did not generate.
+- `score`: writes `.leanprompt/score.json`, measured from the usage log (at least 50 measured calls) or static from the audit's findings; the file is also the shields.io endpoint badge source.
+- `calibrate`: fits the static score's weights to an app from a trial run.
+- `report --html`: a local HTML page of the findings and the score.
+- `profile detect --lmwarden <url>`: reads engine cache facts from LM Warden into `leanprompt.yaml`.
+- `eval-audit`: scores an audit's findings against the seeded example cases.
+- The target profile, `leanprompt.yaml` (target, engine, priority, ignore list).
+- Usage loggers for TypeScript (`leanprompt/log`) and Python (PyPI `leanprompt-cli`); they write ids, counts and flags, never prompt or completion text.
+
+### Evaluation
+
+- Six example apps, each in a `before/` and an `after/` form with an answer check.
+- A replay harness (`npm run eval`) with a local cache simulator for CI and a spend cap for real providers. Simulator results are never quoted.
+- An audit recall and false-positive harness over seeded fixtures in Python, Go and TypeScript.
+
+### Project
+
+- Per-assistant forms generated from one source and checked in CI; a Claude Code plugin marketplace in `.claude-plugin/`.
+- `npm run check:numbers`: every number with a unit in the README and the skills cites an evidence row or a measured result.
+- Apache-2.0 for code, CC BY 4.0 for the skills and docs; README, CONTRIBUTING, GOVERNANCE and SECURITY.

@@ -1,0 +1,17 @@
+# Price card for the replay harness's spend cap (eval/run.ts). USD per million tokens.
+#
+# One entry per provider + model:
+#   - provider: openai            # the --provider value
+#     model: gpt-example          # the --model value, exactly as sent
+#     input: 0.0                  # uncached input (for Anthropic: input_tokens)
+#     cached_input: 0.0           # cache read
+#     cache_write: 0.0            # cache write (0 where writes are free)
+#     output: 0.0
+#     checked: 2026-01-01         # date the numbers were read
+#     source: https://...         # the pricing page they came from
+#
+# The runner refuses a model that is missing here. An entry needs `checked` and `source`.
+# No entries yet: providers/*.md hold relative multipliers only, not price cards, and the
+# official pricing pages were not read for this file. Add an entry from the provider's own
+# pricing page before the first real run.
+models: []

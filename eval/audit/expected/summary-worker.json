@@ -1,0 +1,27 @@
+[
+  {
+    "rule": "LP-PC-01",
+    "file": "before/worker.go",
+    "line": 22
+  },
+  {
+    "rule": "LP-PC-03",
+    "file": "before/worker.go",
+    "line": 18
+  },
+  {
+    "rule": "LP-PC-04",
+    "file": "before/worker.go",
+    "line": 40
+  },
+  {
+    "rule": "LP-GE-04",
+    "file": "before/worker.go",
+    "line": 13
+  },
+  {
+    "rule": "LP-GE-05",
+    "file": "before/worker.go",
+    "line": 30
+  }
+]

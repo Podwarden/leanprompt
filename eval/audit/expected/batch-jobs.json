@@ -1,0 +1,37 @@
+[
+  {
+    "rule": "LP-GE-01",
+    "file": "before/sampling.py",
+    "line": 22
+  },
+  {
+    "rule": "LP-GE-03",
+    "file": "before/sampling.py",
+    "line": 16
+  },
+  {
+    "rule": "LP-GE-02",
+    "file": "before/extract.py",
+    "line": 21
+  },
+  {
+    "rule": "LP-GE-10",
+    "file": "before/extract.py",
+    "line": 32
+  },
+  {
+    "rule": "LP-GE-06",
+    "file": "before/nightly.py",
+    "line": 9
+  },
+  {
+    "rule": "LP-GE-07",
+    "file": "before/nightly.py",
+    "line": 19
+  },
+  {
+    "rule": "LP-GE-08",
+    "file": "before/nightly.py",
+    "line": 24
+  }
+]

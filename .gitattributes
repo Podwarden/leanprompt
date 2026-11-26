@@ -1,0 +1,2 @@
+# Generated forms and Markdown are compared byte for byte; keep LF on every OS (Windows CI checks out with CRLF otherwise).
+* text=auto eol=lf

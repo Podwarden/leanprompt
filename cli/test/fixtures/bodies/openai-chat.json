@@ -1,0 +1,12 @@
+{
+  "model": "gpt-x",
+  "messages": [
+    {"role": "system", "content": "You are a terse assistant. SECRET-PROMPT-TEXT"},
+    {"role": "user", "content": "What is the capital of France? SECRET-PROMPT-TEXT"},
+    {"role": "assistant", "content": "Paris."},
+    {"role": "user", "content": "And of Italy?"}
+  ],
+  "tools": [
+    {"type": "function", "function": {"name": "lookup", "description": "Look a city up", "parameters": {"type": "object", "properties": {"city": {"type": "string"}}}}}
+  ]
+}

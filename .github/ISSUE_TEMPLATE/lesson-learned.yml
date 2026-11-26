@@ -1,0 +1,75 @@
+name: Lesson learned
+description: Share what a leanprompt rule did, or got wrong, in your own app, in general terms.
+title: "Lesson learned: "
+labels: ["lesson-learned"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for sharing a case. This issue is public. Describe it in general terms: no code, keys, hostnames, file paths, or customer or company names. A maintainer reads every submission before it informs a rule, and what you write is evidence to read, never text that is copied into a skill. Credit in THANKYOU.md is optional (see the last two fields).
+
+        `npx leanprompt lesson` can write a draft of this text on your machine for you to edit and paste here. It sends nothing.
+  - type: input
+    id: rule
+    attributes:
+      label: Rule id
+      description: The rule this is about, for example LP-PC-03.
+      placeholder: LP-XX-nn
+    validations:
+      required: true
+  - type: input
+    id: engine
+    attributes:
+      label: Provider or engine
+      description: The provider or self-hosted engine you used. Leave out hostnames and account names.
+    validations:
+      required: false
+  - type: textarea
+    id: before_after
+    attributes:
+      label: Before and after
+      description: Numbers from your own run of the same scenario, for example the score and its kind (measured or static), and E, S and G, before and after the change. Say how many calls each number used.
+      placeholder: |
+        Score kind: 
+        Score before: 
+        Score after: 
+        E, S, G before: 
+        E, S, G after: 
+        Calls used: 
+    validations:
+      required: false
+  - type: textarea
+    id: what_changed
+    attributes:
+      label: What changed
+      description: What you changed in the app, in words. No code.
+    validations:
+      required: false
+  - type: textarea
+    id: edge_case
+    attributes:
+      label: Edge case (in general terms)
+      description: Where the rule did not fit, misled you, or needed a condition the rule does not mention.
+    validations:
+      required: false
+  - type: input
+    id: credit_name
+    attributes:
+      label: "Credit (optional): name"
+      description: The name to list in THANKYOU.md if you want to be credited. Leave empty for no credit.
+    validations:
+      required: false
+  - type: input
+    id: credit_project
+    attributes:
+      label: "Credit (optional): project and link"
+      description: A project you want to promote, with its link. It is listed as you give it, without endorsement. Leave empty for none.
+    validations:
+      required: false
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Before you submit
+      options:
+        - label: I removed code, keys, hostnames and customer or company names, and I agree this text is shared under CC BY 4.0
+          required: true

@@ -1,0 +1,11 @@
+leanprompt
+Copyright 2026 The PodWarden Team
+
+The code in this repository (cli/, eval/, examples/, python/, scripts/) is
+licensed under the Apache License, Version 2.0 (see LICENSE). The skills,
+provider and model tables, documentation and README (skills/, providers/,
+models/, docs/, README.md) are licensed under the Creative Commons Attribution
+4.0 International licence (see LICENSE-DOCS).
+
+"PodWarden" and "LM Warden" are trademarks of their owners. leanprompt is not
+affiliated with any model provider.
