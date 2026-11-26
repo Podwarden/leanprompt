@@ -18,11 +18,14 @@ function isNum(v: unknown): v is number {
   return typeof v === "number" && Number.isFinite(v) && v >= 0;
 }
 
-/** Lint providers/*.md and models/*.md: dated, sourced, and (providers) a well-formed cache block. */
+/**
+ * Lint providers/*.md, models/*.md and runtimes/*.md: dated, sourced, and (providers) a well-formed cache block;
+ * (runtimes) a source URL on every table row.
+ */
 export function lintFacts(root: string, today: string): LintIssue[] {
   const issues: LintIssue[] = [];
-  const tables: { file: string; kind: "provider" | "model" }[] = [];
-  for (const [dir, kind] of [["providers", "provider"], ["models", "model"]] as const) {
+  const tables: { file: string; kind: "provider" | "model" | "runtime" }[] = [];
+  for (const [dir, kind] of [["providers", "provider"], ["models", "model"], ["runtimes", "runtime"]] as const) {
     const p = join(root, dir);
     if (!existsSync(p)) continue;
     for (const f of readdirSync(p).sort()) if (f.endsWith(".md")) tables.push({ file: posix(join(dir, f)), kind });
@@ -38,7 +41,7 @@ export function lintFacts(root: string, today: string): LintIssue[] {
       continue;
     }
     const { meta } = doc;
-    const nameKey = kind === "provider" ? "provider" : "family";
+    const nameKey = kind === "provider" ? "provider" : kind === "model" ? "family" : "runtime";
     if (typeof meta[nameKey] !== "string" || !meta[nameKey]) err(`missing field: ${nameKey}`);
 
     if (typeof meta.source !== "string" || !/^https?:\/\/\S+$/.test(meta.source)) err("missing source (a URL)");
@@ -52,6 +55,13 @@ export function lintFacts(root: string, today: string): LintIssue[] {
     }
 
     if (doc.sections.length === 0) err("empty body: no fact table sections");
+
+    if (kind === "runtime") {
+      const text = readFileSync(join(root, file), "utf8").replace(/\r\n/g, "\n");
+      const rows = rowsWithoutSource(text);
+      if (rows.total === 0) err("no table rows");
+      for (const r of rows.missing) err(`table row without a source URL: ${r}`);
+    }
 
     if (kind === "provider") {
       const c = meta.cache as Record<string, unknown> | undefined;
@@ -102,18 +112,25 @@ function lintAssistantPaths(root: string, today: string): LintIssue[] {
   if (!paths || typeof paths !== "object" || Array.isArray(paths) || Object.keys(paths).length === 0) err("missing paths map");
   if (doc.sections.length === 0) err("empty body: no assistant sections");
 
-  // Every table row (not the header, not the separator) needs an http(s) URL as its source.
+  const rows = rowsWithoutSource(text);
+  for (const r of rows.missing) err(`table row without a source URL: ${r}`);
+  if (rows.total === 0) err("no table rows");
+  return issues;
+}
+
+/** Every table row (not the header, not the separator) needs an http(s) URL as its source. */
+function rowsWithoutSource(text: string): { total: number; missing: string[] } {
   const lines = text.replace(/^---[ \t]*\n[\s\S]*?\n---[ \t]*(?:\n|$)/, "").split("\n");
-  let rows = 0;
+  let total = 0;
+  const missing: string[] = [];
   lines.forEach((line, i) => {
     if (!line.trimStart().startsWith("|")) return;
     if (/^\s*\|[\s:|-]+\|\s*$/.test(line)) return; // separator
     if (/^\s*\|[\s:|-]+\|\s*$/.test(lines[i + 1] ?? "")) return; // header
-    rows++;
-    if (!/https?:\/\/\S+/.test(line)) err(`table row without a source URL: ${line.trim().slice(0, 60)}`);
+    total++;
+    if (!/https?:\/\/\S+/.test(line)) missing.push(line.trim().slice(0, 60));
   });
-  if (rows === 0) err("no table rows");
-  return issues;
+  return { total, missing };
 }
 
 // CLI entry for `npm run lint:facts`: lint the repo root, exit 1 on errors, print warnings.

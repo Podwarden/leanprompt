@@ -101,6 +101,50 @@ describe("generation-economy skill content", () => {
     }
   });
 
+  it("LP-GE-04 detects calls with no timeout of their own and links the dated HTTP client facts page", () => {
+    const text = read("LP-GE-04.md");
+    const d = section(text, "Detect in code");
+    expect(d).toMatch(/No timeout set at all/);
+    expect(d).toMatch(/no timeout of its own/);
+    expect(d).toMatch(/http\\\.DefaultClient/);
+    expect(d).toMatch(/dispatcher/);
+    const link = "](../../../runtimes/http-clients.md)";
+    expect(section(text, "Why")).toContain(link);
+    expect(section(text, "Detect in code")).toContain(link);
+    const docs = (parseDoc(text).meta.evidence as unknown[]).map((e) => (e as { doc?: string }).doc ?? "");
+    expect(docs).toContain("runtimes/http-clients.md");
+    // The defaults themselves live on the facts page, not in the rule.
+    expect(body(text)).not.toMatch(/300e3|five minutes|five seconds/);
+    const facts = readFileSync(join(ROOT, "runtimes", "http-clients.md"), "utf8");
+    expect(parseDoc(facts).meta.checked).toBeTruthy();
+    const rows = facts.split("\n").filter((l) => /^\| (?!---|Runtime)/.test(l));
+    for (const c of [/Node\.js built-in `fetch` \(undici\)/, /Python `httpx`/, /Python `requests`/, /Go `net\/http`/]) {
+      const row = rows.find((r) => c.test(r));
+      expect(row, String(c)).toBeDefined();
+      expect(row!, String(c)).toMatch(/https:\/\//);
+    }
+    expect(facts).toMatch(/headersTimeout/);
+    expect(facts).toMatch(/follows from/);
+  });
+
+  it("LP-GE-10 gates a schema on the reasoning parser and ties it to LP-GE-03", () => {
+    const text = read("LP-GE-10.md");
+    const dbm = section(text, "Don't break meaning");
+    expect(dbm).toMatch(/reasoning parser/);
+    expect(dbm).toMatch(/LP-GE-03/);
+    expect(dbm).toMatch(/answer check/);
+    expect(section(text, "Verify")).toMatch(/`reasoning` field/);
+    const docs = (parseDoc(text).meta.evidence as unknown[]).map((e) => (e as { doc?: string }).doc ?? "");
+    expect(docs).toContain("https://docs.vllm.ai/en/latest/features/reasoning_outputs.html");
+  });
+
+  it("LP-GE-03 names reasoning twice and gives a severity for a limit below the task", () => {
+    const text = read("LP-GE-03.md");
+    expect(section(text, "Why")).toMatch(/Reasoning twice/);
+    expect(section(text, "Detect in code")).toMatch(/reasoning twice/);
+    expect(section(text, "Waste signal")).toMatch(/A limit below the task/);
+  });
+
   it("SKILL.md carries the priority-aware advice and a Frontier generation economy section", () => {
     const text = skillText();
     const headings = parseDoc(text).sections.map((s) => s.heading);

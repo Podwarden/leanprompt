@@ -76,6 +76,15 @@ describe("prefill-cache skill content", () => {
     expect(dbm).toMatch(/\(E6\)/);
   });
 
+  it("LP-PC-07 keeps per-user transforms off the shared head", () => {
+    const text = read("LP-PC-07.md");
+    expect(section(text, "Detect in code")).toMatch(/redact/);
+    expect(section(text, "Fix")).toMatch(/only to the per-user parts/);
+    const v = section(text, "Verify");
+    expect(v).toMatch(/per-user transform/);
+    expect(v).toMatch(/`sys` and `head` are still equal/);
+  });
+
   it("LP-PC-01 carries the break-even rule", () => {
     expect(read("LP-PC-01.md")).toMatch(/break-even/i);
   });

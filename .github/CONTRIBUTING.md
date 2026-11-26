@@ -4,8 +4,8 @@ Issues and pull requests are welcome. leanprompt is maintained by the PodWarden 
 
 ## What to edit
 
-- `skills/`, `providers/`, `models/` and `docs/` are the source of truth. Never edit `forms/`, `.claude-plugin/` or the generated block in `AGENTS.md` by hand: `npm run build:forms` regenerates them, and CI fails when they are stale.
-- Provider facts (limits, minimums, prices, cache lifetimes) live only in `providers/<name>.md` and `models/<family>.md`, each with a `checked: YYYY-MM-DD` date and a `source:` link. Rules link to those pages instead of repeating the facts. CI warns when an entry is older than 90 days.
+- `skills/`, `providers/`, `models/`, `runtimes/` and `docs/` are the source of truth. Never edit `forms/`, `.claude-plugin/` or the generated block in `AGENTS.md` by hand: `npm run build:forms` regenerates them, and CI fails when they are stale.
+- Provider facts (limits, minimums, prices, cache lifetimes) live only in `providers/<name>.md` and `models/<family>.md`, each with a `checked: YYYY-MM-DD` date and a `source:` link. Defaults of HTTP clients and runtimes (timeouts) live in `runtimes/<name>.md` the same way, with a source URL on every table row. Rules link to those pages instead of repeating the facts. CI warns when an entry is older than 90 days.
 - Keep the tone of [docs/DESIGN.md](../docs/DESIGN.md) section 10: neutral about providers, no hype, no "up to" figures, no exclamation marks.
 
 ## Adding or changing a rule
@@ -58,4 +58,4 @@ If leanprompt helped you, or a rule misled you, open a "Lesson learned" issue on
 
 ## License
 
-By contributing you agree that code (`cli/`, `eval/`, `examples/`, `python/`, `scripts/`) is under Apache-2.0 and documentation and skills text (`skills/`, `providers/`, `models/`, `docs/`, README) under CC BY 4.0.
+By contributing you agree that code (`cli/`, `eval/`, `examples/`, `python/`, `scripts/`) is under Apache-2.0 and documentation and skills text (`skills/`, `providers/`, `models/`, `runtimes/`, `docs/`, README) under CC BY 4.0.

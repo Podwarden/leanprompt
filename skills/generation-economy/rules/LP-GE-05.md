@@ -31,7 +31,7 @@ Python:
 rg -n '@retry|tenacity|backoff\.on_exception|except Exception|while True|for attempt in range\(' -g '*.py'
 rg -n 'finish_reason|stop_reason|finishReason|incomplete' -g '*.py'
 ```
-Shapes: `@retry(stop=stop_after_attempt(K))` with no exception filter; `except Exception: continue` inside a loop around the call; `if resp.choices[0].finish_reason == "length": return call(same_args)`; code that ignores the finish reason and retries when parsing fails on a truncated answer.
+Shapes: `@retry(stop=stop_after_attempt(K))` with no exception filter; `except Exception: continue` inside a loop around the call; `if resp.choices[0].finish_reason == "length": return call(same_args)`; code that ignores the finish reason and retries when parsing fails on a truncated answer; a client error raised for an empty answer or empty thinking (often a truncation inside the thinking) that a generic error classifier files as retryable.
 
 TS/JS:
 ```
@@ -80,4 +80,4 @@ A retry policy changes which calls get a second chance, not what they say. Raisi
 (b) leanprompt usage record: a record with `flags.retry_of` whose original has `finish: "length"` and an equal `params` hash is a truncation retried unchanged; after the fix there are none. Records with `finish: "error"` followed by retries should match retryable errors only.
 
 ## Waste signal
-Measured: output tokens spent on calls retried after a truncation count as generation waste; so do repeated identical calls after a failure. Static: severity high for a retry on `length` with unchanged parameters or a retry on every exception; medium for stacked retry layers or a missing backoff.
+Measured: output tokens spent on calls retried after a truncation count as generation waste; so do repeated identical calls after a failure. Static: severity high for a retry on `length` with unchanged parameters or a retry on every exception. A truncation filed under a generic "retryable" or "failed, try again" status counts as the same finding when the re-run sends the same parameters: high when a job, a queue or a loop re-runs it, medium when only a person re-runs it on demand. Medium for stacked retry layers or a missing backoff.

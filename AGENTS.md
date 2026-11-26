@@ -29,7 +29,8 @@ Skills live in `.claude/skills/<name>/` or `.agents/skills/<name>/` (Cursor: `.c
 - Start with `llm-call-audit` for "where does this app pay for the same tokens twice".
 - Rules are in `<skill>/rules/LP-*.md`. Each ends with `Verify`; run it before calling a fix done.
 - Provider and model facts (limits, minimums, TTLs) are in the `providers/` and `models/`
-  pages linked from each rule, each with a `checked:` date. Do not quote them from memory.
+  pages linked from each rule, and HTTP client defaults in `runtimes/`, each with a `checked:`
+  date. Do not quote them from memory.
 - Ask before editing code, installing a package, or running anything that sends billed requests.
 - Keep meaning: a fix that changes what the model is asked or answers is not a fix.
 <!-- leanprompt:end -->

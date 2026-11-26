@@ -83,6 +83,17 @@ describe("lintFacts", () => {
     put("docs/assistant-paths.md", fm("2026-08-27") + body); // 91 days
     expect(issues()).toMatchObject([{ file: "docs/assistant-paths.md", level: "warn" }]);
   });
+  it("checks runtime tables: runtime name, source, date, and a source URL on every row", () => {
+    const body = "## Defaults\n| Client | Default | Source |\n|---|---|---|\n| a | none | https://example.com/a |\n";
+    put("runtimes/ok.md", table("runtime: ok\nchecked: 2026-11-26\nsource: https://example.com", body));
+    put("runtimes/norow.md", table("runtime: norow\nchecked: 2026-11-26\nsource: https://example.com", body + "| b | none | no link |\n"));
+    put("runtimes/noname.md", table("checked: 2026-08-01\nsource: https://example.com", body));
+    const m = issues().map((i) => `${i.level} ${i.file}: ${i.msg}`);
+    expect(m.filter((x) => x.includes("runtimes/ok.md"))).toEqual([]);
+    expect(m).toContain("error runtimes/norow.md: table row without a source URL: | b | none | no link |");
+    expect(m).toContain("error runtimes/noname.md: missing field: runtime");
+    expect(m.some((x) => x.startsWith("warn runtimes/noname.md: checked 2026-08-01"))).toBe(true);
+  });
   it("passes on the repo's own tables with no warnings", () => {
     expect(lintFacts(REPO, TODAY)).toEqual([]);
   });

@@ -1,12 +1,12 @@
 {
   "name": "leanprompt",
-  "version": "0.1.0-dev.4",
+  "version": "0.1.0-dev.5",
   "description": "Skills for AI coding assistants that cut wasted prefill and generation in LLM calls, plus a CLI to measure the result.",
   "type": "module",
   "license": "Apache-2.0 AND CC-BY-4.0",
   "author": "The PodWarden Team",
   "bin": { "leanprompt": "cli/dist/main.js" },
-  "files": ["cli/dist", "skills", "providers", "models", "forms", "NOTICE", "LICENSE-DOCS", "!**/__pycache__"],
+  "files": ["cli/dist", "skills", "providers", "models", "runtimes", "forms", "NOTICE", "LICENSE-DOCS", "!**/__pycache__"],
   "exports": { "./log": { "types": "./cli/dist/log/logger.d.ts", "default": "./cli/dist/log/logger.js" } },
   "engines": { "node": ">=20.19" },
   "scripts": {

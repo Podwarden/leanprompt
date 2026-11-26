@@ -39,6 +39,21 @@ The first release.
 - `npm run check:numbers`: every number with a unit in the README, the public docs and the skills cites an evidence row or a measured result.
 - Apache-2.0 for code, CC BY 4.0 for the skills and docs; README, CONTRIBUTING, GOVERNANCE and SECURITY (the last three under `.github/`).
 
+## 0.1.0-dev.5 – 2026-11-26
+
+Rule changes from the rule-quality notes of a first real audit ([#5](https://github.com/Podwarden/leanprompt/issues/5)) and a lesson learned report ([#6](https://github.com/Podwarden/leanprompt/issues/6)). Each change was checked against the sources it cites; what follows from them without a source is marked as such.
+
+- **LP-GE-04, no timeout set.** A call with no timeout of its own gets the HTTP client's default. The defaults of Node's built-in `fetch` (undici's header and body timeouts), Python `httpx`, Python `requests` and Go `net/http` are on a new dated facts page, [runtimes/http-clients.md](../runtimes/http-clients.md), one row per client with its source; the rule links to it instead of repeating the values. The rule adds Detect patterns for calls with no timeout of their own, a Node `fetch` streaming fix with an idle timer, and a severity for a default shorter than the generation.
+- **`runtimes/`.** A new folder of dated facts pages for HTTP clients and runtimes, checked by `lint:facts` like `providers/` and `models/` (`checked:` date, `source:`, a source URL on every table row, the 90-day warning) and shipped in the package.
+- **LP-GE-10, no reasoning parser.** On vLLM a schema is kept off the thinking only when a reasoning parser marks where the thinking ends. When the thinking arrives inside `content`, the schema would constrain it too. Don't break meaning and Verify now say: confirm the server returns a separate `reasoning` field, or decide thinking off under LP-GE-03 with an answer check, before adding a schema. Detect finds `<think>` stripping in code. `providers/vllm.md` has rows for the reasoning parser and for structured outputs with reasoning; `models/qwen.md` points at them.
+- **LP-GE-03, reasoning twice.** A prompt or schema that asks for a reasoning field while model thinking is on spends one output limit on two rounds of reasoning. New Why bullet, Detect shape, Don't break meaning check and severity. The Waste signal also gives a severity for a limit below the task.
+- **LP-GE-05.** The Waste signal says how to rate a truncation filed under a generic "retryable" status and re-run later, by a job or by a person. Detect names an "empty answer" error raised for a truncation inside the thinking.
+- **LP-PC-07, per-user transforms.** Redaction or per-user templating run over the whole prompt rewrites the shared head whenever a per-user value also appears in it. Apply them only to the per-user parts; Verify checks that kvsig `sys` and `head` stay equal across two such users.
+- **LP-LW-01, one-shot apps.** With a constant head and a different body on each request, only the full blocks inside the shared head are reused; the rule says how to compare the head's length with the engine's block size.
+- Content tests for each of these.
+
+Thanks for a lesson learned report (#6).
+
 ## 0.1.0-dev.4 – 2026-11-26
 
 The three format decisions from the first audit of a real project ([#4](https://github.com/Podwarden/leanprompt/issues/4)).

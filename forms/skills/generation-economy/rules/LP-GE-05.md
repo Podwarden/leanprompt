@@ -19,11 +19,11 @@ Retry a failed call only when the error says a retry can succeed (rate limits, o
 ## Why
 A retry pays for the whole prompt again and for whatever is generated again. That is worth it for a transient failure and pure waste for one that will repeat.
 
-- **Retryable:** rate limits that clear, overload (OpenAI 503, Anthropic 529) and transient server errors. Both providers say to follow `Retry-After` (and on Anthropic `x-should-retry`) and to back off ([providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.4/providers/openai.md), [providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.4/providers/anthropic.md)).
-- **Not retryable:** invalid requests (400), authentication (401, 403), a request too large (413), and a 429 caused by exhausted credit or a spend cap, which keeps failing until access resumes ([providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.4/providers/openai.md), [providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.4/providers/anthropic.md)).
-- **A truncation is not an error.** The call succeeded and stopped at the output limit: `finish_reason: "length"`, `stop_reason: "max_tokens"`, `finishReason: "MAX_TOKENS"` ([providers/gemini.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.4/providers/gemini.md)). Sent again unchanged, it usually stops at the same limit, and the tokens of both attempts are billed. A reasoning model that spent the whole limit thinking does the same on every attempt. Anthropic's advice for this stop reason is to raise `max_tokens` or continue the response.
+- **Retryable:** rate limits that clear, overload (OpenAI 503, Anthropic 529) and transient server errors. Both providers say to follow `Retry-After` (and on Anthropic `x-should-retry`) and to back off ([providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.5/providers/openai.md), [providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.5/providers/anthropic.md)).
+- **Not retryable:** invalid requests (400), authentication (401, 403), a request too large (413), and a 429 caused by exhausted credit or a spend cap, which keeps failing until access resumes ([providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.5/providers/openai.md), [providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.5/providers/anthropic.md)).
+- **A truncation is not an error.** The call succeeded and stopped at the output limit: `finish_reason: "length"`, `stop_reason: "max_tokens"`, `finishReason: "MAX_TOKENS"` ([providers/gemini.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.5/providers/gemini.md)). Sent again unchanged, it usually stops at the same limit, and the tokens of both attempts are billed. A reasoning model that spent the whole limit thinking does the same on every attempt. Anthropic's advice for this stop reason is to raise `max_tokens` or continue the response.
 
-Retry layers multiply: the OpenAI and Anthropic SDKs each retry by default ([providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.4/providers/openai.md), [providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.4/providers/anthropic.md)), so an app-level retry loop around them multiplies the attempts.
+Retry layers multiply: the OpenAI and Anthropic SDKs each retry by default ([providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.5/providers/openai.md), [providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.5/providers/anthropic.md)), so an app-level retry loop around them multiplies the attempts.
 
 ## Detect in code
 Python:
@@ -31,7 +31,7 @@ Python:
 rg -n '@retry|tenacity|backoff\.on_exception|except Exception|while True|for attempt in range\(' -g '*.py'
 rg -n 'finish_reason|stop_reason|finishReason|incomplete' -g '*.py'
 ```
-Shapes: `@retry(stop=stop_after_attempt(K))` with no exception filter; `except Exception: continue` inside a loop around the call; `if resp.choices[0].finish_reason == "length": return call(same_args)`; code that ignores the finish reason and retries when parsing fails on a truncated answer.
+Shapes: `@retry(stop=stop_after_attempt(K))` with no exception filter; `except Exception: continue` inside a loop around the call; `if resp.choices[0].finish_reason == "length": return call(same_args)`; code that ignores the finish reason and retries when parsing fails on a truncated answer; a client error raised for an empty answer or empty thinking (often a truncation inside the thinking) that a generic error classifier files as retryable.
 
 TS/JS:
 ```
@@ -80,5 +80,5 @@ A retry policy changes which calls get a second chance, not what they say. Raisi
 (b) leanprompt usage record: a record with `flags.retry_of` whose original has `finish: "length"` and an equal `params` hash is a truncation retried unchanged; after the fix there are none. Records with `finish: "error"` followed by retries should match retryable errors only.
 
 ## Waste signal
-Measured: output tokens spent on calls retried after a truncation count as generation waste; so do repeated identical calls after a failure. Static: severity high for a retry on `length` with unchanged parameters or a retry on every exception; medium for stacked retry layers or a missing backoff.
-<!-- leanprompt:generated v0.1.0-dev.4 — managed by npx leanprompt init; local edits are replaced on update -->
+Measured: output tokens spent on calls retried after a truncation count as generation waste; so do repeated identical calls after a failure. Static: severity high for a retry on `length` with unchanged parameters or a retry on every exception. A truncation filed under a generic "retryable" or "failed, try again" status counts as the same finding when the re-run sends the same parameters: high when a job, a queue or a loop re-runs it, medium when only a person re-runs it on demand. Medium for stacked retry layers or a missing backoff.
+<!-- leanprompt:generated v0.1.0-dev.5 — managed by npx leanprompt init; local edits are replaced on update -->

@@ -72,4 +72,4 @@ Findings outside this repository (`"<external>"`) or waiting on a fact (`needs-f
 ````
 
 Write the numbers with their kind every time: "(estimate)" next to a figure from code, "(measured, N calls)" next to a figure from the usage log. A static score is never presented as measured.
-<!-- leanprompt:generated v0.1.0-dev.4 — managed by npx leanprompt init; local edits are replaced on update -->
+<!-- leanprompt:generated v0.1.0-dev.5 — managed by npx leanprompt init; local edits are replaced on update -->

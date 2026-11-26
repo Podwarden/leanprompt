@@ -1,7 +1,7 @@
 {
   "name": "leanprompt",
   "description": "Skills for AI coding assistants that cut wasted prefill and generation in LLM calls, plus a CLI to measure the result.",
-  "version": "0.1.0-dev.4",
+  "version": "0.1.0-dev.5",
   "author": {
     "name": "PodWarden Team"
   }

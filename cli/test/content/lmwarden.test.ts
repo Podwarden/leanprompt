@@ -75,6 +75,11 @@ describe("lmwarden skill content", () => {
       expect(section(read(f), "Verify"), f).toMatch(/kvsig|cached_tokens|usage/);
     }
   });
+  it("LP-LW-01 covers one-shot apps with a shared head", () => {
+    const t = read("LP-LW-01.md");
+    expect(section(t, "Why")).toMatch(/one-shot app/);
+    expect(section(t, "Detect in code")).toMatch(/one-shot app/);
+  });
   it("auto-detect is described as needing a release with the endpoint", () => {
     expect(SKILL).toMatch(/needs an LM Warden release that has this endpoint/);
     expect(SKILL).toContain("/api/me/engine");

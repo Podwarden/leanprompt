@@ -92,6 +92,8 @@ describe("buildForms", () => {
     const text = built.get("forms/skills/prefill-cache/rules/LP-PC-01.md")!;
     expect(text).toContain(`https://github.com/Podwarden/leanprompt/blob/v${pkg.version}/providers/`);
     expect(text).not.toMatch(/\]\(\.\.\/\.\.\/\.\.\//);
+     const ge04 = built.get("forms/skills/generation-economy/rules/LP-GE-04.md")!;
+    expect(ge04).toContain(`https://github.com/Podwarden/leanprompt/blob/v${pkg.version}/runtimes/http-clients.md`);
   });
 
   it("plugin and marketplace files match the schema in docs/assistant-paths.md", () => {
@@ -129,7 +131,7 @@ describe("build:forms --check", () => {
 
   function copy(): string {
     const d = mkdtempSync(join(tmpdir(), "lp-forms-"));
-    for (const p of ["package.json", "skills", "providers", "models", "docs"]) cpSync(join(ROOT, p), join(d, p), { recursive: true });
+    for (const p of ["package.json", "skills", "providers", "models", "runtimes", "docs"]) cpSync(join(ROOT, p), join(d, p), { recursive: true });
     return d;
   }
 
