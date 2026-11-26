@@ -6,5 +6,6 @@
     "outDir": null,
     "types": ["node"]
   },
-  "include": ["eval", "examples", "cli/src", "cli/test"]
+  "include": ["eval", "examples", "cli/src", "cli/test"],
+  "exclude": ["eval/audit/fixtures", "**/node_modules"]
 }
