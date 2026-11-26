@@ -195,7 +195,7 @@ describe("llm-call-audit report-template.md", () => {
     for (const k of ["**Problem:**", "**What to change:**", "**Why it matters:**", "**Estimate:**", "**Assumes:**", "**How to check the fix:**"]) expect(t).toContain(k);
   });
   it("carries the hand-off block for any coding agent", () => {
-    expect(read("report-template.md")).toContain("npx github:Podwarden/leanprompt install");
+    expect(read("report-template.md")).toContain("npx leanprompt install");
     expect(read("report-template.md")).toMatch(/Check each finding against the code before you change anything/);
     expect(read("report-template.md")).toMatch(/only after I say yes/);
   });

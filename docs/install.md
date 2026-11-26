@@ -2,17 +2,17 @@
 
 Back to the [README](../README.md).
 
-leanprompt is pre-release. The npm package is being published; until it is live, `npx leanprompt` does not work, and every `npx leanprompt <cmd>` in these docs and the skills runs as `npx github:Podwarden/leanprompt <cmd>`, which fetches the CLI from GitHub and builds it on first use. It needs Node 20.19 or newer.
+leanprompt is pre-release, published on npm as `leanprompt` and on PyPI as `leanprompt-cli`. It needs Node 20.19 or newer.
 
 ## Install
 
 From your project root:
 
 ```
-npx github:Podwarden/leanprompt install
+npx leanprompt install
 ```
 
-After the npm release: `npx leanprompt install`. To pin a release, add its tag: `npx github:Podwarden/leanprompt#v0.1.0-dev.8 install`.
+To pin a release, add its version: `npx leanprompt@0.1.0-dev.9 install`. To run the latest code from GitHub instead: `npx github:Podwarden/leanprompt install`.
 
 In a terminal, `install`:
 
@@ -40,7 +40,7 @@ Every location comes from the assistant's own documentation, checked on 2026-11-
 ## For scripts and CI
 
 ```
-npx github:Podwarden/leanprompt install --providers=claude,cursor --scope=project --yes
+npx leanprompt install --providers=claude,cursor --scope=project --yes
 ```
 
 - `--providers=<list>`: install for these instead of detecting; any of `claude`, `codex`, `opencode`, `cursor`, `agents-md`.
@@ -54,7 +54,7 @@ npx github:Podwarden/leanprompt install --providers=claude,cursor --scope=projec
 ## Update
 
 ```
-npx github:Podwarden/leanprompt update
+npx leanprompt update
 ```
 
 `update` looks in this project and in your home folder for what an earlier install wrote, refreshes those files to this version, adds files that are new in it, and lists what changed. It never touches a file without leanprompt's stamp. `--scope=project` or `--scope=global` limits where it looks, and `--dry-run` lists without writing. Reload your assistant afterwards.
@@ -72,26 +72,26 @@ Instead of the CLI, Claude Code can install the skills as a plugin, inside a ses
 
 Plugin skills carry the plugin's name, so the command is `/leanprompt:leanprompt`; bare `/leanprompt` runs it too unless another command already uses that name ([code.claude.com/docs/en/skills](https://code.claude.com/docs/en/skills)). The plugin installs the skills only; the score, the report page and the other terminal commands still run through `npx`.
 
-## The usage loggers (until the npm release)
+## The usage loggers
 
-The measure loop logs every call with a small logger inside the app. The packages on npm and PyPI are placeholders until the first release, so install the loggers from GitHub. Your assistant proposes the command and asks before it runs.
+The measure loop logs every call with a small logger inside the app. Your assistant proposes the command and asks before it runs.
 
 - TypeScript or JavaScript, which gives `import { createLogger } from "leanprompt/log"` with its types:
   ```
-  npm i github:Podwarden/leanprompt#v0.1.0-dev.1
+  npm i leanprompt
   ```
-  npm builds the package on install (a `prepare` script), so the first install takes a few seconds and needs Node 20.19 or newer. After the npm release: `npm i leanprompt`.
+  It needs Node 20.19 or newer.
 - Python, which gives `from leanprompt_cli import Logger`:
   ```
-  pip install "git+https://github.com/Podwarden/leanprompt#subdirectory=python"
+  pip install --pre leanprompt-cli
   ```
-  `uv pip install` takes the same argument. After the PyPI release: `pip install leanprompt-cli`.
+  `--pre` is needed because `leanprompt-cli` is a pre-release; `pip install leanprompt-cli==0.1.0.dev9` works too, and `uv pip install` takes the same arguments.
 
 Use of the loggers: [measure-loop](../skills/measure-loop/SKILL.md#log-every-call).
 
 ## Or clone and build
 
-If you would rather not have `npx` fetch from GitHub on each run, build the CLI once from a clone:
+If you would rather build the CLI yourself, or want the latest code, build it once from a clone:
 
 ```
 git clone https://github.com/Podwarden/leanprompt
@@ -103,11 +103,11 @@ npm ci && npm run build && npm link
 
 ## Windows
 
-`npx github:Podwarden/leanprompt install` works the same in PowerShell or `cmd`, and so do the clone-and-build steps (CI builds and tests leanprompt on Windows). The `curl | sh` line below is for macOS and Linux only.
+`npx leanprompt install` works the same in PowerShell or `cmd`, and so do the clone-and-build steps (CI builds and tests leanprompt on Windows). The `curl | sh` line below is for macOS and Linux only.
 
 ## Without typing npx (macOS and Linux)
 
-[scripts/install.sh](../scripts/install.sh) runs the same `install` through `npx github:Podwarden/leanprompt#v<version>` (the tag of the release, or the latest commit when no version is set), so it still needs Node. In a terminal it hands the installer the terminal, so the questions still work when piped. Arguments pass through:
+[scripts/install.sh](../scripts/install.sh) runs the same `install` through `npx leanprompt@<version>` (the release's version, or the latest published version when none is set), so it still needs Node. In a terminal it hands the installer the terminal, so the questions still work when piped. Arguments pass through:
 
 ```
 curl -fsSL https://raw.githubusercontent.com/Podwarden/leanprompt/main/scripts/install.sh | sh -s -- --providers=cursor
@@ -116,5 +116,5 @@ curl -fsSL https://raw.githubusercontent.com/Podwarden/leanprompt/main/scripts/i
 To pin a release, set the version for `sh`:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/Podwarden/leanprompt/main/scripts/install.sh | LEANPROMPT_VERSION=0.1.0-dev.8 sh -s -- --providers=cursor
+curl -fsSL https://raw.githubusercontent.com/Podwarden/leanprompt/main/scripts/install.sh | LEANPROMPT_VERSION=0.1.0-dev.9 sh -s -- --providers=cursor
 ```

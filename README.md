@@ -6,6 +6,7 @@ Effective, efficient and affordable: your coding assistant makes prompts cacheab
 
 [![license: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![ci](https://github.com/Podwarden/leanprompt/actions/workflows/ci.yml/badge.svg)](https://github.com/Podwarden/leanprompt/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/leanprompt)](https://www.npmjs.com/package/leanprompt)
 [![status: pre-release](https://img.shields.io/badge/status-pre--release-orange)](docs/install.md)
 <!-- pending: this repo's own leanprompt badge, once .leanprompt/score.json is committed from a measured run -->
 
@@ -15,7 +16,7 @@ From your project root:
 npx leanprompt install
 ```
 
-The npm package is being published and that line does not work yet. Until it does, run `npx github:Podwarden/leanprompt install` (Node 20.19 or newer). It finds the assistants you use, asks whether to install for this project or for all your projects, shows every file it will write, and asks before writing.
+It needs Node 20.19 or newer. It finds the assistants you use, asks whether to install for this project or for all your projects, shows every file it will write, and asks before writing.
 
 Reload your assistant, then type `/leanprompt init` (`$leanprompt init` in Codex).
 
@@ -38,7 +39,7 @@ Type `/leanprompt` alone to see them in your assistant. `npx leanprompt --help` 
 | **Fix and prove** | `/leanprompt fix` checks each finding, shows a diff, applies it on your yes · `/leanprompt measure` proves it with a before and after |
 | **Share** | `/leanprompt report` writes a local page in plain English · `/leanprompt lesson` drafts a lesson-learned issue, sending nothing · `npx leanprompt score --github` annotates a pull request ([docs/ci.md](docs/ci.md)) |
 
-Until the npm release, run each `npx leanprompt <cmd>` as `npx github:Podwarden/leanprompt <cmd>`. The usage logger that `measure` adds to your app installs from GitHub too: `npm i github:Podwarden/leanprompt#v0.1.0-dev.1`, or for Python `pip install "git+https://github.com/Podwarden/leanprompt#subdirectory=python"`; your assistant asks first.
+The usage logger that `measure` adds to your app installs with `npm i leanprompt`, or for Python `pip install --pre leanprompt-cli` (`--pre` because it is a pre-release); your assistant asks first.
 
 No telemetry, no proxy, no hosted service, no account. It does not edit your code without asking.
 

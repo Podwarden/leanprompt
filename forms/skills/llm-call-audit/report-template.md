@@ -61,12 +61,12 @@ Paste this into Claude Code, Codex, Cursor or any coding assistant. It checks ea
 ```text
 Please check and fix the LLM-call findings from a leanprompt audit of this repository.
 
-1. If the leanprompt skills are not installed for you here, install them: npx github:Podwarden/leanprompt install
+1. If the leanprompt skills are not installed for you here, install them: npx leanprompt install
 2. Read .leanprompt/findings.json and leanprompt-report.md. If they are missing, use the list below.
 3. Check each finding against the code before you change anything. The audit can be wrong: if a finding does not hold, tell me why and leave that code alone.
 4. Fix one finding at a time. Show me the change as a small diff and apply it only after I say yes.
 5. Prove each fix with the measure-loop skill: a before and after on the same scenario. Ask me before running anything that sends real, billed requests.
-6. When a fix is proved, set "fixed": true on its finding in .leanprompt/findings.json and run npx github:Podwarden/leanprompt score.
+6. When a fix is proved, set "fixed": true on its finding in .leanprompt/findings.json and run npx leanprompt score.
 
 Findings, largest first:
 1. <rule id> at <file>:<line>: <problem>
@@ -110,4 +110,4 @@ Money is not part of the score.
 ````
 
 Write the numbers with their kind every time: "(estimate)" next to a figure from code, "(measured, N calls)" next to a figure from the usage log. A static score is never presented as measured, and money is shown only from the user's own volume and a price with its source and checked date; never invent either.
-<!-- leanprompt:generated v0.1.0-dev.8: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.9: written by npx leanprompt install; npx leanprompt update replaces local edits -->

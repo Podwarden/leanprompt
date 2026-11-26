@@ -1,8 +1,7 @@
 #!/bin/sh
 # Install leanprompt's skills into the current project. Equivalent to
-# `npx --yes github:Podwarden/leanprompt#v<version> install "$@"`; there is no second
-# implementation here. It installs from the GitHub tag, not from npm, until the npm
-# package carries the CLI; npm builds the CLI from source on install (the `prepare` script).
+# `npx --yes leanprompt@<version> install "$@"`; there is no second
+# implementation here. It installs from npm.
 # The version comes from LEANPROMPT_VERSION, else the package.json of the leanprompt
 # checkout this script file sits in, else "latest". Piped (`curl ... | sh`), $0 is the
 # shell, not this file, so no package.json is read: a project's own package.json must
@@ -27,9 +26,9 @@ fi
 version="${version:-latest}"
 
 if [ "$version" = "latest" ]; then
-  spec="github:Podwarden/leanprompt"
+  spec="leanprompt"
 else
-  spec="github:Podwarden/leanprompt#v$version"
+  spec="leanprompt@$version"
 fi
 
 # Piped, stdin is this script; in a terminal, give the installer the terminal so it can ask.

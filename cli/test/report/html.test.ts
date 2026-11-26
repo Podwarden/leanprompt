@@ -157,7 +157,7 @@ describe("renderReport", () => {
       f({ file: "z.ts", line: 1, fixed: true }),
     ], rules);
     expect(sec).toContain(block.split("\n")[0]!);
-    expect(block).toContain("npx github:Podwarden/leanprompt install");
+    expect(block).toContain("npx leanprompt install");
     expect(block).toContain(".leanprompt/findings.json");
     expect(block).toContain("leanprompt-report.md");
     expect(block).toMatch(/before you change anything/);

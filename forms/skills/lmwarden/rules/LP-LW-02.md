@@ -75,4 +75,4 @@ The key is not part of the prompt, so answers do not change. Keeping conversatio
 
 ## Waste signal
 Measured: lowers E on conversations whose prefix kvsig says was equal and that the server did not reuse; the log cannot say whether placement was the cause, so check the server's counters before reporting it. Static: severity medium where a client rotates across replica URLs or sends a per-request random conversation key to a multi-replica server; none for a single replica.
-<!-- leanprompt:generated v0.1.0-dev.8: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.9: written by npx leanprompt install; npx leanprompt update replaces local edits -->

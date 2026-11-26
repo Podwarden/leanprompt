@@ -41,6 +41,12 @@ The first release.
 - `npm run check:numbers`: every number with a unit in the README, the public docs and the skills cites an evidence row or a measured result.
 - Apache-2.0 for code, CC BY 4.0 for the skills and docs; README, CONTRIBUTING, GOVERNANCE and SECURITY (the last three under `.github/`).
 
+## 0.1.0-dev.9 – 2026-11-26
+
+### Changed
+
+- Install from npm and PyPI: `npx leanprompt install` and `npx leanprompt score` work as written, `npm i leanprompt` adds the TypeScript usage logger and `pip install --pre leanprompt-cli` the Python one (`--pre` because it is a pre-release). The README, `docs/install.md`, the skills, `scripts/install.sh` and the hand-off block in the report page no longer go through GitHub; `docs/install.md` keeps one line for running the latest code from GitHub.
+
 ## 0.1.0-dev.8 – 2026-11-26
 
 One-line install and a `/leanprompt` command.

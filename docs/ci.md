@@ -20,10 +20,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npx --yes github:Podwarden/leanprompt#v0.1.0-dev.8 score --static --github
+      - run: npx --yes leanprompt@0.1.0-dev.9 score --static --github
 ```
 
-After the npm release, the last line becomes `npx --yes leanprompt@<version> score --static --github`. Pin a version either way, so a new release cannot change a build without a commit.
+Pin a version, so a new release cannot change a build without a commit.
 
 ## What it prints
 

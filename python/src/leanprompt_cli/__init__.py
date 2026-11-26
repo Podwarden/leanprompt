@@ -2,6 +2,6 @@
 
 from leanprompt_cli.log import Logger
 
-__version__ = "0.1.0.dev0"
+__version__ = "0.1.0.dev9"
 
 __all__ = ["Logger", "__version__"]

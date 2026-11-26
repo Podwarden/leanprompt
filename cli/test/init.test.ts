@@ -350,10 +350,10 @@ describe("init command", () => {
   });
 });
 
-// install.sh is POSIX sh; Windows installs with `npx github:Podwarden/leanprompt init`.
+// install.sh is POSIX sh; Windows installs with `npx leanprompt init`.
 describe.skipIf(isWin)("scripts/install.sh", () => {
   const script = join(REPO, "scripts/install.sh");
-  it("runs npx --yes github:Podwarden/leanprompt#v<version> install with the arguments", () => {
+  it("runs npx --yes leanprompt@<version> install with the arguments", () => {
     const bin = join(tmp, "bin");
     put(join(bin, "npx"), '#!/bin/sh\necho "npx $*"\n');
     chmodSync(join(bin, "npx"), 0o755);
@@ -363,10 +363,10 @@ describe.skipIf(isWin)("scripts/install.sh", () => {
       env: { PATH: bin, LEANPROMPT_VERSION: "1.2.3" },
       encoding: "utf8",
     });
-    expect(r.stdout.trim()).toBe("npx --yes github:Podwarden/leanprompt#v1.2.3 install --assistant claude");
+    expect(r.stdout.trim()).toBe("npx --yes leanprompt@1.2.3 install --assistant claude");
     const pkg = JSON.parse(rd(join(REPO, "package.json"))) as { version: string };
     const r2 = spawnSync("/bin/sh", [script], { env: { PATH: bin }, encoding: "utf8" });
-    expect(r2.stdout.trim()).toBe(`npx --yes github:Podwarden/leanprompt#v${pkg.version} install`);
+    expect(r2.stdout.trim()).toBe(`npx --yes leanprompt@${pkg.version} install`);
   });
 
   const fakeBin = (): string => {
@@ -389,7 +389,7 @@ describe.skipIf(isWin)("scripts/install.sh", () => {
     const proj = nestedProject();
     put(join(proj, "sh"), "not a script"); // even a file named like the shell in the cwd is not used
     const r = spawnSync("/bin/sh", ["-s", "--", "--assistant", "cursor"], { input: rd(script), cwd: proj, env: { PATH: bin }, argv0: "sh", encoding: "utf8" });
-    expect(r.stdout.trim()).toBe("npx --yes github:Podwarden/leanprompt install --assistant cursor");
+    expect(r.stdout.trim()).toBe("npx --yes leanprompt install --assistant cursor");
   });
 
   it("piped honours LEANPROMPT_VERSION", () => {
@@ -402,7 +402,7 @@ describe.skipIf(isWin)("scripts/install.sh", () => {
       argv0: "sh", // as `curl ... | sh` runs it: $0 is "sh"
       encoding: "utf8",
     });
-    expect(r.stdout.trim()).toBe("npx --yes github:Podwarden/leanprompt#v0.1.0 install --assistant cursor");
+    expect(r.stdout.trim()).toBe("npx --yes leanprompt@0.1.0 install --assistant cursor");
   });
 
   it("a script file whose parent package.json is not leanprompt's uses latest", () => {
@@ -410,7 +410,7 @@ describe.skipIf(isWin)("scripts/install.sh", () => {
     put(join(tmp, "mono", "package.json"), JSON.stringify({ name: "acme-monorepo", version: "9.9.9" }));
     put(join(tmp, "mono", "scripts", "install.sh"), rd(script));
     const r = spawnSync("/bin/sh", [join(tmp, "mono", "scripts", "install.sh")], { env: { PATH: bin }, encoding: "utf8" });
-    expect(r.stdout.trim()).toBe("npx --yes github:Podwarden/leanprompt install");
+    expect(r.stdout.trim()).toBe("npx --yes leanprompt install");
   });
 
   it("explains a missing node and exits non-zero", () => {

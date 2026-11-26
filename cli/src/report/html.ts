@@ -354,7 +354,7 @@ function findingsSection(o: ReportInput, g: Groups, version: string): string {
   return html;
 }
 
-const NPX = "npx github:Podwarden/leanprompt";
+const NPX = "npx leanprompt";
 
 /** The block a user pastes into their coding agent: self-contained instructions plus the open findings. */
 export function handoffText(findings: Finding[], rules: Map<string, RuleInfo>): string {

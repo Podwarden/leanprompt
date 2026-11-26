@@ -5,13 +5,13 @@ import { describe, expect, it } from "vitest";
 
 const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 const read = (...p: string[]) => readFileSync(join(ROOT, ...p), "utf8");
-const NPM = /npm i github:Podwarden\/leanprompt#v\d+\.\d+\.\d+(-[\w.]+)?/;
-const PIP = 'pip install "git+https://github.com/Podwarden/leanprompt#subdirectory=python"';
+const NPM = "npm i leanprompt";
+const PIP = "pip install --pre leanprompt-cli";
 
-describe("logger install before the npm release", () => {
-  it("the measure-loop skill gives the GitHub install lines and keeps the ask-first wording", () => {
+describe("logger install from npm and PyPI", () => {
+  it("the measure-loop skill gives the npm and PyPI install lines and keeps the ask-first wording", () => {
     const t = read("skills", "measure-loop", "SKILL.md");
-    expect(t).toMatch(NPM);
+    expect(t).toContain(NPM);
     expect(t).toContain(PIP);
     expect(t).toMatch(/propose the install command to the user instead of running it/);
   });
@@ -19,7 +19,7 @@ describe("logger install before the npm release", () => {
   it("docs/install.md and the README give them too", () => {
     for (const f of [["docs", "install.md"], ["README.md"]] as const) {
       const t = read(...f);
-      expect(t, f.join("/")).toMatch(NPM);
+      expect(t, f.join("/")).toContain(NPM);
       expect(t, f.join("/")).toContain(PIP);
     }
   });

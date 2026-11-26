@@ -43,10 +43,10 @@ Details and sources: [providers/openai.md](../../providers/openai.md), [provider
 
 Adding the logger is a change to the app's code: show the lines below as a diff for the user's call site, and add them only if the user says yes. The leanprompt usage logger writes one JSON line per call to `.leanprompt/usage.jsonl`: kvsig ids, character counts, token counts from the usage fields above, the finish reason and flags. It never writes prompt or completion text, and it never raises into your request path.
 
-Install it first, and propose the install command to the user instead of running it (it adds a dependency). Until the npm release, the `leanprompt` package on npm is a placeholder with no logger, so install from GitHub, where it is built on install:
+Install it first, and propose the install command to the user instead of running it (it adds a dependency).
 
-- TypeScript or JavaScript, propose: `npm i github:Podwarden/leanprompt#v0.1.0-dev.1`. After the npm release: `npm i leanprompt`.
-- Python, propose: `pip install "git+https://github.com/Podwarden/leanprompt#subdirectory=python"` (`uv pip install` takes the same argument). The `leanprompt-cli` package on PyPI is a placeholder too until the release; then `pip install leanprompt-cli`.
+- TypeScript or JavaScript, propose: `npm i leanprompt`.
+- Python, propose: `pip install --pre leanprompt-cli` (`--pre` because it is a pre-release; `uv pip install` takes the same arguments).
 
 TypeScript or JavaScript:
 

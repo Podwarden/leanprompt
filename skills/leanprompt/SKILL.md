@@ -44,4 +44,4 @@ The rules themselves live in [prefill-cache](../prefill-cache/SKILL.md), [genera
 
 ## Running the CLI
 
-The commands above call the leanprompt CLI as `npx leanprompt <command>`. Until the npm package is published, run it as `npx github:Podwarden/leanprompt <command>`. `score`, `report --html` and `calibrate` only read and write files under `.leanprompt/` and make no network calls. Ask before editing code, installing a package, or running anything that sends requests to a provider, which are billed.
+The commands above call the leanprompt CLI as `npx leanprompt <command>`. `score`, `report --html` and `calibrate` only read and write files under `.leanprompt/` and make no network calls. Ask before editing code, installing a package, or running anything that sends requests to a provider, which are billed.

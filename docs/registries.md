@@ -6,7 +6,7 @@ A checklist for the maintainers. **Every step here is done by the owner, by hand
 
 ## Before any of them
 
-- [ ] The npm package is published, so `npx leanprompt install` works as the README says. Until then, every listing says `npx github:Podwarden/leanprompt install`.
+- [ ] The npm package is published, so `npx leanprompt install` works as the README says.
 - [ ] The repository is public, the `main` branch holds the release, and its tag (`v<version>`) exists.
 - [ ] `npm pack --dry-run` lists the README, NOTICE, LICENSE, LICENSE-DOCS, `cli/dist`, `skills`, `forms`, `providers`, `models` and `runtimes`, and no tests or fixtures.
 - [ ] The README's "Without / With" images load from `https://github.com/Podwarden/leanprompt/raw/main/docs/assets/`.
@@ -64,6 +64,6 @@ Not verified on 2026-11-26; read each one's own rules first.
 | One-line description | the headline: "Get more from every LLM call your app makes." |
 | Longer description | the README's supporting line |
 | Screenshot | `docs/assets/readme-without.webp` and `docs/assets/readme-with.webp` (1400 by 600, light) |
-| Install line | `npx leanprompt install` once npm is live; `npx github:Podwarden/leanprompt install` until then |
+| Install line | `npx leanprompt install` |
 | First command | `/leanprompt init` (`$leanprompt init` in Codex) |
 | License | Apache-2.0 for code, CC BY 4.0 for the skills and docs |
