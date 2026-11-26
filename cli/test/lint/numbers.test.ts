@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { ResultFile } from "../../../eval/run.js";
-import { checkNumbers, checkNumbersInRepo, resultFileName } from "../../src/lint/numbers.js";
+import { checkNumbers, checkNumbersInRepo, publicDocs, resultFileName } from "../../src/lint/numbers.js";
 
 const EVIDENCE = new Set(Array.from({ length: 12 }, (_, i) => `E${i + 1}`));
 const result = (kind: ResultFile["kind"]): ResultFile => ({
@@ -77,14 +77,25 @@ describe("checkNumbers", () => {
     expect(msgs("reuse went from 45.7% to 89.2% (E8)")).toEqual(["line 1: E8 cannot be quoted with a number yet (see docs/DESIGN.md open questions)"]);
     expect(msgs("A benchmark repeated requests instead of using n samples (E12).")).toEqual([]);
   });
+  it("treats a row of the evidence table as its own source", () => {
+    expect(msgs("| E9 | reuse rose to **76%** | Engine benchmark | One card |")).toEqual([]);
+    expect(msgs("| E99 | reuse rose to 76% | x | y |")[0]).toMatch(/needs a source/);
+    expect(msgs("| Rule | reuse rose to 76% |")[0]).toMatch(/needs a source/);
+  });
   it("reports the right line number", () => {
     expect(msgs("ok\n\n```\n1%\n```\n5%")[0]).toMatch(/^line 6:/);
   });
 });
 
 describe("checkNumbersInRepo", () => {
-  it("is clean on this repo's README and skills", () => {
-    const root = fileURLToPath(new URL("../../../", import.meta.url));
+  const root = fileURLToPath(new URL("../../../", import.meta.url));
+  it("is clean on this repo's README, public docs and skills", () => {
     expect(checkNumbersInRepo(root)).toEqual([]);
+  });
+  it("covers the public docs pages and leaves out the working records", () => {
+    const names = publicDocs(root).map((f) => f.split(/[\\/]/).at(-1));
+    for (const n of ["evidence.md", "self-hosting.md", "score.md", "install.md", "how-it-works.md", "providers.md", "README.md"]) expect(names).toContain(n);
+    expect(names).not.toContain("DESIGN.md");
+    expect(names).not.toContain("RESEARCH-similar-projects.md");
   });
 });

@@ -20,5 +20,5 @@ hosts, no keys.
 | E12 | A literary question-answering benchmark sent the same request repeatedly to collect several samples, instead of one request with `n` samples, paying prefill once per sample. | Anonymised case study (internal report, not public) | No measured before/after yet; to be measured before it is quoted |
 
 E10 is engine-side, not a prompt change. It belongs in the `lmwarden` skill
-and in the README's "self-hosting" section, never presented as what a
+and on the [self-hosting page](self-hosting.md), never presented as what a
 leanprompt rule achieves.

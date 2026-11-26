@@ -13,9 +13,9 @@ Decide once per session whether thinking is on, at what budget or effort, and ho
 ## Why
 Chat templates and providers render earlier assistant turns differently depending on the thinking setting, so a setting that changes between turns changes the prefix behind them.
 
-- On a self-hosted Qwen hybrid model, toggling thinking on and off between turns of one session lost 47% of what those turns could have reused; turns with the same setting as the turn before lost nothing (E7). The template rules are in [models/qwen.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev/models/qwen.md).
-- On Anthropic, the thinking mode and budget are rendered into the prompt, and changing either invalidates the message blocks ([models/anthropic-thinking.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev/models/anthropic-thinking.md)).
-- On OpenAI reasoning models, reasoning items returned with tool calls are meant to be passed back in their original order ([models/openai-reasoning.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev/models/openai-reasoning.md)).
+- On a self-hosted Qwen hybrid model, toggling thinking on and off between turns of one session lost 47% of what those turns could have reused; turns with the same setting as the turn before lost nothing (E7). The template rules are in [models/qwen.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.1/models/qwen.md).
+- On Anthropic, the thinking mode and budget are rendered into the prompt, and changing either invalidates the message blocks ([models/anthropic-thinking.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.1/models/anthropic-thinking.md)).
+- On OpenAI reasoning models, reasoning items returned with tool calls are meant to be passed back in their original order ([models/openai-reasoning.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.1/models/openai-reasoning.md)).
 
 Stripping reasoning from history to save tokens changes the prefix from the first stripped turn on, and it can cost more than it saves: in agent loops it produced about 3x more generation (E11).
 
@@ -72,4 +72,4 @@ A fixed setting changes the turns that used to differ. If hard turns needed thin
 
 ## Waste signal
 Measured: the prefill side lowers S on every turn after a change. The generation side (E11) is not part of G; it shows as more output tokens per task in a before/after run (the `measure-loop` skill). Static: severity high, counted on both the prefill and the generation side (`saves: both`).
-<!-- leanprompt:generated v0.1.0-dev — managed by npx leanprompt init; local edits are replaced on update -->
+<!-- leanprompt:generated v0.1.0-dev.1 — managed by npx leanprompt init; local edits are replaced on update -->

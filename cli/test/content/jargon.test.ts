@@ -2,6 +2,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { publicDocs } from "../../src/lint/numbers.js";
 
 const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 const mdUnder = (dir: string): string[] =>
@@ -14,7 +15,8 @@ const mdUnder = (dir: string): string[] =>
 const JARGON = /owner ruling|ruling D\d|\bD\d\b|\bQ\d\b|\bTask \d+/;
 const FILES = [
   ...mdUnder(join(ROOT, "skills")),
-  ...["README.md", "docs/profile.md", "docs/calibration.md", "docs/evidence.md", "CONTRIBUTING.md", "GOVERNANCE.md", "SECURITY.md"].map((f) => join(ROOT, f)),
+  ...publicDocs(ROOT),
+  ...["README.md", ".github/CONTRIBUTING.md", ".github/GOVERNANCE.md", ".github/SECURITY.md"].map((f) => join(ROOT, f)),
 ];
 
 describe("no internal jargon in public copy", () => {

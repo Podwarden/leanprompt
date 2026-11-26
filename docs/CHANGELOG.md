@@ -36,5 +36,14 @@ The first release.
 ### Project
 
 - Per-assistant forms generated from one source and checked in CI; a Claude Code plugin marketplace in `.claude-plugin/`.
-- `npm run check:numbers`: every number with a unit in the README and the skills cites an evidence row or a measured result.
-- Apache-2.0 for code, CC BY 4.0 for the skills and docs; README, CONTRIBUTING, GOVERNANCE and SECURITY.
+- `npm run check:numbers`: every number with a unit in the README, the public docs and the skills cites an evidence row or a measured result.
+- Apache-2.0 for code, CC BY 4.0 for the skills and docs; README, CONTRIBUTING, GOVERNANCE and SECURITY (the last three under `.github/`).
+
+## 0.1.0-dev.1 – 2026-11-26
+
+A pre-release that installs from GitHub.
+
+- `npx github:Podwarden/leanprompt <cmd>` builds and runs the CLI from source (a `prepare` script), so it works before the npm release; `scripts/install.sh` installs from the GitHub tag `v<version>`.
+- The README is shorter, with a TL;DR and a quick start; the detail moved to pages under `docs/` (install, how it works, score, providers, self-hosting) with an index in `docs/README.md`.
+- CONTRIBUTING, GOVERNANCE and SECURITY moved to `.github/`; CHANGELOG and THANKYOU moved to `docs/`.
+- `npm run check:numbers` and the jargon test also cover the public pages under `docs/`.

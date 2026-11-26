@@ -1,6 +1,6 @@
 {
   "name": "leanprompt",
-  "version": "0.1.0-dev",
+  "version": "0.1.0-dev.1",
   "description": "Skills for AI coding assistants that cut wasted prefill and generation in LLM calls, plus a CLI to measure the result.",
   "type": "module",
   "license": "Apache-2.0 AND CC-BY-4.0",
@@ -10,6 +10,7 @@
   "exports": { "./log": { "types": "./cli/dist/log/logger.d.ts", "default": "./cli/dist/log/logger.js" } },
   "engines": { "node": ">=20.19" },
   "scripts": {
+    "prepare": "npm run build",
     "test": "vitest run",
     "build": "tsc && node -e \"require('fs').cpSync('cli/src/report/template.html','cli/dist/report/template.html')\"",
     "typecheck": "tsc -p tsconfig.eval.json",

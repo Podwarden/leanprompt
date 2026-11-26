@@ -49,8 +49,8 @@ describe("the lesson offer in the skills", () => {
   });
 });
 
-describe("THANKYOU.md", () => {
-  const t = read("THANKYOU.md");
+describe("docs/THANKYOU.md", () => {
+  const t = read("docs", "THANKYOU.md");
   it("explains credits are opt-in, added by maintainers after review, and links are listed as given", () => {
     expect(t).toMatch(/opt-in|optional/i);
     expect(t).toMatch(/name/i);

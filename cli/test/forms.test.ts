@@ -129,7 +129,7 @@ describe("build:forms --check", () => {
 
   function copy(): string {
     const d = mkdtempSync(join(tmpdir(), "lp-forms-"));
-    for (const p of ["package.json", "THANKYOU.md", "skills", "providers", "models", "docs"]) cpSync(join(ROOT, p), join(d, p), { recursive: true });
+    for (const p of ["package.json", "skills", "providers", "models", "docs"]) cpSync(join(ROOT, p), join(d, p), { recursive: true });
     return d;
   }
 

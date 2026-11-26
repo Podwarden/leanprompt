@@ -57,7 +57,7 @@ Show each proof as a before/after line, one per field, in the form `cached_token
 
 ## Offering to share a lesson
 
-After the last finding, if one fix now has a measured before and after, or a rule misled the user, add one line offering to share it as a "lesson learned": "If you like, `npx leanprompt lesson` drafts a short, general-terms write-up on your machine. You read the exact text and open the GitHub issue yourself; nothing is sent." The user reads the exact text and opens the issue themselves. Offer it once and accept a no. Run `npx leanprompt lesson --rule <id>` only after the user says yes, then point them at `.leanprompt/lesson.md` and the link it prints. Do not offer it for a static score alone, and never paste anything the user removed from the draft. A maintainer reads every submission before it informs a rule; credit is optional ([THANKYOU.md](../../THANKYOU.md)).
+After the last finding, if one fix now has a measured before and after, or a rule misled the user, add one line offering to share it as a "lesson learned": "If you like, `npx leanprompt lesson` drafts a short, general-terms write-up on your machine. You read the exact text and open the GitHub issue yourself; nothing is sent." The user reads the exact text and opens the issue themselves. Offer it once and accept a no. Run `npx leanprompt lesson --rule <id>` only after the user says yes, then point them at `.leanprompt/lesson.md` and the link it prints. Do not offer it for a static score alone, and never paste anything the user removed from the draft. A maintainer reads every submission before it informs a rule; credit is optional ([THANKYOU.md](../../docs/THANKYOU.md)).
 
 ## Large audits and sharing
 

@@ -81,7 +81,9 @@ export function checkNumbers(markdown: string, results: ResultFile[], evidence: 
     }
 
     const hit = TRIGGERS.map((t) => t.exec(line)).find((m) => m);
-    let sourced = false;
+    // A row of the evidence table itself (`| E1 | ... |`) is the source, not a claim that needs one.
+    const row = /^\|\s*(E\d+)\s*\|/.exec(line);
+    let sourced = !!row && evidence.has(row[1]!);
     let bad = false;
     for (const m of line.matchAll(CITATION)) {
       for (const id of m[1]!.split(/\s*[,;]\s*/)) {
@@ -131,11 +133,24 @@ export function loadResults(root: string): ResultFile[] {
     .map((f) => ({ ...(JSON.parse(readFileSync(join(dir, f), "utf8")) as ResultFile), file: f }));
 }
 
-/** The public copy: README.md and every Markdown file under skills/. */
+// docs/ pages that are working records (planning notes and background research), not public claims.
+export const DOCS_NOT_PUBLIC = new Set(["DESIGN.md", "RESEARCH-similar-projects.md"]);
+
+/** The public docs: every Markdown file directly under docs/ except the working records. */
+export function publicDocs(root: string): string[] {
+  const dir = join(root, "docs");
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .filter((f) => f.endsWith(".md") && !DOCS_NOT_PUBLIC.has(f))
+    .sort()
+    .map((f) => join(dir, f));
+}
+
+/** The public copy: README.md, the public docs/ pages and every Markdown file under skills/. */
 export function checkNumbersInRepo(root: string): LintIssue[] {
   const evidence = loadEvidenceIds(root);
   const results = loadResults(root);
-  const files = [join(root, "README.md"), ...markdownUnder(join(root, "skills"))].filter((f) => existsSync(f));
+  const files = [join(root, "README.md"), ...publicDocs(root), ...markdownUnder(join(root, "skills"))].filter((f) => existsSync(f));
   const issues: LintIssue[] = [];
   if (!existsSync(join(root, "README.md"))) issues.push({ file: "README.md", level: "error", msg: "missing README.md" });
   for (const f of files) {

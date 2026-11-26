@@ -56,4 +56,4 @@ Ranked by estimated tokens lost per 1,000 calls. Findings that change price or l
 ````
 
 Write the numbers with their kind every time: "(estimate)" next to a figure from code, "(measured, N calls)" next to a figure from the usage log. A static score is never presented as measured.
-<!-- leanprompt:generated v0.1.0-dev — managed by npx leanprompt init; local edits are replaced on update -->
+<!-- leanprompt:generated v0.1.0-dev.1 — managed by npx leanprompt init; local edits are replaced on update -->

@@ -10,7 +10,7 @@ People who shared a lesson learned, and what it taught leanprompt.
 - A project link is shown as given, without endorsement: listing it does not mean leanprompt or the PodWarden Team vouches for the project.
 - Contributions are shared under CC BY 4.0. Submitted text is evidence that maintainers read; it is not pasted into a skill.
 
-What to leave out of a lesson, and how it is reviewed: [CONTRIBUTING.md](CONTRIBUTING.md#share-a-lesson-learned).
+What to leave out of a lesson, and how it is reviewed: [CONTRIBUTING.md](../.github/CONTRIBUTING.md#share-a-lesson-learned).
 
 ## Contributors
 
