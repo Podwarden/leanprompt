@@ -1,19 +1,18 @@
 import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { posix, join } from "node:path";
-import { stringify } from "yaml";
 import { parseDoc } from "./frontmatter.js";
 
-export const SKILLS = ["llm-call-audit", "prefill-cache", "generation-economy", "prompt-diet", "measure-loop", "lmwarden"] as const;
+export const SKILLS = ["leanprompt", "llm-call-audit", "prefill-cache", "generation-economy", "prompt-diet", "measure-loop", "lmwarden"] as const;
 
 export const BLOCK_BEGIN = "<!-- leanprompt:begin -->";
 export const BLOCK_END = "<!-- leanprompt:end -->";
 export const GENERATED_MARK = "<!-- leanprompt:generated";
 export const generatedStamp = (version: string) =>
-  `${GENERATED_MARK} v${version} — managed by npx leanprompt init; local edits are replaced on update -->`;
+  `${GENERATED_MARK} v${version}: written by npx leanprompt install; npx leanprompt update replaces local edits -->`;
 const stamp = (text: string, version: string) => text.replace(/\n*$/, "\n") + generatedStamp(version) + "\n";
 /** The stamp as a line comment, for the code templates (`//` for .ts, `#` for .py). */
 export const codeStamp = (comment: "//" | "#", version: string) =>
-  `${comment} leanprompt:generated v${version} — managed by npx leanprompt init; local edits are replaced on update`;
+  `${comment} leanprompt:generated v${version}: written by npx leanprompt install; npx leanprompt update replaces local edits`;
 const stampCode = (text: string, comment: "//" | "#", version: string) =>
   text.replace(/\n*$/, "\n") + codeStamp(comment, version) + "\n";
 /** True when a file's text carries any form of the generated stamp (markdown or code comment). */
@@ -33,11 +32,12 @@ prompts, no dead weight, no wasted output, faster first tokens), plus a TypeScri
   defaults in \`runtimes/\`, each with a \`checked:\` date and a \`source:\`. Every number in the docs links to its source.
 - Commits carry a DCO sign-off (\`git commit -s\`).
 
-The block below is generated. It is also what \`leanprompt init\` copies into other projects.
+The block below is generated. It is also what \`leanprompt install\` copies into other projects.
 
 `;
 
 const BLURB: Record<(typeof SKILLS)[number], string> = {
+  leanprompt: "the entry point: `/leanprompt` lists the commands (init, audit, fix, measure, score, report, lesson)",
   "llm-call-audit": "audit an app's LLM calls, rank the waste, write the report and findings",
   "prefill-cache": "rules for prompts the provider's cache can reuse (LP-PC-*)",
   "generation-economy": "rules for calls and output that are not wasted (LP-GE-*)",
@@ -90,13 +90,12 @@ export function rewriteLinks(
   });
 }
 
-function skillMeta(root: string, name: string): { description: string; body: string } {
+function skillMeta(root: string, name: string): { description: string } {
   const raw = lf(readFileSync(join(root, "skills", name, "SKILL.md"), "utf8"));
   const meta = parseDoc(raw).meta;
   const description = typeof meta.description === "string" ? meta.description.trim() : "";
   if (!description) throw new Error(`skills/${name}/SKILL.md has no description`);
-  const body = raw.replace(/^---[ \t]*\n[\s\S]*?\n---[ \t]*(?:\n|$)/, "").replace(/^\n+/, "");
-  return { description, body };
+  return { description };
 }
 
 export function agentsBlock(): string {
@@ -108,11 +107,11 @@ export function agentsBlock(): string {
     "Load a skill only",
     "when its task comes up, and a rule file only when the skill points at it.",
     "",
-    "Skills live in `.claude/skills/<name>/` or `.agents/skills/<name>/` (Cursor: `.cursor/rules/leanprompt-<name>.mdc`):",
+    "Skills live in `.claude/skills/<name>/`, `.agents/skills/<name>/` or `.cursor/skills/<name>/`:",
     "",
     ...SKILLS.map((s) => `- \`${s}\`: ${BLURB[s]}`),
     "",
-    "- Start with `llm-call-audit` for \"where do this app's LLM calls lose tokens or time\".",
+    "- Start with the `leanprompt` skill (`/leanprompt audit`, or `$leanprompt audit` in Codex), which routes to `llm-call-audit`.",
     "- Rules are in `<skill>/rules/LP-*.md`. Each ends with `Verify`; run it before calling a fix done.",
     "- Provider and model facts (limits, minimums, TTLs) are in the `providers/` and `models/`",
     "  pages linked from each rule, and HTTP client defaults in `runtimes/`, each with a `checked:`",
@@ -154,13 +153,22 @@ export function buildForms(root: string): Map<string, string> {
       else if (f.endsWith(".py")) text = stampCode(text, "#", version);
       out.set(`forms/skills/${name}/${f}`, text);
     }
-    const { description, body } = skillMeta(root, name);
-    const front = stringify({ description, alwaysApply: false }, { lineWidth: 0 });
-    out.set(
-      `forms/cursor/rules/leanprompt-${name}.mdc`,
-      stamp(`---\n${front}---\n\n${rewriteLinks(body, `skills/${name}/SKILL.md`, "flat", root, version)}`, version),
-    );
+    skillMeta(root, name); // throws when a skill has no description
   }
+
+  out.set(
+    "forms/opencode/commands/leanprompt.md",
+    stamp([
+      "---",
+      "description: leanprompt commands for this app's LLM calls (init, audit, fix, measure, score, report, lesson)",
+      "---",
+      "",
+      "Load the `leanprompt` skill and follow its routing for this command: $ARGUMENTS",
+      "",
+      "With no command, show the skill's menu and suggest one next step. Do not edit code without asking.",
+      "",
+    ].join("\n"), version),
+  );
 
   out.set(
     "forms/opencode/commands/leanprompt-audit.md",
@@ -185,13 +193,22 @@ export function buildForms(root: string): Map<string, string> {
 
   out.set(
     ".claude-plugin/plugin.json",
-    json({ name: "leanprompt", description: pkg.description, version, author: { name: "LM Warden Team" } }),
+    json({
+      name: "leanprompt",
+      description: pkg.description,
+      version,
+      author: { name: "LM Warden Team" },
+      homepage: REPO,
+      repository: REPO,
+      license: "Apache-2.0 AND CC-BY-4.0",
+    }),
   );
   out.set(
     ".claude-plugin/marketplace.json",
     json({
       name: "leanprompt",
       owner: { name: "LM Warden Team" },
+      metadata: { description: pkg.description },
       plugins: [{ name: "leanprompt", source: "./", description: pkg.description }],
     }),
   );

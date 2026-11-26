@@ -23,12 +23,12 @@ Send work that no user is waiting for (backfills, nightly jobs, evaluations, bul
 ## Why
 Batch APIs bill the same requests at a discount in exchange for asynchronous completion within a window. The discount, the window and the limits differ per provider and are in the tables:
 
-- **OpenAI** Batch API, and a `flex` service tier priced at batch rates for calls that can tolerate slow responses and occasional unavailability ([providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.7/providers/openai.md)).
-- **Anthropic** Message Batches; prompt caching works in batches on a best-effort basis, and the docs suggest the longer cache lifetime for shared context ([providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.7/providers/anthropic.md)).
-- **Gemini** Batch API, with context caching supported for batch requests ([providers/gemini.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.7/providers/gemini.md)).
-- **OpenRouter** batch endpoint, for models with a batch variant ([providers/openrouter.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.7/providers/openrouter.md)).
-- **DeepInfra** batch API, a smaller discount than the others, outside the real-time rate limits ([providers/deepinfra.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.7/providers/deepinfra.md)).
-- **vLLM** has a batch endpoint that takes many conversations in one request; on your own server the saving is throughput, not a price ([providers/vllm.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.7/providers/vllm.md)). SGLang: no batch API on the pages read ([providers/sglang.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.7/providers/sglang.md)).
+- **OpenAI** Batch API, and a `flex` service tier priced at batch rates for calls that can tolerate slow responses and occasional unavailability ([providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.8/providers/openai.md)).
+- **Anthropic** Message Batches; prompt caching works in batches on a best-effort basis, and the docs suggest the longer cache lifetime for shared context ([providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.8/providers/anthropic.md)).
+- **Gemini** Batch API, with context caching supported for batch requests ([providers/gemini.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.8/providers/gemini.md)).
+- **OpenRouter** batch endpoint, for models with a batch variant ([providers/openrouter.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.8/providers/openrouter.md)).
+- **DeepInfra** batch API, a smaller discount than the others, outside the real-time rate limits ([providers/deepinfra.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.8/providers/deepinfra.md)).
+- **vLLM** has a batch endpoint that takes many conversations in one request; on your own server the saving is throughput, not a price ([providers/vllm.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.8/providers/vllm.md)). SGLang: no batch API on the pages read ([providers/sglang.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.8/providers/sglang.md)).
 
 The tokens are the same; the price per token is lower. Batch jobs also do not compete with interactive traffic for rate limits on providers that say so.
 
@@ -81,4 +81,4 @@ The request bodies are unchanged, so answers do not change. What changes is deli
 
 ## Waste signal
 Not in the score (the score counts tokens, not price). Static: severity medium for a scheduled or bulk job that sends many independent calls to the interactive endpoint of a provider with a batch API; reported with the provider's discount from its table.
-<!-- leanprompt:generated v0.1.0-dev.7 — managed by npx leanprompt init; local edits are replaced on update -->
+<!-- leanprompt:generated v0.1.0-dev.8: written by npx leanprompt install; npx leanprompt update replaces local edits -->

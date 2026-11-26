@@ -21,6 +21,9 @@ paths:
     agents_md: AGENTS.md
     agents_md_global: ~/.config/opencode/AGENTS.md
   cursor:
+    skills: .cursor/skills/<name>/SKILL.md
+    skills_global: ~/.cursor/skills/<name>/SKILL.md
+    skills_also_read: [.agents/skills, .claude/skills, .codex/skills, ~/.agents/skills, ~/.claude/skills, ~/.codex/skills]
     rules: .cursor/rules/<name>.mdc
     agents_md: AGENTS.md
 schema:
@@ -45,7 +48,7 @@ schema:
 
 # Where each assistant reads skills, commands and rules
 
-Install locations for five assistants, read from each vendor's own
+Install locations for five assistants, and how each one invokes a skill,, read from each vendor's own
 documentation on 2026-11-26. These paths change often. Every row carries its
 own source; where a page says nothing, the row says so rather than guessing.
 Paths are relative to the project root unless they start with `~`.
@@ -61,6 +64,8 @@ Paths are relative to the project root unless they start with `~`.
 | Plugin manifest | `.claude-plugin/plugin.json`; optional file; `name` is the only required key (kebab-case; names starting `claude-` or `anthropic-` are rejected by validation); all other plugin files go at the plugin root, not inside `.claude-plugin/` | https://code.claude.com/docs/en/plugins-reference |
 | Marketplace file | `.claude-plugin/marketplace.json` at the marketplace root; required top-level keys `name`, `owner` (object, `name` required), `plugins` (array); each entry requires `name` and `source` (`"./path"` from the marketplace root, or a source object such as `github`) | https://code.claude.com/docs/en/plugins/marketplace-reference |
 | Install from a marketplace | `claude plugin marketplace add <owner>/<repo>`, then `claude plugin install <plugin>@<marketplace>`; inside a session, `/plugin marketplace add` and `/plugin install` | https://code.claude.com/docs/en/plugin-marketplaces |
+| Plugin skill command name | `/plugin-name:skill-name`; with `name:` in a plugin skill's frontmatter, "the bare `/fancy` also invokes the skill unless another command already uses that name". leanprompt's entry skill is `/leanprompt:leanprompt`, and bare `/leanprompt` resolves to it (checked in Claude Code 2.1.332 with `--plugin-dir`) | https://code.claude.com/docs/en/skills |
+| Skill arguments | Text after the command reaches the skill as `$ARGUMENTS`, or is appended as `ARGUMENTS: <value>` when the skill has no placeholder; `argument-hint` is shown in autocomplete | https://code.claude.com/docs/en/skills |
 | Entry name vs manifest name | Keep the marketplace entry `name` equal to the `name` in `plugin.json`; install ids use the entry name, skill prefixes use the manifest name | https://code.claude.com/docs/en/plugin-marketplaces |
 | `AGENTS.md` | Not checked on this date (Claude Code documentation was read for skills and plugins only) | https://code.claude.com/docs/en/skills |
 
@@ -78,6 +83,7 @@ with a permanent redirect to `learn.chatgpt.com`. Both addresses are listed.
 | User skills | `$HOME/.agents/skills`. The page does not mention `~/.codex/skills` | https://learn.chatgpt.com/docs/build-skills |
 | Admin and bundled skills | `/etc/codex/skills`; a system set ships with Codex | https://learn.chatgpt.com/docs/build-skills |
 | Skill frontmatter | `name` and `description` are required | https://learn.chatgpt.com/docs/build-skills |
+| Invoking a skill | "In Codex CLI or the IDE extension, run `/skills` or type `$` to mention a skill", so `$leanprompt audit` | https://learn.chatgpt.com/docs/build-skills |
 | Custom commands | Not checked on this date | https://learn.chatgpt.com/docs/build-skills |
 
 ## OpenCode
@@ -92,6 +98,7 @@ with a permanent redirect to `learn.chatgpt.com`. Both addresses are listed.
 | Command file format | Markdown file; the body is the prompt template; frontmatter `description`, `agent`, `model`, `subagent` (`subtask` is a deprecated alias); `$ARGUMENTS` and positional `$1`, `$2` placeholders | https://opencode.ai/docs/commands/ |
 | Skills | Supported. Project: `.opencode/skills`, searched from the working directory up to the project root; compatibility: `.claude/skills` and `.agents/skills`. Global: `~/.config/opencode/skills`, plus `~/.claude/skills` and `~/.agents/skills` | https://opencode.ai/docs/skills/ |
 | Skill frontmatter | All optional at runtime; a skill without `description` is not advertised to the model | https://opencode.ai/docs/skills/ |
+| Invoking a skill | Mention it as `@skill-id`, or the model loads it with its `skill` tool; the page names no slash command for skills, so leanprompt ships a `/leanprompt` command file that loads the skill | https://opencode.ai/docs/skills/ |
 
 ## Cursor
 
@@ -105,7 +112,10 @@ with a permanent redirect to `learn.chatgpt.com`. Both addresses are listed.
 | Manual | `alwaysApply: false` with neither `description` nor `globs`; included only when @-mentioned | https://cursor.com/docs/context/rules |
 | `AGENTS.md` | Supported as a plain Markdown file at the project root, as an alternative to `.cursor/rules`; nested `AGENTS.md` files in subdirectories are combined with parent directories, the more specific taking precedence | https://cursor.com/docs/context/rules |
 | Global rules | "User Rules" are set in the Cursor settings interface; the page gives no file path | https://cursor.com/docs/context/rules |
-| Skills | Not checked on this date | https://cursor.com/docs/context/rules |
+| Skills, project | `.agents/skills/` and `.cursor/skills/`; for compatibility also `.claude/skills/` and `.codex/skills/` | https://cursor.com/docs/context/skills |
+| Skills, user | `~/.agents/skills/` and `~/.cursor/skills/`; for compatibility also `~/.claude/skills/` and `~/.codex/skills/` | https://cursor.com/docs/context/skills |
+| Skill frontmatter | `name` (lowercase letters, numbers and hyphens; must match the folder name) and `description` | https://cursor.com/docs/context/skills |
+| Invoking a skill | Type `/` in the Agent chat and search for the skill's name; the agent may also apply it on its own unless `disable-model-invocation: true` | https://cursor.com/docs/context/skills |
 
 ## The AGENTS.md convention
 

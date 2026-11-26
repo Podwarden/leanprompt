@@ -15,8 +15,10 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 const FLAGS: Record<string, string[]> = {
-  init: ["--assistant", "--global", "--dir", "--dry-run"],
-  score: ["--measured", "--static", "--dir"],
+  install: ["--providers", "--scope", "--yes", "--assistant", "--global", "--dir", "--dry-run"],
+  init: ["--providers", "--scope", "--yes", "--assistant", "--global", "--dir", "--dry-run"],
+  update: ["--scope", "--dir", "--dry-run"],
+  score: ["--measured", "--static", "--github", "--fail-under", "--dir"],
   calibrate: ["--findings", "--usage", "--synthetic", "--yes", "--dir"],
   "profile detect": ["--lmwarden", "--token-env", "--model"],
   report: ["--html", "--out", "--dir"],
@@ -31,7 +33,7 @@ describe("help", () => {
       expect(await main(argv)).toBe(0);
       for (const c of Object.keys(commands)) expect(out).toContain(c);
       expect(out).toContain("leanprompt <command> --help");
-      for (const s of ["llm-call-audit", "prefill-cache", "generation-economy", "prompt-diet", "measure-loop", "lmwarden"]) expect(out).toContain(s);
+      for (const s of ["leanprompt", "llm-call-audit", "prefill-cache", "generation-economy", "prompt-diet", "measure-loop", "lmwarden"]) expect(out).toContain(s);
     }
   });
 
@@ -59,7 +61,7 @@ describe("help", () => {
 
   it("every command takes its parseArgs options from the table, so help cannot drift", () => {
     const src = (p: string) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), "utf8");
-    for (const p of ["../src/init.ts", "../src/lesson.ts", "../src/detect.ts", "../src/evalAudit.ts", "../src/report/html.ts", "../src/score/write.ts", "../src/score/calibrate.ts"]) {
+    for (const p of ["../src/install.ts", "../src/lesson.ts", "../src/detect.ts", "../src/evalAudit.ts", "../src/report/html.ts", "../src/score/write.ts", "../src/score/calibrate.ts"]) {
       expect(src(p), p).toMatch(/optionsFor\(/);
       expect(src(p), p).not.toMatch(/options:\s*\{\s*\w/);
     }

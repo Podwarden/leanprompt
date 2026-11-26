@@ -5,13 +5,16 @@ import { parseArgs } from "node:util";
 import { parseDoc } from "../frontmatter.js";
 import { optionsFor } from "../help.js";
 import { REPO } from "../forms.js";
-import { loadRuleIds, ruleFiles } from "../lint/rules.js";
+import { loadRuleIds } from "../lint/rules.js";
 import { loadProfile, type Profile } from "../profile.js";
 import { EXTERNAL, isOpenQuestion, parseFindings, type AverageCall, type Finding, type Severity } from "../score/static.js";
 import { costSummary, formatDollars, formatTokens, type CostSummary } from "./cost.js";
 import { filterIgnored, FINDINGS_FILE, PACKAGE_ROOT } from "../score/write.js";
 
-export type RuleInfo = { title: string; skill: string };
+export type { RuleInfo } from "../lint/rules.js";
+export { loadRules } from "../lint/rules.js";
+import type { RuleInfo } from "../lint/rules.js";
+import { loadRules } from "../lint/rules.js";
 
 /** The fields of `.leanprompt/score.json` the page uses. Everything is optional: the file is read defensively. */
 export interface ScoreFile {
@@ -56,20 +59,6 @@ const e = escapeHtml;
 
 function packageVersion(): string {
   return (JSON.parse(readFileSync(join(PACKAGE_ROOT, "package.json"), "utf8")) as { version: string }).version;
-}
-
-/** Rule id -> title and skill, from the frontmatter of skills/*\/rules/*.md. */
-export function loadRules(root: string): Map<string, RuleInfo> {
-  const out = new Map<string, RuleInfo>();
-  for (const file of ruleFiles(root)) {
-    try {
-      const m = parseDoc(readFileSync(join(root, file), "utf8")).meta;
-      if (typeof m.id === "string" && typeof m.title === "string" && typeof m.skill === "string") out.set(m.id, { title: m.title, skill: m.skill });
-    } catch {
-      /* lint:rules reports it */
-    }
-  }
-  return out;
 }
 
 const num = (v: unknown): number | undefined => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
@@ -373,7 +362,7 @@ export function handoffText(findings: Finding[], rules: Map<string, RuleInfo>): 
   const lines = [
     "Please check and fix the LLM-call findings from a leanprompt audit of this repository.",
     "",
-    `1. If the leanprompt skills are not installed for you here, install them: ${NPX} init`,
+    `1. If the leanprompt skills are not installed for you here, install them: ${NPX} install`,
     "2. Read .leanprompt/findings.json and leanprompt-report.md. If they are missing, use the list below.",
     "3. Check each finding against the code before you change anything. The audit can be wrong: if a finding does not hold, tell me why and leave that code alone.",
     "4. Fix one finding at a time. Show me the change as a small diff and apply it only after I say yes.",

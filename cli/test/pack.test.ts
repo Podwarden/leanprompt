@@ -18,7 +18,7 @@ const run = (cmd: string, args: string[], cwd: string) =>
 
 describe("packaging smoke test", () => {
   slow(
-    "a packed and installed leanprompt reports its version and runs init",
+    "a packed and installed leanprompt reports its version and runs install",
     () => {
       const tmp = mkdtempSync(join(tmpdir(), "lp-pack-"));
       try {
@@ -34,8 +34,9 @@ describe("packaging smoke test", () => {
         const version = (JSON.parse(readFileSync(join(REPO, "package.json"), "utf8")) as { version: string }).version;
         expect(run("npx", ["--no-install", "leanprompt", "--version"], proj).trim()).toBe(version);
 
-        const out = run("npx", ["--no-install", "leanprompt", "init", "--assistant", "claude"], proj);
-        expect(out.trimEnd().split(/\r?\n/).pop()).toBe("Ask your assistant: audit this app's LLM calls");
+        const out = run("npx", ["--no-install", "leanprompt", "install", "--providers=claude", "--scope=project", "--yes"], proj);
+        expect(out.trimEnd().split(/\r?\n/).pop()).toMatch(/^Next: open Claude Code here and type \/leanprompt audit/);
+        expect(existsSync(join(proj, ".claude", "skills", "leanprompt", "SKILL.md"))).toBe(true);
         expect(existsSync(join(proj, ".claude", "skills", "llm-call-audit", "SKILL.md"))).toBe(true);
 
         // leanprompt/log ships its TypeScript types: a consumer type-checks against them.

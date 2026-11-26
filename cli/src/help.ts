@@ -22,14 +22,33 @@ export interface CommandSpec {
 
 const DIR: FlagSpec = { name: "dir", type: "string", arg: "<project>", desc: "the project folder (default: the current directory)" };
 
+const INSTALL_FLAGS: FlagSpec[] = [
+  { name: "providers", type: "string", arg: "<list>", desc: "install for these instead of detecting, comma-separated: claude, codex, opencode, cursor, agents-md" },
+  { name: "scope", type: "string", arg: "project|global", desc: "this project, or all your projects (your home folder); asked when run in a terminal, else project" },
+  { name: "yes", type: "boolean", desc: "write without asking; needed when there is no terminal to confirm in" },
+  { name: "dry-run", type: "boolean", desc: "list what would be written or skipped; write nothing" },
+  { name: "assistant", type: "string", arg: "<name>", desc: "one assistant, the older form of --providers" },
+  { name: "global", type: "boolean", desc: "the older form of --scope=global" },
+  DIR,
+];
+
 export const SPECS: CommandSpec[] = [
   {
+    name: "install",
+    summary: "Install the skills for the coding assistants you use, in this project or for all your projects.",
+    flags: INSTALL_FLAGS,
+  },
+  {
     name: "init",
-    summary: "Install the skills for the assistants this project uses.",
+    summary: "Same as install (the older name, kept so existing links work).",
+    flags: INSTALL_FLAGS,
+  },
+  {
+    name: "update",
+    summary: "Refresh the files an earlier install wrote, wherever they are; never touches files it did not write.",
     flags: [
-      { name: "assistant", type: "string", arg: "<name>", desc: "force one assistant instead of detecting: claude, codex, opencode, cursor or agents-md" },
-      { name: "global", type: "boolean", desc: "install into your home directory instead of the project" },
-      { name: "dry-run", type: "boolean", desc: "list what would be written or skipped; write nothing" },
+      { name: "scope", type: "string", arg: "project|global", desc: "look only in this project or only in your home folder (default: both)" },
+      { name: "dry-run", type: "boolean", desc: "list what would change; write nothing" },
       DIR,
     ],
   },
@@ -39,6 +58,8 @@ export const SPECS: CommandSpec[] = [
     flags: [
       { name: "measured", type: "string", arg: "[<usage.jsonl>]", desc: "score from the usage log (default .leanprompt/usage.jsonl; needs at least 50 calls)" },
       { name: "static", type: "string", arg: "[<findings.json>]", desc: "score from the audit's findings (default .leanprompt/findings.json)" },
+      { name: "github", type: "boolean", desc: "also print a GitHub Actions annotation for each open finding in .leanprompt/findings.json" },
+      { name: "fail-under", type: "string", arg: "<N>", desc: "exit 3 when the score is below N (default: never fail on the score)" },
       DIR,
     ],
   },
@@ -121,5 +142,5 @@ export function overviewText(commandNames: string[]): string {
     const s = SPECS.find((x) => x.name.split(" ")[0] === c);
     return `  ${c.padEnd(11)}${s?.summary ?? ""}`;
   });
-  return ["usage: leanprompt <command> [options]", "", "commands:", ...rows, "", `Skills that init installs: ${SKILLS.join(", ")}.`, "", "Run leanprompt <command> --help for a command's options.", "leanprompt --version prints the version.", ""].join("\n");
+  return ["usage: leanprompt <command> [options]", "", "commands:", ...rows, "", `Skills that install writes: ${SKILLS.join(", ")}.`, "", "Run leanprompt <command> --help for a command's options.", "leanprompt --version prints the version.", ""].join("\n");
 }

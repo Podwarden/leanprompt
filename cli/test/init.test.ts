@@ -52,7 +52,7 @@ afterEach(() => {
 });
 
 describe("init", () => {
-  it("installs all six skills into a .claude project", () => {
+  it("installs every skill, the entry skill too, into a .claude project", () => {
     mkdirSync(join(dir, ".claude"));
     const r = init({ dir });
     expect(r.detected.map((d) => d.assistant)).toEqual(["claude"]);
@@ -134,12 +134,21 @@ describe("init", () => {
     for (const [p, t] of snap) expect(rd(p)).toBe(t);
   });
 
-  it("leaves an existing .cursor/rules/other.mdc alone and writes leanprompt-*.mdc", () => {
+  it("cursor gets the skills in .cursor/skills and leaves .cursor/rules alone", () => {
     put(join(dir, ".cursor/rules/other.mdc"), "mine\n");
     const r = init({ dir });
     expect(rd(join(dir, ".cursor/rules/other.mdc"))).toBe("mine\n");
     expect(r.detected.map((d) => d.assistant)).toEqual(["cursor"]);
-    for (const s of SKILLS) expect(existsSync(join(dir, ".cursor/rules", `leanprompt-${s}.mdc`))).toBe(true);
+    for (const s of SKILLS) expect(existsSync(join(dir, ".cursor/skills", s, "SKILL.md"))).toBe(true);
+    expect(readdirSync(join(dir, ".cursor/rules"))).toEqual(["other.mdc"]);
+  });
+
+  it("cursor next to claude reads .claude/skills, so no second copy in .cursor/skills", () => {
+    mkdirSync(join(dir, ".claude"));
+    mkdirSync(join(dir, ".cursor"));
+    init({ dir });
+    expect(existsSync(join(dir, ".claude/skills/leanprompt/SKILL.md"))).toBe(true);
+    expect(existsSync(join(dir, ".cursor/skills"))).toBe(false);
   });
 
   it("updates a leanprompt-owned file that differs, and says so", () => {
@@ -242,12 +251,12 @@ describe("init", () => {
 
   itLink("skips, with a reason, a target that is a symlink or a directory", () => {
     mkdirSync(join(dir, ".cursor"));
-    put(join(tmp, "elsewhere.mdc"), "outside");
-    mkdirSync(join(dir, ".cursor/rules"), { recursive: true });
-    symlinkSync(join(tmp, "elsewhere.mdc"), join(dir, ".cursor/rules/leanprompt-prefill-cache.mdc"));
-    mkdirSync(join(dir, ".cursor/rules/leanprompt-lmwarden.mdc"));
+    put(join(tmp, "elsewhere.md"), "outside");
+    mkdirSync(join(dir, ".cursor/skills/prefill-cache"), { recursive: true });
+    symlinkSync(join(tmp, "elsewhere.md"), join(dir, ".cursor/skills/prefill-cache/SKILL.md"));
+    mkdirSync(join(dir, ".cursor/skills/lmwarden/SKILL.md"), { recursive: true });
     const r = init({ dir });
-    expect(rd(join(tmp, "elsewhere.mdc"))).toBe("outside");
+    expect(rd(join(tmp, "elsewhere.md"))).toBe("outside");
     expect(r.skippedWhy.filter((s) => /not a regular file/.test(s.reason)).length).toBe(2);
   });
 
@@ -296,10 +305,16 @@ describe("init", () => {
     expect(existsSync(join(dir, "AGENTS.md"))).toBe(false);
   });
 
-  it("--global cursor prints that there is no documented path and writes nothing", () => {
+  it("--global cursor writes ~/.cursor/skills (cursor.com/docs/context/skills)", () => {
     const r = init({ dir, global: true, home, assistant: "cursor" });
+    expect(existsSync(join(home, ".cursor/skills/leanprompt/SKILL.md"))).toBe(true);
+    expect(r.written.every((p) => p.startsWith(join(home, ".cursor/skills")))).toBe(true);
+  });
+
+  it("--global agents-md says there is no user-level location and writes nothing", () => {
+    const r = init({ dir, global: true, home, assistant: "agents-md" });
     expect(r.written).toEqual([]);
-    expect(r.notes.join("\n")).toMatch(/cursor.*no global/);
+    expect(r.notes.join("\n")).toMatch(/agents-md.*no user-level location/);
   });
 
   it("--global detects from home", () => {
@@ -320,12 +335,12 @@ describe("init command", () => {
     const out: string[] = [];
     vi.spyOn(process.stdout, "write").mockImplementation((s) => (out.push(String(s)), true));
     mkdirSync(join(dir, ".claude"));
-    expect(await main(["init", "--dir", dir])).toBe(0);
+    expect(await main(["init", "--dir", dir, "--yes"])).toBe(0);
     const text = out.join("");
-    expect(text).toContain("claude: found .claude/");
-    expect(text.trimEnd().split("\n").pop()).toBe("Ask your assistant: audit this app's LLM calls");
+    expect(text).toContain("(claude): found .claude/");
+    expect(text.trimEnd().split("\n").pop()).toBe("Next: open Claude Code here and type /leanprompt audit");
     out.length = 0;
-    await main(["init", "--dir", dir]);
+    await main(["init", "--dir", dir, "--yes"]);
     expect(out.join("")).toContain("already up to date");
   });
 
@@ -338,7 +353,7 @@ describe("init command", () => {
 // install.sh is POSIX sh; Windows installs with `npx github:Podwarden/leanprompt init`.
 describe.skipIf(isWin)("scripts/install.sh", () => {
   const script = join(REPO, "scripts/install.sh");
-  it("runs npx --yes github:Podwarden/leanprompt#v<version> init with the arguments", () => {
+  it("runs npx --yes github:Podwarden/leanprompt#v<version> install with the arguments", () => {
     const bin = join(tmp, "bin");
     put(join(bin, "npx"), '#!/bin/sh\necho "npx $*"\n');
     chmodSync(join(bin, "npx"), 0o755);
@@ -348,10 +363,10 @@ describe.skipIf(isWin)("scripts/install.sh", () => {
       env: { PATH: bin, LEANPROMPT_VERSION: "1.2.3" },
       encoding: "utf8",
     });
-    expect(r.stdout.trim()).toBe("npx --yes github:Podwarden/leanprompt#v1.2.3 init --assistant claude");
+    expect(r.stdout.trim()).toBe("npx --yes github:Podwarden/leanprompt#v1.2.3 install --assistant claude");
     const pkg = JSON.parse(rd(join(REPO, "package.json"))) as { version: string };
     const r2 = spawnSync("/bin/sh", [script], { env: { PATH: bin }, encoding: "utf8" });
-    expect(r2.stdout.trim()).toBe(`npx --yes github:Podwarden/leanprompt#v${pkg.version} init`);
+    expect(r2.stdout.trim()).toBe(`npx --yes github:Podwarden/leanprompt#v${pkg.version} install`);
   });
 
   const fakeBin = (): string => {
@@ -374,7 +389,7 @@ describe.skipIf(isWin)("scripts/install.sh", () => {
     const proj = nestedProject();
     put(join(proj, "sh"), "not a script"); // even a file named like the shell in the cwd is not used
     const r = spawnSync("/bin/sh", ["-s", "--", "--assistant", "cursor"], { input: rd(script), cwd: proj, env: { PATH: bin }, argv0: "sh", encoding: "utf8" });
-    expect(r.stdout.trim()).toBe("npx --yes github:Podwarden/leanprompt init --assistant cursor");
+    expect(r.stdout.trim()).toBe("npx --yes github:Podwarden/leanprompt install --assistant cursor");
   });
 
   it("piped honours LEANPROMPT_VERSION", () => {
@@ -387,7 +402,7 @@ describe.skipIf(isWin)("scripts/install.sh", () => {
       argv0: "sh", // as `curl ... | sh` runs it: $0 is "sh"
       encoding: "utf8",
     });
-    expect(r.stdout.trim()).toBe("npx --yes github:Podwarden/leanprompt#v0.1.0 init --assistant cursor");
+    expect(r.stdout.trim()).toBe("npx --yes github:Podwarden/leanprompt#v0.1.0 install --assistant cursor");
   });
 
   it("a script file whose parent package.json is not leanprompt's uses latest", () => {
@@ -395,7 +410,7 @@ describe.skipIf(isWin)("scripts/install.sh", () => {
     put(join(tmp, "mono", "package.json"), JSON.stringify({ name: "acme-monorepo", version: "9.9.9" }));
     put(join(tmp, "mono", "scripts", "install.sh"), rd(script));
     const r = spawnSync("/bin/sh", [join(tmp, "mono", "scripts", "install.sh")], { env: { PATH: bin }, encoding: "utf8" });
-    expect(r.stdout.trim()).toBe("npx --yes github:Podwarden/leanprompt init");
+    expect(r.stdout.trim()).toBe("npx --yes github:Podwarden/leanprompt install");
   });
 
   it("explains a missing node and exits non-zero", () => {
@@ -449,11 +464,11 @@ describe("init, both claude and AGENTS.md present", () => {
     vi.spyOn(process.stdout, "write").mockImplementation((s) => (out.push(String(s)), true));
     mkdirSync(join(dir, ".claude"));
     put(join(dir, "AGENTS.md"), "mine\n");
-    expect(await main(["init", "--dir", dir])).toBe(0);
+    expect(await main(["init", "--dir", dir, "--yes"])).toBe(0);
     const text = out.join("");
-    expect(text).toContain("claude: found .claude/");
-    expect(text).toContain("agents-md: found AGENTS.md");
-    expect(text).toContain("--assistant");
+    expect(text).toContain("(claude): found .claude/");
+    expect(text).toContain("(agents-md): found AGENTS.md");
+    expect(text).toContain("--providers=");
   });
 });
 

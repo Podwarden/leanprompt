@@ -71,7 +71,7 @@ Most apps call the SDK in one or two helper functions (`call_llm`, `askModel`, `
 3. The model string: a router prefix such as `anthropic/` or `google/` means the upstream is that provider even though the SDK is `openai` (the cache marks then matter: LP-PC-01).
 4. Environment and config files (`.env.example`, `settings.py`, `config.ts`) when the model or URL is read from a variable.
 
-When these disagree, or the value comes only from the environment at run time, write "unknown" in the inventory and ask (see [presenting.md](presenting.md)); `leanprompt.yaml` settles it for the next run ([docs/profile.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.7/docs/profile.md)).
+When these disagree, or the value comes only from the environment at run time, write "unknown" in the inventory and ask (see [presenting.md](presenting.md)); `leanprompt.yaml` settles it for the next run ([docs/profile.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.8/docs/profile.md)).
 
 ## Call kind
 
@@ -96,4 +96,4 @@ From each call site, trace the arguments back:
 - **Request options:** `max_tokens`, `thinking`, `reasoning_effort`, `temperature`, `n`, `tool_choice`, `prompt_cache_key`, `cache_control`, timeouts and retries (on the client and in decorators around the call).
 
 The rule files of [prefill-cache](../prefill-cache/SKILL.md), [generation-economy](../generation-economy/SKILL.md), [prompt-diet](../prompt-diet/SKILL.md) and [lmwarden](../lmwarden/SKILL.md) give the `rg` patterns and code shapes for each rule; use them once the call sites are known.
-<!-- leanprompt:generated v0.1.0-dev.7 — managed by npx leanprompt init; local edits are replaced on update -->
+<!-- leanprompt:generated v0.1.0-dev.8: written by npx leanprompt install; npx leanprompt update replaces local edits -->

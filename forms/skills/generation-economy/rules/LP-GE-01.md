@@ -22,11 +22,11 @@ Every request pays to prefill its prompt. A loop that sends one request per samp
 
 One request with a sample count prefills once and decodes the samples from that prefill. Where the parameter exists:
 
-- **OpenAI** Chat Completions takes `n`, and bills generated tokens across all choices. Newer models reject an explicit `n`, even `n=1`, and the Responses API has no `n` ([providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.7/providers/openai.md)).
-- **Gemini** takes `candidateCount` in the generation config ([providers/gemini.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.7/providers/gemini.md)).
-- **DeepInfra** takes `n` on its OpenAI-compatible endpoint, with a small upper limit ([providers/deepinfra.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.7/providers/deepinfra.md)).
-- **vLLM** and **SGLang** take `n` ([providers/vllm.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.7/providers/vllm.md), [providers/sglang.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.7/providers/sglang.md)). That the samples then share one prefill follows from their prefix caches; it is untested here.
-- **Anthropic** has no sample-count parameter on the Messages API, and OpenRouter does not list one ([providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.7/providers/anthropic.md), [providers/openrouter.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.7/providers/openrouter.md)).
+- **OpenAI** Chat Completions takes `n`, and bills generated tokens across all choices. Newer models reject an explicit `n`, even `n=1`, and the Responses API has no `n` ([providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.8/providers/openai.md)).
+- **Gemini** takes `candidateCount` in the generation config ([providers/gemini.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.8/providers/gemini.md)).
+- **DeepInfra** takes `n` on its OpenAI-compatible endpoint, with a small upper limit ([providers/deepinfra.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.8/providers/deepinfra.md)).
+- **vLLM** and **SGLang** take `n` ([providers/vllm.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.8/providers/vllm.md), [providers/sglang.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.8/providers/sglang.md)). That the samples then share one prefill follows from their prefix caches; it is untested here.
+- **Anthropic** has no sample-count parameter on the Messages API, and OpenRouter does not list one ([providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.8/providers/anthropic.md), [providers/openrouter.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.8/providers/openrouter.md)).
 
 Where `n` is not available, the repeats can still share a cached prefix: send the first request, wait for it, then send the rest, with a cache mark on the shared prompt where the provider needs one (LP-PC-01). Repeats fired all at once may all start before any cache entry exists. That ordering follows from how prefix caches work; it is untested here.
 
@@ -90,4 +90,4 @@ The samples must stay independent draws from the same settings: keep the same te
 
 ## Waste signal
 Measured: the score's generation waste counts output tokens on calls that were repeated identically (same ids, same `params`); repeated sampling calls count there, and after the fix they are one call. Static: severity medium for a loop or gather that sends one unchanged request body several times to a provider that supports a sample count; low where the provider has none.
-<!-- leanprompt:generated v0.1.0-dev.7 — managed by npx leanprompt init; local edits are replaced on update -->
+<!-- leanprompt:generated v0.1.0-dev.8: written by npx leanprompt install; npx leanprompt update replaces local edits -->

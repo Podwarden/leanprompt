@@ -8,6 +8,7 @@ The first release.
 
 ### Skills
 
+- `leanprompt`: the entry point; `/leanprompt` lists the commands (init, audit, fix, measure, score, report, lesson) and routes each to the skill that does the work.
 - `llm-call-audit`: finds every LLM call in an app, checks it against the rules, ranks the findings and writes `leanprompt-report.md` and `.leanprompt/findings.json`; asks before editing code, installing a package or running billed requests.
 - `prefill-cache`: rules LP-PC-01 to LP-PC-12 for prompts a provider's prefix cache can reuse.
 - `generation-economy`: rules LP-GE-01 to LP-GE-10 for calls and output that are not wasted.
@@ -19,8 +20,8 @@ The first release.
 
 ### CLI (`npx leanprompt`)
 
-- `init`: installs the skills for Claude Code, Codex, OpenCode, Cursor and any `AGENTS.md` reader, detected or forced with `--assistant`; `--global` for the home directory. Idempotent; leaves user text outside its marked block untouched and never overwrites files it did not generate.
-- `score`: writes `.leanprompt/score.json`, measured from the usage log (at least 50 measured calls) or static from the audit's findings; the file is also the shields.io endpoint badge source.
+- `install` (also `init`): installs the skills for Claude Code, Codex, OpenCode, Cursor and any `AGENTS.md` reader, detected or chosen with `--providers`, for this project or all your projects (`--scope`), after showing the files and asking. Idempotent; leaves user text outside its marked block untouched and never overwrites files it did not generate. `update` refreshes an earlier install.
+- `score`: writes `.leanprompt/score.json`, measured from the usage log (at least 50 measured calls) or static from the audit's findings; the file is also the shields.io endpoint badge source. `--github` adds GitHub Actions annotations.
 - `calibrate`: fits the static score's weights to an app from a trial run.
 - `report --html`: a local page for the person who reads the audit: the findings in plain English, what they cost, a hand-off block for their coding agent, the score, and the badge when it can work.
 - `profile detect --lmwarden <url>`: reads engine cache facts from LM Warden into `leanprompt.yaml`.
@@ -39,6 +40,18 @@ The first release.
 - Per-assistant forms generated from one source and checked in CI; a Claude Code plugin marketplace in `.claude-plugin/`.
 - `npm run check:numbers`: every number with a unit in the README, the public docs and the skills cites an evidence row or a measured result.
 - Apache-2.0 for code, CC BY 4.0 for the skills and docs; README, CONTRIBUTING, GOVERNANCE and SECURITY (the last three under `.github/`).
+
+## 0.1.0-dev.8 – 2026-11-26
+
+One-line install and a `/leanprompt` command.
+
+- **`npx leanprompt install`.** Detects the coding assistants in use, asks in a terminal whether to install for this project or for all your projects, lists every file it will write and asks before writing, then prints what to type next in each assistant (`/leanprompt audit`, or `$leanprompt audit` in Codex). For scripts and CI: `--providers=claude,codex,cursor,opencode,agents-md`, `--scope=project|global` and `--yes`; without a terminal and without `--yes` it prints the plan and exits 1 without writing. `--dry-run` still lists and writes nothing. `init` is the same command under its older name, and `--assistant` and `--global` still work. The ownership stamp, the symlink containment and "never overwrite a file it did not write" are unchanged. `scripts/install.sh` runs `install` and hands it the terminal.
+- **Global locations, from each assistant's documentation.** Claude Code `~/.claude/skills`, Codex `~/.agents/skills` (plus `~/.codex/AGENTS.md`), Cursor `~/.cursor/skills`, OpenCode `~/.config/opencode/commands` and `~/.config/opencode/AGENTS.md`. The `AGENTS.md` convention has no user-level location, so it installs per project only and the installer says so.
+- **Cursor reads skills now.** Cursor installs get the skills in `.cursor/skills/` (or none, when `.claude/skills` or `.agents/skills` already has them, since Cursor reads those too) instead of one `.mdc` rule per skill, so `/leanprompt` works there. `update` reports old `leanprompt-*.mdc` rule files and leaves them alone.
+- **`npx leanprompt update`.** Refreshes what an earlier install wrote, in the project and in the home folder, by the stamp; adds files new in this version; reports what changed; never touches an unstamped file. `--scope` and `--dry-run`.
+- **One entry skill, `leanprompt`.** `/leanprompt` alone lists the commands, one line each, and suggests the next one; `init`, `audit`, `fix`, `measure`, `score`, `report` and `lesson` route to the six skills, which stay the reference. `init` asks only what the code cannot tell (targets, priority, monthly volume, prices with a source and a date) and writes `leanprompt.yaml` on a yes; `fix` follows the hand-off rules (check each finding first, one at a time, a diff, a yes). In the Claude Code plugin the skill is `/leanprompt:leanprompt`, and bare `/leanprompt` resolves to it when no other command has that name. OpenCode gets a `/leanprompt` command file.
+- **`npx leanprompt score --github`.** Prints a GitHub Actions `::warning` annotation for each open finding in `.leanprompt/findings.json`, with its file and line, and a summary line. Exits 0 on findings; 1 when a file is invalid; `--fail-under N` exits 3 when the score is below N. Workflow snippet: `docs/ci.md`.
+- **README.** A first screen with the one-line install, a "Without / With" pair of report pages from the `dated-chat` example, and a grouped command table; detail moved to `docs/install.md`, `docs/ci.md` and `docs/registries.md` (a checklist of registries for the owner to submit to).
 
 ## 0.1.0-dev.7 – 2026-11-26
 

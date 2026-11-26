@@ -51,17 +51,22 @@ describe("buildForms", () => {
     expect(existsSync(join(ROOT, "forms/agents"))).toBe(false);
   });
 
-  it("writes one agent-requested Cursor rule per skill", () => {
-    const mdc = [...built.keys()].filter((k) => k.startsWith("forms/cursor/rules/"));
-    expect(mdc).toEqual(SKILLS.map((s) => `forms/cursor/rules/leanprompt-${s}.mdc`).sort());
-    for (const k of mdc) {
-      const m = /^---\n([\s\S]*?)\n---\n/.exec(built.get(k)!);
-      expect(m, k).not.toBeNull();
-      const meta = parse(m![1]!) as Record<string, unknown>;
-      expect(Object.keys(meta).sort()).toEqual(["alwaysApply", "description"]);
-      expect(meta.alwaysApply).toBe(false);
-      expect(typeof meta.description === "string" && meta.description.length > 20).toBe(true);
-    }
+  it("writes no Cursor rules: Cursor reads the skills (cursor.com/docs/context/skills)", () => {
+    expect([...built.keys()].filter((k) => k.startsWith("forms/cursor/"))).toEqual([]);
+  });
+
+  it("the entry skill leanprompt lists every command and routes to the other skills", () => {
+    const skill = built.get("forms/skills/leanprompt/SKILL.md")!;
+    expect(parseDoc(skill).meta.name).toBe("leanprompt");
+    for (const c of ["init", "audit", "fix", "measure", "score", "report", "lesson"]) expect(skill).toContain("`" + c);
+    for (const s of SKILLS.filter((x) => x !== "leanprompt")) expect(skill).toContain(`../${s}/SKILL.md`);
+  });
+
+  it("writes the OpenCode /leanprompt command that loads the entry skill with its arguments", () => {
+    const cmd = built.get("forms/opencode/commands/leanprompt.md")!;
+    expect(typeof parseDoc(cmd).meta.description).toBe("string");
+    expect(cmd).toContain("`leanprompt` skill");
+    expect(cmd).toContain("$ARGUMENTS");
   });
 
   it("writes the OpenCode audit command with a description", () => {
@@ -71,7 +76,7 @@ describe("buildForms", () => {
   });
 
   it("every relative link resolves inside its own form tree", () => {
-    const trees = ["forms/skills", "forms/cursor", "forms/opencode"];
+    const trees = ["forms/skills", "forms/opencode"];
     let checked = 0;
     for (const [path, text] of built) {
       const tree = trees.find((t) => path.startsWith(t + "/"));

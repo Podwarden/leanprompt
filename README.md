@@ -9,34 +9,40 @@ Effective, efficient and affordable: your coding assistant makes prompts cacheab
 [![status: pre-release](https://img.shields.io/badge/status-pre--release-orange)](docs/install.md)
 <!-- pending: this repo's own leanprompt badge, once .leanprompt/score.json is committed from a measured run -->
 
-<!-- pending: demo GIF (docs/DESIGN.md section 13): init, audit, three findings, static score, fix, replay, measured score; recorded on a real run, numbers from eval/results -->
+From your project root:
 
-## TL;DR
+```
+npx leanprompt install
+```
 
-- **What it does:** six skills that show Claude Code, Codex, Cursor, OpenCode or any `AGENTS.md` agent where your app's LLM calls lose tokens and time: a prompt the provider's cache cannot reuse, tools and context a call does not need, a retry that repeats a truncation, one request per sample.
-- **How you use it:** install the skills, then ask your assistant to *audit this app's LLM calls*.
-- **What you get:** findings ranked by tokens lost, each with its file, line and a fix that keeps meaning, and a score: measured from your provider's own usage numbers, or estimated from the findings until you have a usage log.
-- **What it never does:** no telemetry, no proxy, no hosted service, no account. It does not edit your code without asking first.
-- **Status:** pre-release. Install from GitHub today; the npm and PyPI packages come with the first release.
+The npm package is being published and that line does not work yet. Until it does, run `npx github:Podwarden/leanprompt install` (Node 20.19 or newer). It finds the assistants you use, asks whether to install for this project or for all your projects, shows every file it will write, and asks before writing.
 
-## Quick start
+Reload your assistant, then type `/leanprompt init` (`$leanprompt init` in Codex).
 
-1. Install the skills. In Claude Code, inside a session:
-   ```
-   /plugin marketplace add Podwarden/leanprompt
-   /plugin install leanprompt@leanprompt
-   ```
-   For Codex, Cursor, OpenCode or any `AGENTS.md` agent, run this in your project (Node 20.19 or newer):
-   ```
-   npx github:Podwarden/leanprompt init --assistant codex   # or cursor, opencode, agents-md, claude
-   ```
-   Paths per assistant, global installs, Windows and a clone-and-build install: [docs/install.md](docs/install.md).
-2. Ask your assistant: *audit this app's LLM calls*.
-3. It writes `leanprompt-report.md` and `.leanprompt/findings.json`, then proposes one fix at a time and asks before it edits anything.
-4. Score it with `npx leanprompt score`: measured from your usage log when there is one, static from the findings otherwise. Until the npm release, run every `npx leanprompt <cmd>` as `npx github:Podwarden/leanprompt <cmd>`, and install the usage logger from GitHub (`npm i github:Podwarden/leanprompt#v0.1.0-dev.1`, or for Python `pip install "git+https://github.com/Podwarden/leanprompt#subdirectory=python"`; details in [docs/install.md](docs/install.md)).
-5. `npx leanprompt report --html` writes a local page, `.leanprompt/report.html`: what is wrong with the app's LLM calls and what to change, in plain English, with a block to paste into your coding agent to verify and fix each finding.
+Works with Claude Code, Codex, Cursor, OpenCode and any agent that reads `AGENTS.md`. In Claude Code you can install the plugin instead, inside a session: `/plugin marketplace add Podwarden/leanprompt`, then `/plugin install leanprompt@leanprompt`; then the command is `/leanprompt:leanprompt`, or `/leanprompt` when no other command has that name ([docs/install.md](docs/install.md)).
 
-## The problem
+| Without leanprompt | With leanprompt |
+|---|---|
+| ![The leanprompt audit page for the dated-chat example before the fix: one place where the app pays for tokens it does not need, at app.ts line 11, where the system prompt starts with the current time; an estimate of 6.7 million tokens per 1,000 calls that the cache could have served; static score 46](https://github.com/Podwarden/leanprompt/raw/main/docs/assets/readme-without.webp) | ![The leanprompt audit page for the same example after the fix: no open findings, 1 finding fixed, static score 100](https://github.com/Podwarden/leanprompt/raw/main/docs/assets/readme-with.webp) |
+
+The same example app, [`examples/dated-chat`](examples/dated-chat/README.md), audited before and after one fix. Before, the system prompt starts with the time to the second, so no call can reuse the handbook that follows it. After, the time moves to the newest message and the prompt head stays the same on every call. Both pages show estimates from the code, not measurements; `/leanprompt measure` turns a fix into a before and after number.
+
+## Commands
+
+Type `/leanprompt` alone to see them in your assistant. `npx leanprompt --help` lists the terminal commands.
+
+| | Commands |
+|---|---|
+| **Set up** | `npx leanprompt install` installs the skills · `npx leanprompt update` refreshes them · `/leanprompt init` writes `leanprompt.yaml`: your targets, priority, volume and prices |
+| **Audit** | `/leanprompt audit` finds every LLM call and ranks where it loses tokens and time · `/leanprompt score` scores the app, measured or static |
+| **Fix and prove** | `/leanprompt fix` checks each finding, shows a diff, applies it on your yes · `/leanprompt measure` proves it with a before and after |
+| **Share** | `/leanprompt report` writes a local page in plain English · `/leanprompt lesson` drafts a lesson-learned issue, sending nothing · `npx leanprompt score --github` annotates a pull request ([docs/ci.md](docs/ci.md)) |
+
+Until the npm release, run each `npx leanprompt <cmd>` as `npx github:Podwarden/leanprompt <cmd>`. The usage logger that `measure` adds to your app installs from GitHub too: `npm i github:Podwarden/leanprompt#v0.1.0-dev.1`, or for Python `pip install "git+https://github.com/Podwarden/leanprompt#subdirectory=python"`; your assistant asks first.
+
+No telemetry, no proxy, no hosted service, no account. It does not edit your code without asking.
+
+## Why
 
 Every call to an LLM resends the system prompt, the tool list and the history. Providers cache the part that did not change, but only if it really did not change, byte for byte, from the first token. Most apps break that without knowing: a timestamp on the first line, tools built from an unsorted dict, a client that never sends Anthropic's cache marks. Then they pay again for output: a retry after a truncation, one request per sample, a parse failure re-asked from scratch.
 
@@ -52,33 +58,21 @@ And one that went the other way: moving the date to the end of the prompt cut co
 
 ## What's in the box
 
-Six skills, each a folder with a `SKILL.md` and one file per rule:
+Seven skills, each a folder with a `SKILL.md`; the rule skills have one file per rule.
 
-- [`llm-call-audit`](skills/llm-call-audit/SKILL.md): finds every LLM call, checks it against the rules, ranks the findings and writes the report. Start here.
-- [`prefill-cache`](skills/prefill-cache/SKILL.md): prompts the provider's prefix cache can reuse, without changing what they mean (LP-PC-01 to LP-PC-12).
+- [`leanprompt`](skills/leanprompt/SKILL.md): the entry point; routes each command to the skill below that does the work.
+- [`llm-call-audit`](skills/llm-call-audit/SKILL.md): finds every LLM call, checks it against the rules, ranks the findings and writes the report.
+- [`prefill-cache`](skills/prefill-cache/SKILL.md): prompts the provider's prefix cache can reuse (LP-PC-01 to LP-PC-12).
 - [`generation-economy`](skills/generation-economy/SKILL.md): samples, budgets, timeouts, retries and batching that do not waste calls or output (LP-GE-01 to LP-GE-10).
-- [`prompt-diet`](skills/prompt-diet/SKILL.md): dead weight in what each call sends: unused tools, instructions said twice, per-turn boilerplate, whole tool results, stale history, padded JSON; every trim with an answer check (LP-PD-01 to LP-PD-06).
+- [`prompt-diet`](skills/prompt-diet/SKILL.md): dead weight in what each call sends, every trim with an answer check (LP-PD-01 to LP-PD-06).
 - [`measure-loop`](skills/measure-loop/SKILL.md): measure, change one thing, measure again; the usage logger, the stable-head CI test, the score.
 - [`lmwarden`](skills/lmwarden/SKILL.md): self-hosted engines (vLLM, SGLang, LM Warden): engine settings, replica routing, cache isolation (LP-LW-01 to LP-LW-03).
 
-## Commands
-
-`leanprompt --help` lists them; `leanprompt <command> --help` lists a command's options.
-
-| Command | What it does |
-|---|---|
-| `leanprompt init` | Installs the skills for the assistants the project uses; `--dry-run` previews ([docs/install.md](docs/install.md)) |
-| `leanprompt score` | Writes `.leanprompt/score.json`, measured or static ([docs/score.md](docs/score.md)) |
-| `leanprompt calibrate` | Fits the static score's weights to your app from a trial run ([docs/calibration.md](docs/calibration.md)) |
-| `leanprompt report --html` | Writes a local page, `.leanprompt/report.html`: the findings in plain English, largest first, what they cost (with your volume and prices), a hand-off block for your coding agent, and the score |
-| `leanprompt profile detect --lmwarden <url>` | Reads engine cache facts from LM Warden into `leanprompt.yaml` ([docs/profile.md](docs/profile.md)) |
-| `leanprompt lesson` | Drafts a lesson-learned issue on your machine (needs a measured score or `--rule <id>`); sends nothing |
-| `leanprompt eval-audit` | Scores an audit's findings against the seeded example cases |
-
 ## Learn more
 
+- [Install and update](docs/install.md): every assistant, project or global, the Claude Code plugin, Windows.
 - [How it works](docs/how-it-works.md): the audit, the rules at a glance, and how to prove a fix.
-- [The score and the badge](docs/score.md): the formula, measured and static scores, calibration.
+- [The score and the badge](docs/score.md), [calibration](docs/calibration.md) and [leanprompt in CI](docs/ci.md).
 - [Provider notes](docs/providers.md) and [self-hosting](docs/self-hosting.md), including LM Warden and its limits.
 - [All docs](docs/README.md), including the [evidence table](docs/evidence.md) and the [changelog](docs/CHANGELOG.md).
 

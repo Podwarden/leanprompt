@@ -16,7 +16,7 @@ evidence:
 Put policies, reminders and fixed context that apply to the whole conversation in the stable system prompt once, instead of wrapping every user message in the same block of text.
 
 ## Why
-Some apps wrap each user message in a template: the policy, the style guide, "remember the rules above", a list of the user's settings that has not changed. The block is sent again in every new message, so a conversation of many turns carries many copies of it, and the history grows by the block on every turn. Each new copy is in the uncached tail of its request and is paid at the full input price; the older copies are read from the cache on later turns, but they still fill the context window and, on a self-hosted engine, KV memory ([providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.7/providers/anthropic.md), [providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.7/providers/openai.md), [providers/vllm.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.7/providers/vllm.md)). Documented, not yet measured here.
+Some apps wrap each user message in a template: the policy, the style guide, "remember the rules above", a list of the user's settings that has not changed. The block is sent again in every new message, so a conversation of many turns carries many copies of it, and the history grows by the block on every turn. Each new copy is in the uncached tail of its request and is paid at the full input price; the older copies are read from the cache on later turns, but they still fill the context window and, on a self-hosted engine, KV memory ([providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.8/providers/anthropic.md), [providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.8/providers/openai.md), [providers/vllm.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.8/providers/vllm.md)). Documented, not yet measured here.
 
 Text that really changes per turn (the current time, a fresh retrieval) belongs in the newest message (LP-PC-03); this rule is about text that is the same every turn.
 
@@ -62,4 +62,4 @@ Some apps repeat a reminder on purpose, because in long conversations the model 
 
 ## Waste signal
 Measured: the drop in `prompt_tokens` across a conversation, times conversations; the score does not count it, the report shows it as `tokens_per_1k.prompt`. Static: severity medium for a fixed block wrapped around every user message in a multi-turn conversation; low for a short reminder line.
-<!-- leanprompt:generated v0.1.0-dev.7 — managed by npx leanprompt init; local edits are replaced on update -->
+<!-- leanprompt:generated v0.1.0-dev.8: written by npx leanprompt install; npx leanprompt update replaces local edits -->

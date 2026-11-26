@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { VERSION } from "../../src/main.js";
-import { badgeColor, loadWeights, scoreCommand } from "../../src/score/write.js";
+import { badgeColor, ghEscape, loadWeights, scoreCommand } from "../../src/score/write.js";
 
 const USAGE = join(__dirname, "../fixtures/usage/two-sessions-sorted.jsonl");
 let dir: string;
@@ -220,5 +220,51 @@ describe("score arguments", () => {
   it("rejects both --measured and --static, and unknown flags", async () => {
     expect(await scoreCommand(["--measured", "a", "--static", "b"])).toBe(2);
     expect(await scoreCommand(["--bogus"])).toBe(2);
+  });
+});
+
+describe("score --github", () => {
+  it("prints one ::warning per open finding with file and line, then a summary, and exits 0", async () => {
+    lp(
+      "findings.json",
+      findings(
+        finding({ problem: "The first line of the prompt changes on every call, so nothing is cached." }),
+        finding({ rule: "LP-PC-03", line: 9, fixed: true }),
+        { rule: "LP-LW-01", file: "<external>", line: 0, where: "engine launch flags", saves: "prefill", severity: "medium", status: "needs-facts", confirm: "is prefix caching on" },
+      ),
+    );
+    expect(await scoreCommand(["--static", "--github", "--dir", dir])).toBe(0);
+    const warnings = out.split("\n").filter((l) => l.startsWith("::warning "));
+    expect(warnings).toHaveLength(2);
+    expect(warnings[0]).toMatch(/^::warning file=app\.ts,line=3,title=leanprompt LP-PC-01%3A [^,]+::The first line of the prompt changes on every call, so nothing is cached\.$/);
+    expect(warnings[1]).not.toContain("file=");
+    expect(warnings[1]).toContain("(engine launch flags)");
+    expect(warnings[1]).toContain("Open question: is prefix caching on");
+    expect(out).toMatch(/::notice title=leanprompt score::leanprompt score \d+ static; 2 open findings/);
+  });
+
+  it("leaves out ignored findings", async () => {
+    writeFileSync(join(dir, "leanprompt.yaml"), "ignore:\n  - {rule: LP-PC-01, file: app.ts}\n");
+    lp("findings.json", findings(finding()));
+    expect(await scoreCommand(["--static", "--github", "--dir", dir])).toBe(0);
+    expect(out).not.toContain("::warning");
+    expect(out).toContain("0 open findings");
+  });
+
+  it("an invalid findings file exits 1 (thrown, as every score error)", async () => {
+    lp("findings.json", "{not json");
+    await expect(scoreCommand(["--static", "--github", "--dir", dir])).rejects.toThrow();
+  });
+
+  it("--fail-under exits 3 only when the score is below it", async () => {
+    lp("findings.json", findings(finding({ share: 0.9 })));
+    expect(await scoreCommand(["--static", "--dir", dir, "--fail-under", "0"])).toBe(0);
+    expect(await scoreCommand(["--static", "--dir", dir, "--fail-under", "100"])).toBe(3);
+    expect(await scoreCommand(["--static", "--dir", dir, "--fail-under", "lots"])).toBe(2);
+  });
+
+  it("escapes the workflow command characters", () => {
+    expect(ghEscape("a%b\nc\r")).toBe("a%25b%0Ac%0D");
+    expect(ghEscape("x: y, z", true)).toBe("x%3A y%2C z");
   });
 });

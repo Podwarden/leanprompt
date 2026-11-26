@@ -44,6 +44,22 @@ export function ruleFiles(root: string): string[] {
   return out;
 }
 
+export type RuleInfo = { title: string; skill: string };
+
+/** Rule id -> title and skill, from the frontmatter of skills/*\/rules/*.md. */
+export function loadRules(root: string): Map<string, RuleInfo> {
+  const out = new Map<string, RuleInfo>();
+  for (const file of ruleFiles(root)) {
+    try {
+      const m = parseDoc(readFileSync(join(root, file), "utf8")).meta;
+      if (typeof m.id === "string" && typeof m.title === "string" && typeof m.skill === "string") out.set(m.id, { title: m.title, skill: m.skill });
+    } catch {
+      /* lint:rules reports it */
+    }
+  }
+  return out;
+}
+
 /** Rule ids (`LP-PC-01`, ...) declared in the skills rules directories; files with bad frontmatter are skipped. */
 export function loadRuleIds(root: string): Set<string> {
   const ids = new Set<string>();

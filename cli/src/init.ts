@@ -1,17 +1,43 @@
-import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseArgs } from "node:util";
-import { optionsFor } from "./help.js";
 import { BLOCK_BEGIN, BLOCK_END, isGenerated, listFiles } from "./forms.js";
 
 export type Assistant = "claude" | "codex" | "opencode" | "cursor" | "agents-md";
 export const ASSISTANTS: readonly Assistant[] = ["claude", "codex", "opencode", "cursor", "agents-md"];
+export type Scope = "project" | "global";
+
+/** Names people know the assistants by, for what the installer prints. */
+export const ASSISTANT_NAMES: Record<Assistant, string> = {
+  claude: "Claude Code",
+  codex: "Codex",
+  opencode: "OpenCode",
+  cursor: "Cursor",
+  "agents-md": "an AGENTS.md agent",
+};
+
+/**
+ * Where each assistant reads skills for all of a user's projects, from its own documentation
+ * (checked 2026-11-26; the table with the sources is docs/assistant-paths.md):
+ * - Claude Code: ~/.claude/skills (https://code.claude.com/docs/en/skills)
+ * - Codex: ~/.agents/skills, plus ~/.codex/AGENTS.md (https://learn.chatgpt.com/docs/build-skills,
+ *   https://learn.chatgpt.com/docs/agent-configuration/agents-md)
+ * - OpenCode: ~/.config/opencode/commands and ~/.config/opencode/AGENTS.md; skills are read from
+ *   ~/.claude/skills and ~/.agents/skills too (https://opencode.ai/docs/skills/, /docs/commands/, /docs/rules/)
+ * - Cursor: ~/.cursor/skills, and it also reads ~/.claude/skills and ~/.agents/skills
+ *   (https://cursor.com/docs/context/skills)
+ * - The AGENTS.md convention has no user-level location (https://agents.md/), so project only.
+ */
+export const NO_GLOBAL: Partial<Record<Assistant, string>> = {
+  "agents-md": "the AGENTS.md convention has no user-level location (https://agents.md/), so it installs per project only",
+};
 
 export interface InitOptions {
   dir: string;
   assistant?: Assistant;
+  /** Install for these assistants instead of detecting (`--providers`). */
+  assistants?: Assistant[];
   global?: boolean;
   /** Plan and report, write nothing. */
   dryRun?: boolean;
@@ -34,8 +60,6 @@ export interface InitResult {
 // cli/src and cli/dist are the same depth below the package root.
 const PACKAGE_ROOT = fileURLToPath(new URL("../../", import.meta.url));
 const FORMS = join(PACKAGE_ROOT, "forms");
-
-export const CLOSING_LINE = "Ask your assistant: audit this app's LLM calls";
 
 function isDir(p: string): boolean {
   try {
@@ -61,6 +85,7 @@ export function detect(base: string, global: boolean): { assistant: Assistant; w
     if (isDir(join(base, ".claude"))) add("claude", "found ~/.claude");
     if (isDir(join(base, ".codex"))) add("codex", "found ~/.codex");
     if (isDir(join(base, ".config", "opencode"))) add("opencode", "found ~/.config/opencode");
+    if (isDir(join(base, ".cursor"))) add("cursor", "found ~/.cursor");
   } else {
     if (isDir(join(base, ".claude"))) add("claude", "found .claude/");
     if (isFile(join(base, "AGENTS.md"))) {
@@ -110,14 +135,37 @@ function readForm(sub: string): { rel: string; text: string }[] {
   return listFiles(root).map((rel) => ({ rel, text: readFileSync(join(root, rel), "utf8") }));
 }
 
+/** True when a skills folder already holds leanprompt's skills (written by an earlier run). */
+function hasOurSkills(root: string): boolean {
+  return ["leanprompt", "llm-call-audit"].some((s) => {
+    const f = join(root, s, "SKILL.md");
+    return isFile(f) && isGenerated(readFileSync(f, "utf8"));
+  });
+}
+
 function targetsFor(assistant: Assistant, base: string, global: boolean, plan: Plan, notes: string[], skillsViaClaude: boolean): void {
   const put = (path: string, text: string) => plan.files.set(path, text);
-  // One shared skills form serves both .claude/skills and .agents/skills.
+  // One shared skills form serves .claude/skills, .agents/skills and .cursor/skills.
   const skills = (dir: string) => {
     for (const f of readForm("skills")) put(join(base, dir, f.rel), f.text);
   };
   const addAgentsMd = (path: string) => plan.agents.add(join(base, path));
+  // OpenCode and Cursor also read .claude/skills and .agents/skills (home or project alike), so a
+  // copy there, already installed or planned by this run, serves them; a second copy would show every skill twice.
+  const sharedSkills = (): boolean => {
+    const claudeSkills = join(base, ".claude", "skills");
+    const agentsSkills = join(base, ".agents", "skills");
+    return (
+      hasOurSkills(claudeSkills) ||
+      hasOurSkills(agentsSkills) ||
+      [...plan.files.keys()].some((p) => p.startsWith(claudeSkills + sep) || p.startsWith(agentsSkills + sep))
+    );
+  };
 
+  if (global && NO_GLOBAL[assistant]) {
+    notes.push(`${assistant}: ${NO_GLOBAL[assistant]}; skipped. Run in the project with --scope=project to install it there.`);
+    return;
+  }
   switch (assistant) {
     case "claude":
       skills(join(".claude", "skills"));
@@ -129,29 +177,17 @@ function targetsFor(assistant: Assistant, base: string, global: boolean, plan: P
     case "agents-md":
       // With claude detected, the block points at .claude/skills; a second copy would show every skill twice.
       if (!skillsViaClaude) skills(join(".agents", "skills"));
-      addAgentsMd(global ? ".codex/AGENTS.md" : "AGENTS.md");
+      addAgentsMd("AGENTS.md");
       break;
     case "opencode": {
       const cmdDir = global ? ".config/opencode/commands" : ".opencode/commands";
       for (const f of readForm("opencode/commands")) put(join(base, cmdDir, f.rel), f.text);
       addAgentsMd(global ? ".config/opencode/AGENTS.md" : "AGENTS.md");
-      // OpenCode reads .claude/skills and .agents/skills; give it the agents form when neither is there
-      // (and the claude form is not already being installed by this run).
-      const claudeSkills = join(base, ".claude", "skills");
-      const agentsSkills = join(base, ".agents", "skills");
-      const hasSkills =
-        isDir(claudeSkills) ||
-        isDir(agentsSkills) ||
-        [...plan.files.keys()].some((p) => p.startsWith(claudeSkills + sep) || p.startsWith(agentsSkills + sep));
-      if (!hasSkills) skills(join(".agents", "skills"));
+      if (!sharedSkills()) skills(join(".agents", "skills"));
       break;
     }
     case "cursor":
-      if (global) {
-        notes.push("cursor: user rules are set in Cursor's settings and docs/assistant-paths.md lists no global file path; skipped");
-        break;
-      }
-      for (const f of readForm("cursor/rules")) put(join(base, ".cursor/rules", f.rel), f.text);
+      if (!sharedSkills()) skills(join(".cursor", "skills"));
       break;
   }
 }
@@ -175,32 +211,20 @@ function firstSymlink(base: string, path: string): string {
 
 const inside = (child: string, parent: string) => child === parent || child.startsWith(parent.endsWith(sep) ? parent : parent + sep);
 
-export function init(o: InitOptions): InitResult {
-  const global = o.global === true;
-  const base = global ? resolve(o.home ?? homedir()) : resolve(o.dir);
-  const result: InitResult = { written: [], updated: [], skipped: [], skippedWhy: [], detected: [], notes: [] };
-  result.detected = o.assistant ? [{ assistant: o.assistant, why: "--assistant" }] : detect(base, global);
-  // Auto-detect only: claude and an AGENTS.md reader share one copy, in .claude/skills (OpenCode reads it too).
-  // .agents/skills is for codex (detected or asked) or when claude is absent; --assistant agents-md forces it.
-  const skillsViaClaude = !o.assistant && result.detected.some((d) => d.assistant === "claude");
-  if (skillsViaClaude) {
-    const d = result.detected.find((x) => x.assistant === "agents-md");
-    if (d) d.why = `${d.why}; its block points at .claude/skills, so no second copy in .agents/skills`;
-  }
+const emptyResult = (): InitResult => ({ written: [], updated: [], skipped: [], skippedWhy: [], detected: [], notes: [] });
 
-  const plan: Plan = { files: new Map(), agents: new Set() };
-  for (const { assistant } of ASSISTANTS.map((a) => result.detected.find((d) => d.assistant === a)).filter((d) => d !== undefined)) {
-    targetsFor(assistant, base, global, plan, result.notes, skillsViaClaude);
-  }
-
+/**
+ * Write a plan under `base`, with every protection: a file is created, or replaced only when it carries
+ * leanprompt's stamp (or, for AGENTS.md, between leanprompt's own markers); never through a symlink that
+ * leaves the project; never anything that is not a regular file.
+ */
+function applyPlan(plan: Plan, base: string, global: boolean, dryRun: boolean, result: InitResult): void {
   const skip = (path: string, reason: string) => {
     result.skipped.push(path);
     result.skippedWhy.push({ path, reason });
   };
 
   const realBase = realpathSync(base);
-  // `owned` is decided by content: a file differing from the form is replaced only if it carries the
-  // generated stamp (or, for AGENTS.md, we are splicing between our own markers).
   const apply = (path: string, content: string, stamped: boolean) => {
     const exists = existsSync(path) || isLink(path);
     if (exists) {
@@ -213,10 +237,10 @@ export function init(o: InitOptions): InitResult {
     if (!inside(real, realBase)) {
       if (!global) return skip(path, "parent directory is a symlink outside the project");
       const link = firstSymlink(base, path);
-      result.notes.push(`via symlink ${link} \u2192 ${realpathSync(link)}: ${path}`);
+      result.notes.push(`via symlink ${link} → ${realpathSync(link)}: ${path}`);
     }
     try {
-      if (!o.dryRun) {
+      if (!dryRun) {
         mkdirSync(dirname(path), { recursive: true });
         writeFileSync(path, content);
       }
@@ -245,6 +269,115 @@ export function init(o: InitOptions): InitResult {
     }
     apply(path, next, true);
   }
+}
+
+export function init(o: InitOptions): InitResult {
+  const global = o.global === true;
+  const base = global ? resolve(o.home ?? homedir()) : resolve(o.dir);
+  const result = emptyResult();
+  const forced = o.assistants ?? (o.assistant ? [o.assistant] : undefined);
+  if (forced) result.detected = forced.map((assistant) => ({ assistant, why: o.assistants ? "--providers" : "--assistant" }));
+  else {
+    result.detected = detect(base, global);
+    // Nothing in the home directory says which assistants are used: go by the project instead.
+    if (global && result.detected.length === 1 && result.detected[0]!.assistant === "agents-md" && !isFile(join(base, "AGENTS.md"))) {
+      const local = detect(resolve(o.dir), false);
+      if (!(local.length === 1 && local[0]!.why.startsWith("no assistant"))) {
+        result.detected = local.map((d) => ({ assistant: d.assistant, why: `${d.why} in this project` }));
+      }
+    }
+  }
+  // Auto-detect only: claude and an AGENTS.md reader share one copy, in .claude/skills (OpenCode reads it too).
+  // .agents/skills is for codex (detected or asked) or when claude is absent; --assistant agents-md forces it.
+  const skillsViaClaude = !forced && result.detected.some((d) => d.assistant === "claude");
+  if (skillsViaClaude) {
+    const d = result.detected.find((x) => x.assistant === "agents-md");
+    if (d) d.why = `${d.why}; its block points at .claude/skills, so no second copy in .agents/skills`;
+  }
+
+  const plan: Plan = { files: new Map(), agents: new Set() };
+  for (const { assistant } of ASSISTANTS.map((a) => result.detected.find((d) => d.assistant === a)).filter((d) => d !== undefined)) {
+    targetsFor(assistant, base, global, plan, result.notes, skillsViaClaude);
+  }
+  applyPlan(plan, base, global, o.dryRun === true, result);
+  return result;
+}
+
+/** Where leanprompt may have installed before, per scope (paths relative to the project or home). */
+const LOCATIONS: Record<Scope, { skills: string[]; commands: string[]; agents: string[]; legacyRules: string[] }> = {
+  project: {
+    skills: [".claude/skills", ".agents/skills", ".cursor/skills", ".opencode/skills"],
+    commands: [".opencode/commands", ".opencode/command"],
+    agents: ["AGENTS.md"],
+    legacyRules: [".cursor/rules"],
+  },
+  global: {
+    skills: [".claude/skills", ".agents/skills", ".cursor/skills", ".config/opencode/skills"],
+    commands: [".config/opencode/commands"],
+    agents: [".codex/AGENTS.md", ".config/opencode/AGENTS.md"],
+    legacyRules: [],
+  },
+};
+
+export interface UpdateOptions {
+  dir: string;
+  home?: string;
+  scopes?: Scope[];
+  dryRun?: boolean;
+}
+
+export interface UpdateResult extends InitResult {
+  /** The install locations found, per scope (absolute paths). */
+  found: { scope: Scope; path: string }[];
+}
+
+/**
+ * Refresh what an earlier `install` wrote, in each scope where it is found: a skills folder holding
+ * leanprompt's stamped skills, an OpenCode commands folder with leanprompt's command, an AGENTS.md with
+ * leanprompt's block. Unstamped files are never touched; new files of the same form are added.
+ */
+export function update(o: UpdateOptions): UpdateResult {
+  const result: UpdateResult = { ...emptyResult(), found: [] };
+  const seen = new Set<string>();
+  for (const scope of o.scopes ?? (["project", "global"] as Scope[])) {
+    const base = scope === "global" ? resolve(o.home ?? homedir()) : resolve(o.dir);
+    if (!isDir(base)) continue;
+    const loc = LOCATIONS[scope];
+    const plan: Plan = { files: new Map(), agents: new Set() };
+    const found = (path: string) => {
+      if (seen.has(path)) return false;
+      seen.add(path);
+      result.found.push({ scope, path });
+      return true;
+    };
+    for (const rel of loc.skills) {
+      const root = join(base, rel);
+      if (!hasOurSkills(root) || !found(root)) continue;
+      for (const f of readForm("skills")) plan.files.set(join(root, f.rel), f.text);
+    }
+    for (const rel of loc.commands) {
+      const root = join(base, rel);
+      const ours = ["leanprompt.md", "leanprompt-audit.md"].some((n) => isFile(join(root, n)) && isGenerated(readFileSync(join(root, n), "utf8")));
+      if (!ours || !found(root)) continue;
+      for (const f of readForm("opencode/commands")) plan.files.set(join(root, f.rel), f.text);
+    }
+    for (const rel of loc.agents) {
+      const file = join(base, rel);
+      if (!isFile(file) || !readFileSync(file, "utf8").includes(BLOCK_BEGIN) || !found(file)) continue;
+      plan.agents.add(file);
+    }
+    for (const rel of loc.legacyRules) {
+      const root = join(base, rel);
+      if (!isDir(root)) continue;
+      const old = readdirSync(root).filter((n) => /^leanprompt-.*\.mdc$/.test(n) && isGenerated(readFileSync(join(root, n), "utf8")));
+      if (old.length > 0) {
+        result.notes.push(
+          `${join(root)}: ${old.length} rule file${old.length === 1 ? "" : "s"} from an older leanprompt (leanprompt-*.mdc). Cursor now reads the skills instead; delete them when you like. They were left as they are.`,
+        );
+      }
+    }
+    applyPlan(plan, base, scope === "global", o.dryRun === true, result);
+  }
   return result;
 }
 
@@ -254,46 +387,4 @@ function isLink(p: string): boolean {
   } catch {
     return false;
   }
-}
-
-export async function initCommand(args: string[]): Promise<number> {
-  let values: { assistant?: string; global?: boolean; "dry-run"?: boolean; dir?: string };
-  try {
-    values = parseArgs({
-      args,
-      options: optionsFor("init"),
-      strict: true,
-    }).values as typeof values;
-  } catch (e) {
-    process.stderr.write(`leanprompt: ${(e as Error).message}\n`);
-    return 2;
-  }
-  if (values.assistant !== undefined && !(ASSISTANTS as readonly string[]).includes(values.assistant)) {
-    process.stderr.write(`leanprompt: unknown assistant "${values.assistant}"; use ${ASSISTANTS.join(", ")}\n`);
-    return 2;
-  }
-  const dir = resolve(values.dir ?? ".");
-  const r = init({ dir, assistant: values.assistant as Assistant | undefined, global: values.global === true, dryRun: values["dry-run"] === true });
-  const home = resolve(homedir());
-  const base = values.global ? home : dir;
-  const show = (p: string) => (values.global ? "~/" : "") + relative(base, p).split(sep).join("/");
-  const out = (s: string) => process.stdout.write(s + "\n");
-
-  const dry = values["dry-run"] === true;
-  out("Detected:");
-  for (const d of r.detected) out(`  ${d.assistant}: ${d.why}`);
-  if (values.assistant === undefined) out(`  To install for another assistant instead, name it: leanprompt init --assistant <${ASSISTANTS.join("|")}>`);
-  for (const n of r.notes) out(n);
-  for (const p of r.written) out(`  ${dry ? "would write" : "wrote"} ${show(p)}`);
-  for (const p of r.updated) out(`  ${dry ? "would update" : "updated"} ${show(p)}`);
-  const skippedNew = r.skippedWhy.filter((s) => s.reason !== "already up to date");
-  for (const s of skippedNew) out(`  skipped ${show(s.path)}: ${s.reason}`);
-  const same = r.skippedWhy.length - skippedNew.length;
-  if (same > 0) out(`  ${same} file${same === 1 ? "" : "s"} already up to date`);
-  if (dry) {
-    out("dry run: nothing was written");
-    return 0;
-  }
-  out(CLOSING_LINE);
-  return 0;
 }

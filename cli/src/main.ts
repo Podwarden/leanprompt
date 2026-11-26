@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { profileCommand } from "./detect.js";
 import { evalAuditCommand } from "./evalAudit.js";
 import { helpText, overviewText, SPECS } from "./help.js";
-import { initCommand } from "./init.js";
+import { installCommand, updateCommand } from "./install.js";
 import { lessonCommand } from "./lesson.js";
 import { isMain } from "./isMain.js";
 import { reportCommand } from "./report/html.js";
@@ -17,7 +17,9 @@ export const VERSION: string = (JSON.parse(readFileSync(pkgUrl, "utf8")) as { ve
 type Handler = (args: string[]) => Promise<number>;
 
 export const commands: Record<string, Handler> = {
-  init: initCommand,
+  install: (args) => installCommand(args),
+  init: (args) => installCommand(args, undefined, "init"),
+  update: (args) => updateCommand(args),
   score: scoreCommand,
   calibrate: (args) => calibrateCommand(args),
   report: reportCommand,

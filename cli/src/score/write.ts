@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { optionsFor } from "../help.js";
 import { loadCacheFacts } from "../facts.js";
-import { loadRuleIds } from "../lint/rules.js";
+import { loadRuleIds, loadRules, type RuleInfo } from "../lint/rules.js";
 import { parseUsageLog } from "../log/record.js";
 import { effectiveFacts, loadProfile, type Profile } from "../profile.js";
 import { measuredScore, MIN_CALLS, type MeasuredScore, type UnmeasuredReason } from "./measured.js";
@@ -73,12 +73,41 @@ export function filterIgnored(findings: Finding[], profile: Profile | null | und
   return findings.filter((f) => !ignore.some((i) => i.rule === f.rule && i.file === f.file));
 }
 
+/** Escape for a GitHub Actions workflow command: the message, and (with `property`) a key=value property. */
+export function ghEscape(s: string, property = false): string {
+  let out = s.replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
+  if (property) out = out.replace(/:/g, "%3A").replace(/,/g, "%2C");
+  return out;
+}
+
+/**
+ * One `::warning` line per open finding (not fixed, not on the ignore list), for GitHub Actions to show
+ * on the file and line. An `<external>` finding, or one with no line, is annotated without them.
+ */
+export function githubAnnotations(findings: Finding[], rules: Map<string, RuleInfo>): string[] {
+  return findings
+    .filter((f) => f.fixed !== true)
+    .map((f) => {
+      const props: string[] = [];
+      if (f.file !== "<external>") {
+        props.push(`file=${ghEscape(f.file, true)}`);
+        if (f.line > 0) props.push(`line=${f.line}`);
+      }
+      const title = rules.get(f.rule)?.title;
+      props.push(`title=${ghEscape(`leanprompt ${f.rule}${title ? `: ${title}` : ""}`, true)}`);
+      const where = f.file === "<external>" ? ` (${f.where ?? "outside the repository"})` : "";
+      const question = f.status === "needs-facts" ? ` Open question: ${f.confirm ?? "confirm before fixing"}` : "";
+      const msg = `${f.problem ?? title ?? f.rule}${where}${f.estimate ? ` Estimate: ${f.estimate}.` : ""}${question}`;
+      return `::warning ${props.join(",")}::${ghEscape(msg)}`;
+    });
+}
+
 /**
  * `leanprompt score [--measured [<usage.jsonl>]] [--static [<findings.json>]] [--dir <project>]`.
  * A bare `--measured` or `--static` means the project's own `.leanprompt/usage.jsonl` or `.leanprompt/findings.json`.
  */
 export async function scoreCommand(args: string[]): Promise<number> {
-  let values: { measured?: string; static?: string; dir?: string };
+  let values: { measured?: string; static?: string; dir?: string; github?: boolean; "fail-under"?: string };
   // parseArgs has no optional-value strings: give a bare flag an empty value, resolved below.
   const argv = args.map((a, i) => ((a === "--static" || a === "--measured") && (args[i + 1] === undefined || args[i + 1]!.startsWith("--")) ? `${a}=` : a));
   try {
@@ -88,6 +117,14 @@ export async function scoreCommand(args: string[]): Promise<number> {
     return 2;
   }
   const dir = resolve(values.dir ?? ".");
+  let failUnder: number | undefined;
+  if (values["fail-under"] !== undefined) {
+    failUnder = Number(values["fail-under"]);
+    if (values["fail-under"].trim() === "" || !Number.isFinite(failUnder) || failUnder < 0 || failUnder > 100) {
+      process.stderr.write(`leanprompt: --fail-under needs a number from 0 to 100, not "${values["fail-under"]}"\n`);
+      return 2;
+    }
+  }
   if (values.measured !== undefined && values.static !== undefined) {
     process.stderr.write("leanprompt: give --measured or --static, not both\n");
     return 2;
@@ -184,5 +221,23 @@ export async function scoreCommand(args: string[]): Promise<number> {
     process.stdout.write(`  calls logged ${calls}, measured ${calls - unmeasured}, unmeasured ${unmeasured}\n`);
   }
   process.stdout.write(`  wrote ${target}\n`);
+
+  if (values.github === true) {
+    // Annotations come from the findings file, whichever score was computed.
+    const file = staticPath ?? join(dir, FINDINGS_FILE);
+    let open: string[] = [];
+    if (existsSync(file)) {
+      const parsed = parseFindings(readFileSync(file, "utf8"), loadRuleIds(PACKAGE_ROOT));
+      if (parsed.errors.length > 0) throw new Error(`${file}: ${parsed.errors.join("; ")}`);
+      open = githubAnnotations(filterIgnored(parsed.findings, profile), loadRules(PACKAGE_ROOT));
+    }
+    for (const line of open) process.stdout.write(`${line}\n`);
+    const n = open.length;
+    process.stdout.write(`::notice title=leanprompt score::${ghEscape(`leanprompt score ${out.message}; ${n} open finding${n === 1 ? "" : "s"}${existsSync(file) ? "" : ` (no ${FINDINGS_FILE})`}`)}\n`);
+  }
+  if (failUnder !== undefined && score < failUnder) {
+    process.stderr.write(`leanprompt: score ${score} is below --fail-under ${failUnder}\n`);
+    return 3;
+  }
   return 0;
 }

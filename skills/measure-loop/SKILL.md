@@ -88,7 +88,7 @@ The test needs kvsig 0.1.0 as a dev dependency, `npm i -D @kvsig/core@0.1.0` (np
 - TypeScript, once the user says yes: copy [templates/stable-head.template.ts](templates/stable-head.template.ts) to the project's tests as `stable-head.ts` and write the test in `stable-head.test.ts` (vitest, jest or any runner)
 - Python, once the user says yes: copy [templates/stable_head_template.py](templates/stable_head_template.py) to the project's tests as `stable_head.py` and write the test in `test_stable_head.py` (pytest)
 
-Leave the trailing `leanprompt:generated` line out of the proposed copy: it marks the installed template, which `leanprompt init` keeps up to date, not the user's file.
+Leave the trailing `leanprompt:generated` line out of the proposed copy: it marks the installed template, which `leanprompt update` keeps up to date, not the user's file.
 
 ```ts
 import { assertStableHead } from "./stable-head";
