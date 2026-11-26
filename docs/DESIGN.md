@@ -339,7 +339,11 @@ README, and it must say what it was computed from.
 2. **Static**. From the code scan only: each finding has a severity weight and
    an estimated share of prompt or output tokens it affects. The static score
    is an estimate and is shown with a "static" label and a lighter badge
-   colour.
+   colour. The audit derives each share from its tokens-lost-per-1,000-calls
+   estimate and uses the severity default only when no estimate is possible;
+   the score reports how many findings used a default (`default_shares: N of
+   M`). Findings outside the repository (`<external>`) or waiting on a fact
+   (`needs-facts`) count like any other (owner decisions from issue #4, below).
 
 **The number.** `leanprompt score = 100 x (0.6 x prefill efficiency x
 stability + 0.4 x (1 - generation waste))`, rounded down, shown with its
@@ -568,3 +572,8 @@ Every price, threshold and lifetime lives in a dated fact table with a source li
 - Cross-platform: CI on Linux, macOS and Windows; Windows installs with `npx leanprompt init`.
 - v2: a Rust CLI (six signed binaries, golden tests generated from v1, `npx leanprompt` as a thin wrapper) so no Node or Python is needed on the host. The usage loggers stay in TypeScript and Python. v1 ships in TypeScript.
 - LM Warden auto-detect targets a key-scoped `GET /api/me/engine` endpoint requested from the LM Warden team (handoff 2026-11-26); until a release has it, the engine block is set by hand.
+
+## Owner decisions (2026-11-26, from issue #4)
+- Two backends: `leanprompt.yaml` gains `targets:`, a list whose entries each name exactly one `provider` or `engine` (validated as `target`), with optional `model_family`, `context_tokens` and `files:` (globs). `target` stays valid; `target` and `targets` together are an error. Engine facts: the top-level `engine:` keeps working for a single engine entry; with two engine entries each carries its own (`engine_facts`). Scoring takes each usage record's facts from its own provider or engine name; a name with no table falls back to the matching `targets` entry, then to a single target; with several targets and no match the record is unmeasured as `ambiguous_target`, never guessed. `profile detect` writes into the lm-warden (else vllm) entry. The audit records each backend as a `targets` entry (offered, written on a yes), evaluates the rules per backend, and checks `applies_to` against each finding's backend.
+- Findings outside the repository are recorded and scored: `findings.json` accepts `"file": "<external>"` (with `where`; `line` optional or 0) and `"status": "needs-facts"` (with `confirm`, the fact that would confirm or dismiss it). They count in the static score like any other; the report, `presenting.md` and `report --html` list them, ranked, as open questions with the `confirm` text. `eval-audit` leaves `<external>` findings out of recall and false positives.
+- The audit estimates share: every finding gets a `share` = estimated tokens lost on the affected side ÷ that side's tokens for the same calls, with the assumptions in the report; the severity default is the fallback only when no estimate is possible, and the report says so. `score --static` and `score.json` `diagnostics` report `default_shares: N of M`; `report --html` shows it next to the static score. `calibrate` is unchanged (it scales only default shares, so with estimated shares it matters less).

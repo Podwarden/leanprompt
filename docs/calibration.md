@@ -76,6 +76,12 @@ not calibratable and writes 1 for it; the same holds for the generation side, an
 for a side reported as `unreachable`. If neither side can be calibrated, nothing
 is written.
 
+Since 0.1.0-dev.4 the audit gives every finding a `share` from its own estimate
+and falls back to the severity default only when no estimate is possible. With
+estimated shares, calibration matters less: it still scales only the findings
+that use a default (`score --static` prints how many, as `default_shares: N of
+M`), and when there are none there is nothing for it to do.
+
 The weights file looks like this:
 
 ```json

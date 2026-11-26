@@ -24,15 +24,31 @@ Ranked by estimated tokens lost per 1,000 calls. Findings that change price or l
 
 - **Rule:** [<rule id>](<link to the rule file>)
 - **Tokens lost per 1,000 calls:** <number> (<estimate | measured, N calls>); <one line on how it was estimated>
+- **Share:** <0.000> of <prompt | output> tokens = <tokens lost per 1,000 calls> ÷ <that side's tokens for the same 1,000 calls>; assumptions: <call mix, tokens per call, how often this path runs>. <Or: "severity default: no estimate possible, because <reason>">
 - **What the code does:** <one or two sentences, with the line>
 - **Fix:** <one fix, the smallest change; a short diff if it fits>
 - **Don't break meaning:** <the rule's check for this fix, or "caching only: answers cannot change">
 - **Verify:** <the usage field that must change, for example cached tokens on the second request, and the kvsig id that must stay equal>; proved with `measure-loop`
 - **Status:** <open | fixed, with the before and after line | skipped | ignored in leanprompt.yaml>
 
+### Open questions
+
+Findings outside this repository (`"<external>"`) or waiting on a fact (`needs-facts`), ranked the same way. They count in the score. Leave this heading out when there are none.
+
+#### <n>. <rule id> <rule title> · <where, for example "engine launch flags">
+
+- **Rule:** [<rule id>](<link to the rule file>)
+- **Tokens lost per 1,000 calls:** <number> (estimate); <one line on how it was estimated, and what it assumes about the missing fact>
+- **Why it may apply:** <one or two sentences>
+- **Confirm:** <the `confirm` text: the fact that would confirm or dismiss it, and where the user can read it>
+- **Fix if confirmed:** <one fix>
+- **Status:** <open question | confirmed | dismissed>
+
 ## Score
 
 <score> <kind>, from <".leanprompt/findings.json" | ".leanprompt/usage.jsonl, N calls (M unmeasured)">, <default | calibrated> weights.
+
+<Static only:> <N> of <M> findings use a default share (`default_shares` in `.leanprompt/score.json`), the rest an estimated one.
 
 | Input | Value | Meaning |
 |---|---|---|

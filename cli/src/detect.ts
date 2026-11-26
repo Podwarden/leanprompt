@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
-import { isMap, parseDocument } from "yaml";
+import { isMap, isSeq, parseDocument, type YAMLMap } from "yaml";
 import { optionsFor } from "./help.js";
 import { parseProfile, type Profile } from "./profile.js";
 
@@ -62,7 +62,10 @@ const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const isLoopback = (host: string): boolean =>
   host === "localhost" || host.endsWith(".localhost") || /^127(?:\.\d{1,3}){3}$/.test(host) || host === "[::1]" || host === "::1";
 
-/** `leanprompt profile detect`: read the engine's cache facts from LM Warden and write them to `engine:`. */
+/**
+ * `leanprompt profile detect`: read the engine's cache facts from LM Warden and write them to `engine:`,
+ * or, in a profile with `targets:`, to the lm-warden (else vllm) entry's `engine_facts`.
+ */
 export async function detectCommand(args: string[], deps: DetectDeps = {}): Promise<number> {
   let secrets: string[] = [];
   const fail = (msg: string, code = 1): number => {
@@ -125,24 +128,56 @@ export async function detectCommand(args: string[], deps: DetectDeps = {}): Prom
   const file = join(deps.cwd ?? process.cwd(), "leanprompt.yaml");
   const doc = parseDocument(existsSync(file) ? readFileSync(file, "utf8") : "target:\n  engine: lm-warden\n");
   if (doc.errors.length) return fail(`${file}: invalid YAML: ${doc.errors[0]!.message.split("\n")[0]}`);
-  if (!doc.has("target") || doc.get("target") === null) doc.set("target", doc.createNode({ engine: "lm-warden" }));
-  const target = doc.get("target", true);
   let note = "";
-  if (isMap(target)) {
-    if (target.has("provider")) note = `target.provider is ${String(target.get("provider"))}, left as is; the engine: values apply only to calls logged with a self-hosted engine name (see docs/profile.md)`;
-    else if (!target.has("engine")) target.set("engine", "lm-warden");
-  }
-  if (found.context_tokens !== undefined && isMap(target) && !target.has("context_tokens")) target.set("context_tokens", found.context_tokens);
-  if (Object.keys(engine).length) {
-    const existing = doc.get("engine", true);
-    if (isMap(existing)) for (const [k, v] of Object.entries(engine)) existing.set(k, v);
-    else doc.set("engine", doc.createNode(engine));
+  let where = "engine";
+  const list = doc.get("targets", true);
+  if (isSeq(list)) {
+    // Several backends: write into the lm-warden entry, else the vllm one, else add an lm-warden entry.
+    const entries = list.items.filter((x): x is YAMLMap => isMap(x));
+    const engineOf = (m: YAMLMap): unknown => m.get("engine");
+    let pick: YAMLMap | undefined;
+    for (const name of ["lm-warden", "vllm"]) {
+      const hits = entries.filter((m) => engineOf(m) === name);
+      if (hits.length > 1) return fail(`not writing ${file}: targets has several ${name} entries; give the facts to the right one by hand (engine_facts, see docs/profile.md)`);
+      if (hits.length === 1) {
+        pick = hits[0];
+        break;
+      }
+    }
+    if (!pick) {
+      pick = doc.createNode({ engine: "lm-warden" }) as YAMLMap;
+      list.add(pick);
+      note = "added {engine: lm-warden} to targets";
+    }
+    if (found.context_tokens !== undefined && !pick.has("context_tokens")) pick.set("context_tokens", found.context_tokens);
+    if (Object.keys(engine).length) {
+      const engineEntries = entries.filter((m) => typeof engineOf(m) === "string").length + (note ? 1 : 0);
+      const top = doc.get("engine", true);
+      const own = pick.get("engine_facts", true);
+      if (isMap(own)) for (const [k, v] of Object.entries(engine)) own.set(k, v);
+      else if (isMap(top) && engineEntries === 1) for (const [k, v] of Object.entries(engine)) top.set(k, v);
+      else pick.set("engine_facts", doc.createNode(engine));
+      if (!(isMap(top) && engineEntries === 1 && !isMap(own))) where = `targets[${list.items.indexOf(pick)}].engine_facts`;
+    }
+  } else {
+    if (!doc.has("target") || doc.get("target") === null) doc.set("target", doc.createNode({ engine: "lm-warden" }));
+    const target = doc.get("target", true);
+    if (isMap(target)) {
+      if (target.has("provider")) note = `target.provider is ${String(target.get("provider"))}, left as is; the engine: values apply only to calls logged with a self-hosted engine name (see docs/profile.md)`;
+      else if (!target.has("engine")) target.set("engine", "lm-warden");
+    }
+    if (found.context_tokens !== undefined && isMap(target) && !target.has("context_tokens")) target.set("context_tokens", found.context_tokens);
+    if (Object.keys(engine).length) {
+      const existing = doc.get("engine", true);
+      if (isMap(existing)) for (const [k, v] of Object.entries(engine)) existing.set(k, v);
+      else doc.set("engine", doc.createNode(engine));
+    }
   }
   const text = String(doc);
   const { errors } = parseProfile(text);
   if (errors.length) return fail(`not writing ${file}: ${errors.join("; ")}`);
   writeFileSync(file, text);
-  process.stdout.write(`wrote ${file}: ${Object.entries(engine).map(([k, v]) => `engine.${k}=${v}`).join(", ")}\n`);
+  process.stdout.write(`wrote ${file}: ${Object.entries(engine).map(([k, v]) => `${where}.${k}=${v}`).join(", ")}\n`);
   if (unknown.length) process.stdout.write(`not reported by LM Warden, left out: ${unknown.join(", ")}\n`);
   if (note) process.stdout.write(`${note}\n`);
   return 0;

@@ -54,6 +54,8 @@ export function loadWeights(file: string): Weights | null {
 const REASON_HINTS: Partial<Record<UnmeasuredReason, string>> = {
   no_usage: "no prompt token count: pass the provider response's usage object to the logger",
   unknown_provider: "no cache facts for the record's provider: log a provider name leanprompt knows, or set target in leanprompt.yaml (see skills/measure-loop/SKILL.md)",
+  ambiguous_target:
+    "the record's provider has no cache table and matches none of the several targets in leanprompt.yaml: log the backend's own name (vllm, lm-warden, openai...) or add a targets entry with that provider (see docs/profile.md)",
   no_ids: "the request could not be identified (unsupported dialect, stateful or malformed body)",
 };
 
@@ -146,7 +148,7 @@ export async function scoreCommand(args: string[]): Promise<number> {
     score = s.score;
     inputs = s.inputs;
     weights = s.weights;
-    evidence = {};
+    evidence = { diagnostics: { default_shares: s.default_shares.used, findings: s.default_shares.of } };
   }
 
   const out = {
@@ -169,6 +171,13 @@ export async function scoreCommand(args: string[]): Promise<number> {
 
   const f = (x: number): string => x.toFixed(2);
   process.stdout.write(`leanprompt score: ${out.message}\n  E prefill reuse ${f(inputs.E)}, S prefix stability ${f(inputs.S)}, G generation waste ${f(inputs.G)}\n`);
+  if (kind === "static") {
+    const d = evidence.diagnostics as { default_shares: number; findings: number };
+    process.stdout.write(`  default_shares: ${d.default_shares} of ${d.findings} findings used the severity default share, not an estimate\n`);
+    if (d.findings > 0 && d.default_shares === d.findings) {
+      process.stdout.write(`  note: every share is a severity default, so this score says little about this app; give each finding a share from the audit's estimate (skills/llm-call-audit/SKILL.md, "The findings file")\n`);
+    }
+  }
   if (kind === "measured") {
     const calls = evidence.calls as number;
     const unmeasured = evidence.unmeasured as number;

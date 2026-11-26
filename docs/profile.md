@@ -9,7 +9,7 @@ All keys are optional. Unknown keys are reported as errors (`unknown key: <name>
 ## Schema
 
 ```yaml
-target:
+target:                      # or targets: a list, one entry per backend (below)
   provider: anthropic        # anthropic | openai | gemini | openrouter | deepinfra | ... (a hosted provider)
   engine: vllm               # vllm | sglang | llama.cpp | lm-warden (a self-hosted engine)
   model_family: qwen         # free text, matched against models/<family>.md
@@ -31,6 +31,38 @@ Use `target.provider` for a hosted API or `target.engine` for an engine you run
 yourself; setting both is an error (`set target.provider or target.engine, not both`).
 The `engine:` block describes that engine's cache behaviour.
 
+### Several backends: `targets`
+
+An app that sends some calls to an engine you run and others to a hosted API
+(chosen per call site, or at run time from a setting) lists each backend under
+`targets:` instead of `target:`:
+
+```yaml
+targets:
+  - engine: vllm             # each entry: exactly one of provider or engine
+    model_family: qwen
+    context_tokens: 32768
+    files: [src/llm/selfhosted.ts]      # optional globs: the call sites that use this backend
+    engine_facts:            # optional: this engine's cache facts (same keys as engine:)
+      block_tokens: 1584
+  - provider: deepseek
+    files: [src/llm/hosted.ts]
+```
+
+- Each entry takes `provider` or `engine` (not both, and not neither), with the
+  same values and checks as `target`, plus optional `model_family`,
+  `context_tokens`, `files` and, on an engine entry, `engine_facts`.
+- `target` and `targets` together are an error (`set target or targets, not both`).
+- Engine facts: with one engine entry, the top-level `engine:` block still applies
+  to it. With two or more engine entries, give each its own `engine_facts`; a
+  top-level `engine:` is then an error, because leanprompt would have to guess
+  which engine it describes.
+- `files` is for the audit: it says which backend a call site uses, so that a
+  provider-specific rule is checked against that backend. Usage records carry no
+  file, so the score does not read it.
+- `profile detect --lmwarden` writes into the `lm-warden` entry (else the `vllm`
+  entry), and adds `{engine: lm-warden}` when there is neither.
+
 Cache facts exist for `vllm` and `sglang`. `lm-warden` serves models through vLLM
 and uses the `vllm` table. `llama.cpp` is accepted in the profile but has no cache
 table yet, so cache-dependent advice cannot be computed for it.
@@ -51,6 +83,19 @@ carries, so the logger's `provider` should name where the request is served:
   (`target.engine`, else `target.provider`) decides the cache facts. With no target
   set, those calls are unmeasured (`unknown_provider`), and `leanprompt score` prints
   the count by reason.
+
+With `targets`, the facts for each usage record are chosen in this order, and
+never guessed:
+
+1. The record's own `provider`: an engine name goes through the engine table
+   (with that engine entry's `engine_facts`, else `engine:`); a provider with a
+   table uses it.
+2. When that name has no table, the `targets` entry whose `provider` is that name.
+   It has no table either, so the record is unmeasured as `unknown_provider`.
+3. Otherwise, with a single target, that target, as above.
+4. With several targets and no match, the record is unmeasured with the reason
+   `ambiguous_target`. Log the backend's own name (`vllm`, `lm-warden`, `openai`)
+   or add a `targets` entry for the host.
 
 ### `priority`
 
@@ -139,6 +184,31 @@ target:
 priority: quality
 ```
 
+### Self-hosted vLLM and a hosted API, chosen at run time
+
+An app that sends each request to its own vLLM server or to a hosted
+DeepSeek model, depending on a setting read at start-up. The logger records
+`vllm` or `deepseek` as each call's `provider`, so each record finds its backend.
+
+```yaml
+targets:
+  - engine: vllm
+    model_family: qwen
+    context_tokens: 32768
+    files: [src/llm/selfhosted.ts]
+  - provider: deepseek
+    files: [src/llm/hosted.ts]
+engine:                      # the one engine entry's cache facts
+  block_tokens: 1584
+  match_unit_tokens: 16
+priority: cost
+```
+
+Records logged as `vllm` are scored on the vLLM table with these engine values.
+DeepSeek has no table here, so records logged as `deepseek` are unmeasured
+(`unknown_provider`) until it has one; the audit still applies the
+provider-independent rules to those call sites.
+
 ## Reading the file from code
 
 `loadProfile(dir)` returns the profile, or `null` when `leanprompt.yaml` is
@@ -147,6 +217,9 @@ returns `{profile, errors}` without throwing. `effectiveFacts(profile, facts, pr
 returns the cache facts with the `engine:` values applied. Without `provider` the
 table is chosen from the profile (`target.engine`, else `target.provider`). An engine
 name passed as `provider` goes through the engine table, and a provider with no table
-falls back to the profile's target. It throws
+falls back to the matching `targets` entry, then to a single target.
+`profileTargets(profile)` lists the targets of either form. With several targets
+and nothing to choose by, it throws `AmbiguousTargetError` (`code:
+"ambiguous_target"`). It throws
 `unknown provider: <name>` when the name has no table and `no cache facts for
 <engine> yet` for `llama.cpp`.

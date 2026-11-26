@@ -3,7 +3,7 @@ import { dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { optionsFor } from "./help.js";
 import { loadRuleIds } from "./lint/rules.js";
-import { loadProfile } from "./profile.js";
+import { loadProfile, profileTargets } from "./profile.js";
 import { PACKAGE_ROOT } from "./score/write.js";
 
 const REPO = "https://github.com/Podwarden/leanprompt";
@@ -183,7 +183,7 @@ export async function lessonCommand(args: string[]): Promise<number> {
     process.stdout.write(`leanprompt lesson: checking your existing draft ${file} (not overwritten; delete it to start again)\n`);
   } else {
     const profile = loadProfile(dir);
-    const target = profile?.target.engine ?? profile?.target.provider ?? "";
+    const target = profile ? profileTargets(profile).map((t) => t.engine ?? t.provider).join(", ") : "";
     const after = readScore(join(dir, SCORE_FILE));
     if (values.rule === undefined && after?.kind !== "measured") {
       const have = after === null ? "there is no score yet" : `the score is ${after.kind ?? "of unknown kind"}, not measured`;

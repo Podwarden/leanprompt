@@ -92,6 +92,15 @@ describe("score --measured", () => {
     expect(readScore().unmeasured).toBe(0);
   });
 
+  it("with two targets, a host matching neither is unmeasured as ambiguous_target with a hint", async () => {
+    const groq = readFileSync(USAGE, "utf8").trim().split("\n").map((l) => JSON.stringify({ ...JSON.parse(l), provider: "groq" }));
+    const p = lp("usage.jsonl", groq.join("\n"));
+    writeFileSync(join(dir, "leanprompt.yaml"), "targets:\n  - {engine: lm-warden}\n  - {provider: openai}\n");
+    expect(await scoreCommand(["--measured", p, "--dir", dir])).toBe(1);
+    expect(err).toContain("ambiguous_target 60");
+    expect(err).toMatch(/ambiguous_target: .*targets/);
+  });
+
   it("a log with provider lm-warden is scored on the vLLM table", async () => {
     const lmw = readFileSync(USAGE, "utf8").trim().split("\n").map((l) => JSON.stringify({ ...JSON.parse(l), provider: "lm-warden" }));
     const p = lp("usage.jsonl", lmw.join("\n"));
@@ -118,7 +127,26 @@ describe("score --static", () => {
     const s = readScore();
     expect(s).toMatchObject({ kind: "static", weights: "default", color: "lightgrey", message: `${s.score} static` });
     expect(s.score).toBe(70);
-    expect(s.diagnostics).toBeUndefined();
+    expect(s.diagnostics).toEqual({ default_shares: 1, findings: 1 });
+  });
+
+  it("reports how many findings used a default share, in score.json and on stdout", async () => {
+    lp("findings.json", findings(finding(), finding({ share: 0.1 }), finding({ severity: "low" }), finding({ fixed: true })));
+    expect(await scoreCommand(["--static", "--dir", dir])).toBe(0);
+    expect(readScore().diagnostics).toEqual({ default_shares: 2, findings: 3 });
+    expect(out).toContain("default_shares: 2 of 3");
+  });
+
+  it("warns when every share is a severity default", async () => {
+    lp("findings.json", findings(finding(), finding({ severity: "low" })));
+    expect(await scoreCommand(["--static", "--dir", dir])).toBe(0);
+    expect(out).toContain("default_shares: 2 of 2");
+    expect(out).toMatch(/every share is a severity default/);
+    lp("findings.json", findings(finding({ share: 0.2 })));
+    out = "";
+    expect(await scoreCommand(["--static", "--dir", dir])).toBe(0);
+    expect(out).toContain("default_shares: 0 of 1");
+    expect(out).not.toMatch(/every share is a severity default/);
   });
 
   it("a bare --static scores .leanprompt/findings.json even when a usage log exists (the hint the measured refusal prints)", async () => {

@@ -8,7 +8,7 @@ import { scoreFrom } from "./static.js";
 export const MIN_CALLS = 50;
 
 /** Why a call was left out of E and S. */
-export type UnmeasuredReason = "no_usage" | "no_ids" | "bad_node_chars" | "bad_ts" | "unknown_provider" | "call_failed";
+export type UnmeasuredReason = "no_usage" | "no_ids" | "bad_node_chars" | "bad_ts" | "unknown_provider" | "ambiguous_target" | "call_failed";
 
 export interface MeasuredScore {
   ok: true;
@@ -92,7 +92,9 @@ function timeOrder(records: readonly UsageRecord[]): { order: number[]; t: numbe
  * its prompt_tokens is 0 or less (no_usage: the logger got no usage counts, so a broken integration
  * refuses instead of scoring a perfect E), it has no ids, its node_chars is missing, empty, misaligned with ids.nodes, not non-decreasing
  * or ends at 0, its ts is unreadable,
- * or `factsFor` has no facts for its provider (throws or returns nothing).
+ * or `factsFor` has no facts for its provider (throws or returns nothing: unknown_provider; throws an
+ * error with `code: "ambiguous_target"`: ambiguous_target, the profile lists several targets and the
+ * record's provider matches none of them).
  */
 export function measuredScore(
   records: readonly UsageRecord[],
@@ -100,16 +102,17 @@ export function measuredScore(
 ): MeasuredScore | TooFewCalls {
   const { order, t } = timeOrder(records);
   const by_reason: Record<UnmeasuredReason, number> = {
-    no_usage: 0, no_ids: 0, bad_node_chars: 0, bad_ts: 0, unknown_provider: 0, call_failed: 0,
+    no_usage: 0, no_ids: 0, bad_node_chars: 0, bad_ts: 0, unknown_provider: 0, ambiguous_target: 0, call_failed: 0,
   };
-  const factsCache = new Map<string, CacheFacts | null>();
-  const lookup = (provider: string): CacheFacts | null => {
+  // A facts lookup either gives facts or the reason it gave none.
+  const factsCache = new Map<string, CacheFacts | "unknown_provider" | "ambiguous_target">();
+  const lookup = (provider: string): CacheFacts | "unknown_provider" | "ambiguous_target" => {
     if (!factsCache.has(provider)) {
-      let f: CacheFacts | null = null;
+      let f: CacheFacts | "unknown_provider" | "ambiguous_target";
       try {
-        f = factsFor(provider) ?? null;
-      } catch {
-        f = null;
+        f = factsFor(provider) ?? "unknown_provider";
+      } catch (e) {
+        f = (e as { code?: unknown } | null)?.code === "ambiguous_target" ? "ambiguous_target" : "unknown_provider";
       }
       factsCache.set(provider, f);
     }
@@ -120,7 +123,7 @@ export function measuredScore(
   for (const i of order) {
     const r = records[i];
     let why: UnmeasuredReason | null = null;
-    let facts: CacheFacts | null = null;
+    let facts: CacheFacts | "unknown_provider" | "ambiguous_target" | null = null;
     // A failed call (finish "error") never reached the cache, or its state is unknown: not evidence either way.
     if (r.finish === "error") why = "call_failed";
     // No prompt tokens: the usage object was missing or unreadable. Never evidence of reuse.
@@ -128,9 +131,9 @@ export function measuredScore(
     else if (!r.ids || !Array.isArray(r.ids.nodes) || r.ids.nodes.length === 0) why = "no_ids";
     else if (!validNodeChars(r.node_chars, r.ids.nodes.length)) why = "bad_node_chars";
     else if (t[i] === Number.POSITIVE_INFINITY) why = "bad_ts";
-    else if (!(facts = lookup(r.provider))) why = "unknown_provider";
+    else if (typeof (facts = lookup(r.provider)) === "string") why = facts;
     if (why) by_reason[why]++;
-    else measured.push({ r, t: t[i], facts: facts! });
+    else measured.push({ r, t: t[i], facts: facts as CacheFacts });
   }
   const unmeasured = records.length - measured.length;
   if (measured.length < MIN_CALLS) return { ok: false, reason: "too_few_calls", calls: records.length, unmeasured, unmeasured_by_reason: by_reason };

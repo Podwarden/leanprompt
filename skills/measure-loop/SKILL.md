@@ -71,7 +71,7 @@ The `provider` you pass decides which cache facts score the call, so name where 
 
 - A hosted API with its own table: `anthropic`, `openai`, `gemini`, `openrouter` or `deepinfra`.
 - A self-hosted server: the engine name, `vllm`, `sglang` or `lm-warden` (LM Warden uses the vLLM table), even when you call it through the OpenAI SDK. Logged as `openai`, its calls get OpenAI's cache facts and the `engine:` values in `leanprompt.yaml` are not applied.
-- Another OpenAI-compatible host (Groq, Together, Azure, DeepSeek and others with no table here): its own name. With no table, the target in `leanprompt.yaml` (`target.provider` or `target.engine`) decides the cache facts; with no target set, those calls are unmeasured (`unknown_provider`) and `score` says so.
+- Another OpenAI-compatible host (Groq, Together, Azure, DeepSeek and others with no table here): its own name. With no table, the target in `leanprompt.yaml` (`target.provider` or `target.engine`) decides the cache facts; with no target set, those calls are unmeasured (`unknown_provider`) and `score` says so. With several `targets`, a host name that matches no entry is unmeasured as `ambiguous_target` rather than guessed, so log each backend under its own name.
 
 `key_bytes` is a 32-byte secret you generate once and keep out of the repo; the ids are keyed and mean nothing without it. When you retry, pass the index the previous `log` returned as `retry_of`; when your parser rejects an answer, set `parse_failed`. The generation rules read those flags.
 

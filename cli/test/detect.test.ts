@@ -198,6 +198,45 @@ describe("profile detect", () => {
     expect(p.target.engine).toBeUndefined();
     expect(io.out()).toMatch(/target\.provider is openai.*left as is/);
   });
+  it("with targets:, writes into the lm-warden entry's engine_facts and keeps the other entries", async () => {
+    const dir = dirWith("targets:\n  - provider: deepseek\n  - engine: lm-warden   # self-hosted\n    model_family: qwen\npriority: cost\n");
+    capture();
+    expect(await detectCommand(["--lmwarden", "http://localhost"], { fetch: reply(200, resp(ROW)), env: { LMWARDEN_API_KEY: "tok-1234" }, cwd: dir })).toBe(0);
+    const text = readFileSync(join(dir, "leanprompt.yaml"), "utf8");
+    expect(text).toContain("# self-hosted");
+    const p = parseProfile(text).profile!;
+    expect(p.targets).toEqual([
+      { provider: "deepseek" },
+      { engine: "lm-warden", model_family: "qwen", context_tokens: 32768, engine_facts: { block_tokens: 1584, match_unit_tokens: 16, speculative: true } },
+    ]);
+    expect(p.engine).toBeUndefined();
+  });
+  it("with targets:, falls back to a vllm entry, and adds an lm-warden entry when there is neither", async () => {
+    const vdir = dirWith("targets:\n  - {engine: vllm}\n  - {provider: openai}\n");
+    capture();
+    expect(await detectCommand(["--lmwarden", "http://localhost"], { fetch: reply(200, resp(ROW)), env: { LMWARDEN_API_KEY: "tok-1234" }, cwd: vdir })).toBe(0);
+    expect(parseProfile(readFileSync(join(vdir, "leanprompt.yaml"), "utf8")).profile!.targets![0]!.engine_facts).toEqual({ block_tokens: 1584, match_unit_tokens: 16, speculative: true });
+    const ndir = dirWith("targets:\n  - {provider: openai}\n");
+    const io = capture();
+    expect(await detectCommand(["--lmwarden", "http://localhost"], { fetch: reply(200, resp(ROW)), env: { LMWARDEN_API_KEY: "tok-1234" }, cwd: ndir })).toBe(0);
+    const p = parseProfile(readFileSync(join(ndir, "leanprompt.yaml"), "utf8")).profile!;
+    expect(p.targets!.map((t) => t.engine ?? t.provider)).toEqual(["openai", "lm-warden"]);
+    expect(io.out()).toMatch(/added .*lm-warden.* to targets/);
+  });
+  it("with a single engine entry and a top-level engine:, updates the top-level block", async () => {
+    const dir = dirWith("targets:\n  - {engine: lm-warden}\n  - {provider: openai}\nengine:\n  kv_memory_gb: 16\n");
+    capture();
+    expect(await detectCommand(["--lmwarden", "http://localhost"], { fetch: reply(200, resp(ROW)), env: { LMWARDEN_API_KEY: "tok-1234" }, cwd: dir })).toBe(0);
+    const p = parseProfile(readFileSync(join(dir, "leanprompt.yaml"), "utf8")).profile!;
+    expect(p.engine).toEqual({ kv_memory_gb: 16, block_tokens: 1584, match_unit_tokens: 16, speculative: true });
+    expect(p.targets![0]!.engine_facts).toBeUndefined();
+  });
+  it("refuses to pick between two lm-warden entries", async () => {
+    const dir = dirWith("targets:\n  - {engine: lm-warden, files: [a/*]}\n  - {engine: lm-warden, files: [b/*]}\n");
+    const io = capture();
+    expect(await detectCommand(["--lmwarden", "http://localhost"], { fetch: reply(200, resp(ROW)), env: { LMWARDEN_API_KEY: "tok-1234" }, cwd: dir })).toBe(1);
+    expect(io.err()).toMatch(/several lm-warden entries/);
+  });
   it("requires --lmwarden and is reachable through main", async () => {
     const io = capture();
     expect(await detectCommand([], { env: {}, cwd: dirWith() })).toBe(2);

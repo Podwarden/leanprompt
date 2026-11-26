@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { loadCacheFacts } from "../src/facts.js";
-import { effectiveFacts, loadProfile, parseProfile, targetKey } from "../src/profile.js";
+import { AmbiguousTargetError, effectiveFacts, loadProfile, parseProfile, profileTargets, targetKey } from "../src/profile.js";
 
 const REPO = fileURLToPath(new URL("../../", import.meta.url));
 const facts = loadCacheFacts(REPO);
@@ -158,3 +158,84 @@ describe("effectiveFacts", () => {
     expect(() => effectiveFacts(null, facts)).toThrow("no provider given");
   });
 });
+
+describe("targets: several backends (issue #4)", () => {
+  const TWO = "targets:\n  - engine: vllm\n    model_family: qwen\n    files: [src/llm/selfhosted.ts]\n  - provider: deepseek\n    context_tokens: 65536\n";
+  it("parses a list of targets, each with one provider or engine and optional files", () => {
+    const r = parseProfile(TWO);
+    expect(r.errors).toEqual([]);
+    expect(r.profile?.targets).toEqual([
+      { engine: "vllm", model_family: "qwen", files: ["src/llm/selfhosted.ts"] },
+      { provider: "deepseek", context_tokens: 65536 },
+    ]);
+    expect(r.profile?.target).toEqual({});
+  });
+  it("rejects target together with targets", () => {
+    expect(parseProfile("target: {provider: openai}\ntargets: [{engine: vllm}]").errors).toContain("set target or targets, not both");
+  });
+  it("each entry needs exactly one of provider or engine, validated as target is", () => {
+    expect(parseProfile("targets: [{provider: openai, engine: vllm}]").errors).toEqual(["targets[0]: set provider or engine, not both"]);
+    expect(parseProfile("targets: [{model_family: qwen}]").errors).toEqual(["targets[0]: set provider or engine"]);
+    expect(parseProfile("targets: [{engine: tgi}]").errors).toEqual(["targets[0].engine must be one of vllm, sglang, llama.cpp, lm-warden"]);
+    expect(parseProfile("targets: [{provider: openai, colour: blue}]").errors).toEqual(["unknown key: targets[0].colour"]);
+    expect(parseProfile("targets: [{provider: openai, files: src/a.ts}]").errors).toEqual(["targets[0].files must be a list of glob strings"]);
+    expect(parseProfile("targets: {provider: openai}").errors).toEqual(["targets must be a non-empty list of entries"]);
+    expect(parseProfile("targets: []").errors).toEqual(["targets must be a non-empty list of entries"]);
+  });
+  it("engine facts go per entry with two engine entries; a top-level engine: is then an error", () => {
+    const y = "targets:\n  - {engine: vllm, engine_facts: {block_tokens: 1584}}\n  - {engine: sglang, engine_facts: {block_tokens: 1}}\n";
+    const r = parseProfile(y);
+    expect(r.errors).toEqual([]);
+    expect(r.profile?.targets?.[0]?.engine_facts).toEqual({ block_tokens: 1584 });
+    expect(parseProfile(`${y}engine: {block_tokens: 16}\n`).errors).toEqual([
+      "with several engine entries in targets, give each its own engine_facts instead of a top-level engine:",
+    ]);
+    expect(parseProfile("targets: [{provider: openai, engine_facts: {block_tokens: 16}}]").errors).toEqual([
+      "targets[0].engine_facts applies only to an engine entry",
+    ]);
+    expect(parseProfile("targets: [{engine: vllm, engine_facts: {gpu: 1}}]").errors).toEqual(["unknown key: targets[0].engine_facts.gpu"]);
+  });
+  it("keeps the top-level engine: for the single-engine case", () => {
+    const p = prof2("targets: [{engine: lm-warden}, {provider: deepseek}]\nengine: {block_tokens: 800}\n");
+    expect(effectiveFacts(p, facts, "lm-warden")).toMatchObject({ mode: "block", block_tokens: 800 });
+  });
+  it("scores a record on its own provider's table first, whatever the targets", () => {
+    const p = prof2(TWO);
+    expect(effectiveFacts(p, facts, "openai")).toEqual(facts.get("openai"));
+    expect(effectiveFacts(p, facts, "vllm")).toEqual(facts.get("vllm"));
+  });
+  it("per-entry engine facts apply to records logged with that engine's name", () => {
+    const p = prof2("targets:\n  - {engine: lm-warden, engine_facts: {block_tokens: 800}}\n  - {engine: sglang, engine_facts: {block_tokens: 4}}\n");
+    expect(effectiveFacts(p, facts, "lm-warden")).toMatchObject({ block_tokens: 800 });
+    expect(effectiveFacts(p, facts, "sglang")).toMatchObject({ block_tokens: 4 });
+  });
+  it("a provider with no table falls back to the matching entry, never to a guess", () => {
+    const p = prof2(TWO);
+    // deepseek matches its own entry, which has no table either: unknown provider, not ambiguous.
+    expect(() => effectiveFacts(p, facts, "deepseek")).toThrow("unknown provider: deepseek");
+    // groq matches no entry and there are two: ambiguous.
+    let err: unknown;
+    try {
+      effectiveFacts(p, facts, "groq");
+    } catch (e) {
+      err = e;
+    }
+    expect(err).toBeInstanceOf(AmbiguousTargetError);
+    expect(String(err)).toMatch(/ambiguous_target.*groq/);
+    // a single targets entry is the fallback, as target: is
+    expect(effectiveFacts(prof2("targets: [{provider: openai}]"), facts, "groq")).toEqual(facts.get("openai"));
+  });
+  it("without a record's provider, several targets are ambiguous", () => {
+    expect(() => effectiveFacts(prof2(TWO), facts)).toThrow(AmbiguousTargetError);
+  });
+  it("profileTargets lists the targets of either form", () => {
+    expect(profileTargets(prof2("target: {provider: openai}"))).toEqual([{ provider: "openai" }]);
+    expect(profileTargets(prof2(TWO)).map((t) => t.engine ?? t.provider)).toEqual(["vllm", "deepseek"]);
+    expect(profileTargets(prof2("priority: cost"))).toEqual([]);
+  });
+});
+const prof2 = (y: string) => {
+  const r = parseProfile(y);
+  if (!r.profile) throw new Error(r.errors.join("; "));
+  return r.profile;
+};

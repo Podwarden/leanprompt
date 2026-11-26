@@ -39,6 +39,14 @@ The first release.
 - `npm run check:numbers`: every number with a unit in the README, the public docs and the skills cites an evidence row or a measured result.
 - Apache-2.0 for code, CC BY 4.0 for the skills and docs; README, CONTRIBUTING, GOVERNANCE and SECURITY (the last three under `.github/`).
 
+## 0.1.0-dev.4 – 2026-11-26
+
+The three format decisions from the first audit of a real project ([#4](https://github.com/Podwarden/leanprompt/issues/4)).
+
+- **Several backends.** `leanprompt.yaml` accepts `targets:`, a list with one entry per backend (each names a `provider` or an `engine`, with optional `model_family`, `context_tokens`, `files` globs and, on an engine entry, `engine_facts`). `target:` still works; both together are an error. The measured score takes each record's cache facts from its own provider or engine name, then from the matching `targets` entry, then from a single target; with several targets and no match the record is unmeasured as `ambiguous_target` instead of guessed. `profile detect --lmwarden` writes into the `lm-warden` (else `vllm`) entry. The audit records each backend as a `targets` entry, on a yes, and checks `applies_to` against each finding's backend. Example in [profile.md](profile.md).
+- **Findings outside the repository.** `findings.json` accepts `"file": "<external>"` with a `where` (for example "engine launch flags"; `line` optional or 0), and `"status": "needs-facts"` with a `confirm` naming the fact that would confirm or dismiss the finding. They count in the static score like any other finding. `report --html`, the report template and `presenting.md` list them, ranked, under "Open questions" with the `confirm` text. `eval-audit` leaves `<external>` findings out of recall and false positives and prints how many.
+- **The audit estimates share.** The audit skill now gives every finding a `share`: estimated tokens lost on the affected side ÷ that side's tokens for the same calls, with the assumptions in the report. The severity default is used only when no estimate is possible, and the report says so. `score --static` prints `default_shares: N of M` (with a note when every share is a default), `score.json` stores the counts under `diagnostics`, and `report --html` shows them next to the static score. `calibrate` is unchanged: it scales only default shares, so with estimated shares it matters less.
+
 ## 0.1.0-dev.3 – 2026-11-26
 
 CLI fixes from the first audit of a real project ([#4](https://github.com/Podwarden/leanprompt/issues/4); the design items there stay open).

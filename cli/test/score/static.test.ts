@@ -15,7 +15,7 @@ const W = (o: Partial<Weights> = {}): Weights => ({
 
 describe("staticScore", () => {
   it("no findings gives 100", () => {
-    expect(staticScore([])).toEqual({ score: 100, inputs: { E: 1, S: 1, G: 0 }, weights: "default" });
+    expect(staticScore([])).toEqual({ score: 100, inputs: { E: 1, S: 1, G: 0 }, weights: "default", default_shares: { used: 0, of: 0 } });
   });
   it("one high prefill finding gives 70", () => {
     const r = staticScore([f()]);
@@ -55,6 +55,15 @@ describe("staticScore", () => {
   });
 });
 
+describe("staticScore default shares", () => {
+  it("counts the scored findings that used a severity default share, calibrated or not", () => {
+    const fs = [f(), f({ share: 0.1 }), f({ severity: "low" }), f({ fixed: true })];
+    expect(staticScore(fs).default_shares).toEqual({ used: 2, of: 3 });
+    expect(staticScore(fs, W({ k_prefill: 2 })).default_shares).toEqual({ used: 2, of: 3 });
+    expect(staticScore([]).default_shares).toEqual({ used: 0, of: 0 });
+  });
+});
+
 describe("parseFindings", () => {
   it("parses a valid file", () => {
     const r = parseFindings(file([f(), f({ rule: "LP-GE-01", saves: "generation", share: 0.3, fixed: true })]), IDS);
@@ -82,6 +91,36 @@ describe("parseFindings", () => {
     expect(parseFindings("{", IDS).errors[0]).toMatch(/not valid JSON/);
     expect(parseFindings(file([], 2), IDS).errors[0]).toMatch(/v must be 1/);
     expect(parseFindings(JSON.stringify({ v: 1 }), IDS).errors[0]).toMatch(/findings must be an array/);
+  });
+  it("accepts a finding outside the repository: file <external> with where, line optional or 0", () => {
+    const ext = { rule: "LP-PC-01", file: "<external>", saves: "prefill", severity: "high", where: "engine launch flags", status: "needs-facts", confirm: "the server's block size", share: 0.4 };
+    const r = parseFindings(file([ext, { ...ext, line: 0 }]), IDS);
+    expect(r.errors).toEqual([]);
+    expect(r.findings[0]).toEqual({ ...ext, line: 0 });
+    expect(r.findings[1]!.line).toBe(0);
+  });
+  it("validates external and needs-facts findings", () => {
+    const ext = { rule: "LP-PC-01", file: "<external>", saves: "prefill", severity: "high", where: "engine launch flags" };
+    const cases: [unknown, RegExp][] = [
+      [{ ...ext, where: undefined }, /in <external> needs `where`/],
+      [{ ...ext, where: "" }, /<external> needs `where`/],
+      [{ ...ext, line: -1 }, /line must be 0 or a positive integer/],
+      [{ ...ext, status: "needs-facts" }, /needs-facts finding needs `confirm`/],
+      [{ ...ext, status: "maybe", confirm: "x" }, /status must be needs-facts/],
+      [{ ...f(), line: 0 }, /line must be a positive integer/],
+      [{ ...f(), where: 3 }, /where must be a non-empty string/],
+    ];
+    for (const [c, re] of cases) {
+      const r = parseFindings(file([c]), IDS);
+      expect(r.findings, String(re)).toEqual([]);
+      expect(r.errors[0], String(re)).toMatch(re);
+    }
+    // an in-repo finding may also wait on facts
+    expect(parseFindings(file([{ ...f(), status: "needs-facts", confirm: "the traffic share" }]), IDS).errors).toEqual([]);
+  });
+  it("an external or needs-facts finding counts in the static score like any other", () => {
+    const ext: Finding = { rule: "LP-PC-01", file: "<external>", line: 0, saves: "prefill", severity: "high", where: "engine launch flags", status: "needs-facts", confirm: "block size" };
+    expect(staticScore([ext])).toEqual(staticScore([f()]));
   });
   it("accepts real rule ids from skills/*/rules", () => {
     const ids = loadRuleIds(ROOT);

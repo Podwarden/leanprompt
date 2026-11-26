@@ -273,3 +273,38 @@ describe("llm-call-audit asks before writing leanprompt.yaml", () => {
     expect(p).not.toMatch(/(^|\. )Save each answer/);
   });
 });
+
+describe("llm-call-audit: issue #4 decisions", () => {
+  const TEMPLATE = () => read("report-template.md");
+  it("records each backend of an app with several as a targets entry, offered and written only on a yes, and checks applies_to per backend", () => {
+    const step = SKILL().split("\n").find((l) => l.startsWith("1. **Know the target and priority.**")) ?? "";
+    expect(step).toMatch(/more than one backend/);
+    expect(step).toMatch(/`targets`/);
+    expect(step).toMatch(/offer to save[\s\S]*only on a yes/);
+    const rules = SKILL().split("\n").find((l) => l.startsWith("3. **Check the rules.**")) ?? "";
+    expect(rules).toMatch(/per backend|each backend/);
+    expect(rules).toMatch(/`applies_to`[^.]*finding's backend|finding's backend[^.]*`applies_to`/);
+    expect(PRESENTING()).toMatch(/`targets:`/);
+  });
+  it("findings outside the repository: <external>, where, needs-facts and confirm, scored like any other", () => {
+    const s = section(SKILL(), "The findings file");
+    expect(s).toContain('"<external>"');
+    expect(s).toMatch(/`where`/);
+    expect(s).toMatch(/`status`[^\n]*`needs-facts`/);
+    expect(s).toMatch(/`confirm`/);
+    expect(s).toMatch(/count in the static score/);
+    expect(TEMPLATE()).toMatch(/### Open questions/);
+    expect(TEMPLATE()).toMatch(/Confirm/);
+    expect(para(PRESENTING(), /open question/i)).toMatch(/confirm/);
+  });
+  it("requires a share for every finding, states the formula, and falls back to the default only when no estimate is possible", () => {
+    const s = section(SKILL(), "The findings file");
+    expect(s).toMatch(/`share`[^\n]*every finding/);
+    expect(s).toMatch(/share = [^\n]*÷/);
+    expect(s).toMatch(/severity default[^\n]*only when no estimate is possible[^\n]*report/);
+    expect(TEMPLATE()).toMatch(/\*\*Share:\*\*/);
+    expect(TEMPLATE()).toMatch(/assumptions/i);
+    expect(TEMPLATE()).toMatch(/default share/);
+    expect(section(SKILL(), "Calibrating a static score")).toMatch(/only the default shares[^.]*matters less|matters less[^.]*default shares/);
+  });
+});

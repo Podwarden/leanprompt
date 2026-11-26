@@ -56,10 +56,10 @@ The routing result, with its limits (E10): on one box of four NVIDIA RTX A4000 c
 
 ## Workflow
 
-1. **Know the target.** Read `leanprompt.yaml` (`target.engine`, `engine:`). If the project has none, infer the server from `base_url` and the launch files, and ask if it is unclear.
+1. **Know the target.** Read `leanprompt.yaml` (`target.engine`, `engine:`; or the engine entries of `targets` when the app also calls a hosted API). If the project has none, infer the server from `base_url` and the launch files, and ask if it is unclear.
 2. **Get the engine facts.** For LM Warden, let the CLI read them instead of asking (next section). For vLLM or SGLang, read the block or page size and the speculative-decoding setting from the server's startup log and launch arguments, and put them under `engine:` ([docs/profile.md](../../docs/profile.md)).
 3. **Check each rule,** in the order of the index below. Each rule's "Detect in code" gives `rg` patterns and code shapes for launch files and for Python, TS/JS and Go clients.
-4. **Propose the fix.** Give the rule id, file and line, and the smallest change from the rule's "Fix", with its "Don't break meaning" check.
+4. **Propose the fix.** Give the rule id, file and line, and the smallest change from the rule's "Fix", with its "Don't break meaning" check. When the launch configuration is not in this repository, the audit records the finding with `"file": "<external>"` and a `where`; when it hangs on an engine fact you do not have yet (the block size, the match unit), it also gets `status: "needs-facts"` and a `confirm` naming that fact.
 5. **Verify.** Use the rule's "Verify": the usage the server reports across two requests, and the kvsig ids that must stay equal. The `measure-loop` skill turns the second into a test.
 
 ## Reading the engine facts from LM Warden
@@ -69,7 +69,7 @@ export LMWARDEN_API_KEY=...          # the inference key the app already uses
 leanprompt profile detect --lmwarden https://lm.example.com [--token-env LMWARDEN_API_KEY] [--model <name>]
 ```
 
-This reads `GET <url>/api/me/engine` with the key as a bearer token and writes `block_tokens`, `match_unit_tokens` and `speculative` (true when the engine reports a speculative-decoding method) under `engine:` in `leanprompt.yaml`. It also sets `target.context_tokens` from `max_model_len` when the file does not already set it. Everything else in the file is kept. If there is no `leanprompt.yaml` it creates one with `target: {engine: lm-warden}`. A value the server cannot determine is left out and named in a printed note. If the key can use several models, pass `--model` or the command stops and lists their names.
+This reads `GET <url>/api/me/engine` with the key as a bearer token and writes `block_tokens`, `match_unit_tokens` and `speculative` (true when the engine reports a speculative-decoding method) under `engine:` in `leanprompt.yaml`. It also sets `target.context_tokens` from `max_model_len` when the file does not already set it. Everything else in the file is kept. If there is no `leanprompt.yaml` it creates one with `target: {engine: lm-warden}`. In a profile with `targets:` it writes into the `lm-warden` entry (else the `vllm` entry, else it adds an `lm-warden` entry), under that entry's `engine_facts`, or under the top-level `engine:` when that block exists and the profile has one engine entry. A value the server cannot determine is left out and named in a printed note. If the key can use several models, pass `--model` or the command stops and lists their names.
 
 Auto-detect needs an LM Warden release that has this endpoint. A server without it answers 404, and the command says so; then set the `engine:` block by hand from the engine's startup log (step 2 above). The command makes one request, to the URL you give, and never prints the key.
 

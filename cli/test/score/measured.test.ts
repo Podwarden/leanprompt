@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { loadCacheFacts, type CacheFacts } from "../../src/facts.js";
 import { parseUsageLog, type UsageRecord } from "../../src/log/record.js";
 import { measuredScore } from "../../src/score/measured.js";
+import { AmbiguousTargetError } from "../../src/profile.js";
 
 const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 const FACTS = loadCacheFacts(ROOT);
@@ -136,6 +137,17 @@ describe("measuredScore: unmeasured records (Review Focus 2)", () => {
     expect(r.unmeasured_by_reason.bad_node_chars).toBe(7);
     expect(r.inputs.E).toBe(without.inputs.E);
     expect(r.inputs.S).toBe(without.inputs.S);
+  });
+
+  it("a record whose backend is ambiguous among several targets is unmeasured as ambiguous_target, never guessed", () => {
+    const extra = [rec({ ts: at(5), provider: "groq", ids: { conv: "conv-a", head: "h-1", nodes: ["n-head", "z"] }, node_chars: [51200, 60000], prompt_tokens: 15_000 })];
+    const factsFor = (p: string): CacheFacts => {
+      if (p === "groq") throw new AmbiguousTargetError(p, 2);
+      return real(p);
+    };
+    const r = ok(measuredScore(inject(base(), extra), factsFor));
+    expect(r.unmeasured_by_reason.ambiguous_target).toBe(1);
+    expect(r.unmeasured_by_reason.unknown_provider).toBe(0);
   });
 
   it("an unknown provider is unmeasured with a reason, not a crash", () => {

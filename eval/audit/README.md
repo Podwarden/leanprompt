@@ -29,7 +29,7 @@ Give the assistant only one form at a time. A copy of the whole case would let i
    `npx leanprompt eval-audit eval/audit/fixtures/python/support-bot /tmp/support-bot-before/.leanprompt/findings.json --form before`
 5. Repeat with a separate copy of `after/` and `--form after`.
 
-Paths in the findings may be relative to the copied folder (`bot.py`) or absolute (`/tmp/support-bot-before/bot.py`). A path with a `before/` or `after/` folder in it is read as that form, using the part after it. A path that matches no file of the case is listed under "unmatched paths" with a warning on stderr, and counts as neither a hit nor a false positive.
+Paths in the findings may be relative to the copied folder (`bot.py`) or absolute (`/tmp/support-bot-before/bot.py`). A path with a `before/` or `after/` folder in it is read as that form, using the part after it. A path that matches no file of the case is listed under "unmatched paths" with a warning on stderr, and counts as neither a hit nor a false positive. A finding with `"file": "<external>"` (one outside the repository, such as an engine's launch flags) is left out of recall and false positives altogether: the seeded cases have nothing outside their files to find. `eval-audit` prints how many it left out (`external findings: N (not counted)`).
 
 ## How scoring works
 

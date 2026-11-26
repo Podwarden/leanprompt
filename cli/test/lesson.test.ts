@@ -123,6 +123,12 @@ describe("leanprompt lesson", () => {
     expect(draft()).toMatch(/\| Score \| \s*\| \s*\|/);
   });
 
+  it("names every backend of a profile with several targets", async () => {
+    writeFileSync(join(dir, "leanprompt.yaml"), "targets:\n  - engine: vllm\n  - provider: deepseek\n");
+    expect(await lessonCommand(["--rule", "LP-PC-03", "--dir", dir])).toBe(0);
+    expect(draft()).toContain("Provider or engine: vllm, deepseek");
+  });
+
   it("fills before from --before and leaves it blank otherwise", async () => {
     lp("score.json", score());
     const older = lp("old.json", score({ score: 40, kind: "static", inputs: { E: 0.5, S: 1, G: 0.6 } }));

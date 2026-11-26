@@ -52,6 +52,13 @@ describe("renderReport", () => {
     expect(m).toContain("character share");
   });
 
+  it("shows how many findings used a default share next to a static score", () => {
+    const html = render([], { ...staticScore, diagnostics: { default_shares: 3, findings: 5 } });
+    expect(html).toMatch(/Default shares<\/dt><dd>3 of 5</);
+    expect(html).toMatch(/severity defaults, not estimates/);
+    expect(render([], staticScore)).not.toContain("Default shares");
+  });
+
   it("says so with no score file", () => {
     const html = render([], null);
     expect(html).toContain("No score yet: run <code>npx leanprompt score</code>");
@@ -64,7 +71,7 @@ describe("renderReport", () => {
   });
 
   const rowsOf = (html: string): string[] =>
-    [...html.matchAll(/<tr[^>]*><td><span class="sev[^"]*">(\w+)<\/span><\/td>.*?<td class="loc"><code>([^<]+)<\/code><\/td>/g)].map((m) => `${m[1]} ${m[2]}`);
+    [...html.matchAll(/<tr[^>]*><td><span class="sev[^"]*">(\w+)<\/span><\/td>.*?<td class="loc">(?:<code>)?([^<]+)(?:<\/code>)?<\/td>/g)].map((m) => `${m[1]} ${m[2]}`);
 
   it("ranks all findings in one table: open before fixed, severity, share, then file:line, and shows file:line", () => {
     const html = render([
@@ -81,6 +88,25 @@ describe("renderReport", () => {
     expect(html).not.toContain("<h3>");
     expect(html).toContain(rules.get("LP-PC-01")!.title);
     expect(html).toContain("6 open, 1 fixed");
+  });
+
+  it("shows external and needs-facts findings in a ranked Open questions group with their confirm text", () => {
+    const html = render([
+      f({ file: "a.ts", line: 4, severity: "medium" }),
+      f({ file: "<external>", line: 0, severity: "low", where: "replica routing", status: "needs-facts", confirm: "how many replicas serve the model" }),
+      f({ file: "<external>", line: 0, severity: "high", where: "engine launch flags", status: "needs-facts", confirm: "is --enable-prefix-caching set <on> the server" }),
+      f({ file: "b.ts", line: 7, severity: "high", status: "needs-facts", confirm: "share of traffic on this path" }),
+    ]);
+    const main = html.slice(0, html.indexOf("Open questions"));
+    const open = html.slice(html.indexOf("Open questions"));
+    expect(html).toContain("<h2>Open questions</h2>");
+    expect(rowsOf(main)).toEqual(["medium a.ts:4"]);
+    expect(rowsOf(open)).toEqual(["high engine launch flags", "high b.ts:7", "low replica routing"]);
+    expect(open).toContain("how many replicas serve the model");
+    expect(open).toContain("is --enable-prefix-caching set &lt;on&gt; the server");
+    expect(open).toMatch(/still count in the score/);
+    expect(html).toContain("4 open, 0 fixed");
+    expect(render([f()])).not.toContain("Open questions");
   });
 
   it("keeps a rule id on one line", () => expect(render()).toMatch(/td\.rule|class="rule"/));

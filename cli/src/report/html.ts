@@ -6,7 +6,7 @@ import { optionsFor } from "../help.js";
 import { REPO } from "../forms.js";
 import { loadRuleIds, ruleFiles } from "../lint/rules.js";
 import { loadProfile } from "../profile.js";
-import { parseFindings, type Finding, type Severity } from "../score/static.js";
+import { EXTERNAL, isOpenQuestion, parseFindings, type Finding, type Severity } from "../score/static.js";
 import { filterIgnored, FINDINGS_FILE, PACKAGE_ROOT } from "../score/write.js";
 
 export type RuleInfo = { title: string; skill: string };
@@ -19,7 +19,7 @@ export interface ScoreFile {
   inputs?: { E?: number; S?: number; G?: number };
   calls?: number;
   unmeasured?: number;
-  diagnostics?: { estimate?: string };
+  diagnostics?: { estimate?: string; default_shares?: number; findings?: number };
   message?: string;
   color?: string;
   date?: string;
@@ -91,7 +91,11 @@ function scoreSection(score: ScoreFile | null): string {
     html += `<div><dt>Calls logged</dt><dd>${e(calls ?? "n/a")}</dd></div>`;
     html += `<div><dt>Calls unmeasured</dt><dd>${e(num(score.unmeasured) ?? "n/a")}</dd></div>`;
   }
+  const d = score.diagnostics ?? {};
+  const defaults = !measured && num(d.default_shares) !== undefined && num(d.findings) !== undefined;
+  if (defaults) html += `<div><dt>Default shares</dt><dd>${e(d.default_shares)} of ${e(d.findings)}</dd></div>`;
   html += `</dl>`;
+  if (defaults) html += `<p class="muted">Findings scored with severity defaults, not estimates. The fewer, the more the static score says about this app.</p>`;
   if (measured) {
     html += `<p class="muted">Reusable tokens are estimated from the character share of each prompt part, not counted by the provider.</p>`;
   } else {
@@ -108,12 +112,19 @@ function badgeSection(score: ScoreFile | null): string {
   return `<section><h2>README badge</h2><p class="muted">Paste this line into your README and replace the URL with the raw URL of the committed <code>.leanprompt/score.json</code>.</p><pre><code>${e(md)}</code></pre></section>`;
 }
 
-function findingRow(f: Finding, rules: Map<string, RuleInfo>, version: string): string {
+/** Where a finding is: `file:line`, or for an `<external>` one its `where` text (and line, when given). */
+function location(f: Finding): string {
+  if (f.file === EXTERNAL) return `${e(f.where ?? EXTERNAL)}${f.line > 0 ? ` (line ${e(f.line)})` : ""}`;
+  return `<code>${e(f.file)}:${e(f.line)}</code>`;
+}
+
+function findingRow(f: Finding, rules: Map<string, RuleInfo>, version: string, question = false): string {
   const r = rules.get(f.rule);
   const id = r ? `<a href="${REPO}/blob/v${e(version)}/skills/${e(r.skill)}/rules/${e(f.rule)}.md">${e(f.rule)}</a>` : e(f.rule);
   const status = f.fixed ? `<span class="tag">fixed</span>` : "open";
   const share = f.share === undefined ? "" : `${Math.round(f.share * 100)}%`;
-  return `<tr${f.fixed ? ` class="fixed"` : ""}><td><span class="sev sev-${f.severity}">${e(f.severity)}</span></td><td class="rule">${id}</td><td>${e(r?.title ?? "")}</td><td class="loc"><code>${e(f.file)}:${e(f.line)}</code></td><td>${share}</td><td>${status}</td></tr>`;
+  const last = question ? `<td>${e(f.confirm ?? "")}</td>` : `<td>${status}</td>`;
+  return `<tr${f.fixed ? ` class="fixed"` : ""}><td><span class="sev sev-${f.severity}">${e(f.severity)}</span></td><td class="rule">${id}</td><td>${e(r?.title ?? "")}</td><td class="loc">${location(f)}</td><td>${share}</td>${last}</tr>`;
 }
 
 /** Rank: open before fixed, severity high to low, estimated share of tokens lost (when given) high to low, then file:line. */
@@ -134,10 +145,21 @@ function findingsSection(o: ReportInput, version: string): string {
   let html = `<section><h2>Findings</h2><p class="muted">${open} open, ${fixed} fixed`;
   if (o.ignored) html += `, ${o.ignored} ignored by the profile`;
   html += `. Ranked by severity, then estimated share of tokens lost, then location.</p>`;
-  if (o.findings.length === 0) return html + `</section>`;
-  html += `<div class="tablewrap"><table><thead><tr><th>Severity</th><th>Rule</th><th>Title</th><th>Where</th><th>Share</th><th>Status</th></tr></thead><tbody>`;
-  html += rankFindings(o.findings).map((f) => findingRow(f, o.rules, version)).join("");
-  return html + `</tbody></table></div></section>`;
+  const questions = o.findings.filter((f) => !f.fixed && isOpenQuestion(f));
+  const rest = o.findings.filter((f) => !questions.includes(f));
+  if (rest.length > 0) {
+    html += `<div class="tablewrap"><table><thead><tr><th>Severity</th><th>Rule</th><th>Title</th><th>Where</th><th>Share</th><th>Status</th></tr></thead><tbody>`;
+    html += rankFindings(rest).map((f) => findingRow(f, o.rules, version)).join("");
+    html += `</tbody></table></div>`;
+  }
+  html += `</section>`;
+  if (questions.length > 0) {
+    html += `<section><h2>Open questions</h2><p class="muted">Findings outside this repository, or waiting on a fact the code cannot show. They still count in the score. Ranked the same way; the last column is the fact that would confirm or dismiss each one.</p>`;
+    html += `<div class="tablewrap"><table><thead><tr><th>Severity</th><th>Rule</th><th>Title</th><th>Where</th><th>Share</th><th>To confirm</th></tr></thead><tbody>`;
+    html += rankFindings(questions).map((f) => findingRow(f, o.rules, version, true)).join("");
+    html += `</tbody></table></div></section>`;
+  }
+  return html;
 }
 
 /** One self-contained HTML document: inline CSS, no script, no network. */

@@ -4,7 +4,7 @@ import { basename, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { optionsFor } from "./help.js";
 import { loadRuleIds } from "./lint/rules.js";
-import { parseFindings, type Finding } from "./score/static.js";
+import { EXTERNAL, parseFindings, type Finding } from "./score/static.js";
 import { PACKAGE_ROOT } from "./score/write.js";
 
 export interface ExpectedFinding {
@@ -142,7 +142,11 @@ export async function evalAuditCommand(args: string[]): Promise<number> {
 
   const got: Finding[] = [];
   const unmatched: Finding[] = [];
+  // A finding outside the repository has no file in the case to match: it counts toward neither
+  // recall nor false positives. The seeded cases expect none.
+  const external = findings.filter((f) => f.file === EXTERNAL).length;
   for (const f of findings) {
+    if (f.file === EXTERNAL) continue;
     const mapped = mapPath(caseDir, f.file, form);
     if (mapped === null) unmatched.push(f);
     else got.push({ ...f, file: mapped });
@@ -159,6 +163,7 @@ export async function evalAuditCommand(args: string[]): Promise<number> {
   }
   out.push(`false positives: ${falsePositives.length}`, ...falsePositives.map((f) => `  ${f.rule} ${f.file}:${f.line}`));
   out.push(`unmatched paths: ${unmatched.length}`, ...unmatched.map((f) => `  ${f.rule} ${f.file}:${f.line}`));
+  if (external > 0) out.push(`external findings: ${external} (not counted)`);
   process.stdout.write(out.join("\n") + "\n");
   return 0;
 }

@@ -6,15 +6,38 @@ import type { CacheFacts } from "./facts.js";
 export const ENGINES = ["vllm", "sglang", "llama.cpp", "lm-warden"] as const;
 export type Engine = (typeof ENGINES)[number];
 
+export interface EngineFacts {
+  block_tokens?: number;
+  match_unit_tokens?: number;
+  speculative?: boolean;
+  kv_memory_gb?: number;
+}
+
+/** One backend: a hosted provider or a self-hosted engine (exactly one in a `targets` entry). */
+export interface Target {
+  provider?: string;
+  engine?: Engine;
+  model_family?: string;
+  context_tokens?: number;
+  /** `targets` entries only: globs of the files whose calls go to this backend (for the audit). */
+  files?: string[];
+  /** `targets` engine entries only: this engine's cache facts, in place of the top-level `engine:`. */
+  engine_facts?: EngineFacts;
+}
+
 export interface Profile {
-  target: { provider?: string; engine?: Engine; model_family?: string; context_tokens?: number };
-  engine?: { block_tokens?: number; match_unit_tokens?: number; speculative?: boolean; kv_memory_gb?: number };
+  /** The single target. Empty when the profile uses `targets`. */
+  target: Target;
+  /** Several backends, for an app that calls more than one (issue #4). Absent when `target` is used. */
+  targets?: Target[];
+  engine?: EngineFacts;
   priority: { cost: number; speed: number; quality: number };
   ignore?: { rule: string; file: string }[];
 }
 
-const KEYS = ["target", "engine", "priority", "ignore"];
+const KEYS = ["target", "targets", "engine", "priority", "ignore"];
 const TARGET_KEYS = ["provider", "engine", "model_family", "context_tokens"];
+const TARGETS_ENTRY_KEYS = [...TARGET_KEYS, "files", "engine_facts"];
 const ENGINE_KEYS = ["block_tokens", "match_unit_tokens", "speculative", "kv_memory_gb"];
 const PRIORITIES = ["cost", "speed", "quality"] as const;
 
@@ -34,6 +57,29 @@ function section(raw: unknown, name: string, errors: string[]): Record<string, u
     return undefined;
   }
   return raw;
+}
+
+function parseTargetFields(t: Record<string, unknown>, out: Target, at: string, errors: string[]): void {
+  if (t.provider !== undefined) isStr(t.provider) ? (out.provider = t.provider) : errors.push(`${at}.provider must be a string`);
+  if (t.engine !== undefined) {
+    if (typeof t.engine === "string" && (ENGINES as readonly string[]).includes(t.engine)) out.engine = t.engine as Engine;
+    else errors.push(`${at}.engine must be one of ${ENGINES.join(", ")}`);
+  }
+  if (t.model_family !== undefined) isStr(t.model_family) ? (out.model_family = t.model_family) : errors.push(`${at}.model_family must be a string`);
+  if (t.context_tokens !== undefined) isPosInt(t.context_tokens) ? (out.context_tokens = t.context_tokens) : errors.push(`${at}.context_tokens must be a positive integer`);
+}
+
+function parseEngineFacts(raw: unknown, at: string, errors: string[]): EngineFacts | undefined {
+  const e = section(raw, at, errors);
+  if (!e) return undefined;
+  unknownKeys(e, ENGINE_KEYS, `${at}.`, errors);
+  const engine: EngineFacts = {};
+  for (const k of ["block_tokens", "match_unit_tokens"] as const) {
+    if (e[k] !== undefined) isPosInt(e[k]) ? (engine[k] = e[k] as number) : errors.push(`${at}.${k} must be a positive integer`);
+  }
+  if (e.speculative !== undefined) typeof e.speculative === "boolean" ? (engine.speculative = e.speculative) : errors.push(`${at}.speculative must be true or false`);
+  if (e.kv_memory_gb !== undefined) isNum(e.kv_memory_gb) && e.kv_memory_gb > 0 ? (engine.kv_memory_gb = e.kv_memory_gb) : errors.push(`${at}.kv_memory_gb must be a positive number`);
+  return engine;
 }
 
 function parsePriority(raw: unknown, errors: string[]): Profile["priority"] {
@@ -86,26 +132,39 @@ export function parseProfile(text: string): { profile?: Profile; errors: string[
   const t = section(doc.target, "target", errors);
   if (t) {
     unknownKeys(t, TARGET_KEYS, "target.", errors);
-    if (t.provider !== undefined) isStr(t.provider) ? (target.provider = t.provider) : errors.push("target.provider must be a string");
-    if (t.engine !== undefined) {
-      if (typeof t.engine === "string" && (ENGINES as readonly string[]).includes(t.engine)) target.engine = t.engine as Engine;
-      else errors.push(`target.engine must be one of ${ENGINES.join(", ")}`);
-    }
-    if (t.model_family !== undefined) isStr(t.model_family) ? (target.model_family = t.model_family) : errors.push("target.model_family must be a string");
-    if (t.context_tokens !== undefined) isPosInt(t.context_tokens) ? (target.context_tokens = t.context_tokens) : errors.push("target.context_tokens must be a positive integer");
+    parseTargetFields(t, target, "target", errors);
   }
 
-  let engine: Profile["engine"];
-  const e = section(doc.engine, "engine", errors);
-  if (e) {
-    unknownKeys(e, ENGINE_KEYS, "engine.", errors);
-    engine = {};
-    for (const k of ["block_tokens", "match_unit_tokens"] as const) {
-      if (e[k] !== undefined) isPosInt(e[k]) ? (engine[k] = e[k] as number) : errors.push(`engine.${k} must be a positive integer`);
+  let targets: Target[] | undefined;
+  if (doc.targets !== undefined && doc.targets !== null) {
+    if (!Array.isArray(doc.targets) || doc.targets.length === 0) errors.push("targets must be a non-empty list of entries");
+    else {
+      targets = [];
+      doc.targets.forEach((raw: unknown, i: number) => {
+        const at = `targets[${i}]`;
+        if (!isMap(raw)) return void errors.push(`${at} must be a mapping`);
+        unknownKeys(raw, TARGETS_ENTRY_KEYS, `${at}.`, errors);
+        const entry: Target = {};
+        parseTargetFields(raw, entry, at, errors);
+        if (raw.provider !== undefined && raw.engine !== undefined) errors.push(`${at}: set provider or engine, not both`);
+        else if (raw.provider === undefined && raw.engine === undefined) errors.push(`${at}: set provider or engine`);
+        if (raw.files !== undefined) {
+          if (Array.isArray(raw.files) && raw.files.length > 0 && raw.files.every(isStr)) entry.files = raw.files as string[];
+          else errors.push(`${at}.files must be a list of glob strings`);
+        }
+        if (raw.engine_facts !== undefined) {
+          if (raw.engine === undefined) errors.push(`${at}.engine_facts applies only to an engine entry`);
+          else {
+            const f = parseEngineFacts(raw.engine_facts, `${at}.engine_facts`, errors);
+            if (f) entry.engine_facts = f;
+          }
+        }
+        targets!.push(entry);
+      });
     }
-    if (e.speculative !== undefined) typeof e.speculative === "boolean" ? (engine.speculative = e.speculative) : errors.push("engine.speculative must be true or false");
-    if (e.kv_memory_gb !== undefined) isNum(e.kv_memory_gb) && e.kv_memory_gb > 0 ? (engine.kv_memory_gb = e.kv_memory_gb) : errors.push("engine.kv_memory_gb must be a positive number");
   }
+
+  const engine = parseEngineFacts(doc.engine, "engine", errors);
 
   const priority = parsePriority(doc.priority, errors);
 
@@ -124,9 +183,14 @@ export function parseProfile(text: string): { profile?: Profile; errors: string[
   }
 
   if (target.provider !== undefined && target.engine !== undefined) errors.push("set target.provider or target.engine, not both");
+  if (t && doc.targets !== undefined && doc.targets !== null) errors.push("set target or targets, not both");
+  if (engine && targets && targets.filter((x) => x.engine !== undefined).length > 1) {
+    errors.push("with several engine entries in targets, give each its own engine_facts instead of a top-level engine:");
+  }
 
   if (errors.length) return { errors };
   const profile: Profile = { target, priority };
+  if (targets) profile.targets = targets;
   if (engine) profile.engine = engine;
   if (ignore) profile.ignore = ignore;
   return { profile, errors };
@@ -144,43 +208,86 @@ export function loadProfile(dir: string): Profile | null {
 /** Engines served through another engine's cache table. */
 const ENGINE_TABLE: Record<Engine, string | null> = { vllm: "vllm", sglang: "sglang", "lm-warden": "vllm", "llama.cpp": null };
 
-/** Key into the provider cache tables for a profile: the engine's table if `target.engine` is set, else `target.provider`, else null. */
-export function targetKey(p: Profile): string | null {
-  const { engine, provider } = p.target;
-  if (engine) return ENGINE_TABLE[engine];
-  return provider ?? null;
+/** A usage record (or a caller) names no backend the profile can pick on its own: never guessed. */
+export class AmbiguousTargetError extends Error {
+  readonly code = "ambiguous_target";
+  constructor(provider: string | undefined, count: number) {
+    super(
+      `ambiguous_target: ${provider === undefined ? "no provider given" : `provider ${provider} has no cache table and matches no entry`} among the ${count} targets in leanprompt.yaml`,
+    );
+  }
 }
 
+/** The profile's targets: the `targets` list, or the single `target` when it names a provider or engine. */
+export function profileTargets(p: Profile): Target[] {
+  if (p.targets) return p.targets;
+  return p.target.provider !== undefined || p.target.engine !== undefined ? [p.target] : [];
+}
+
+/** Table key of one target: the engine's table if it names an engine, else its provider. */
+const keyOf = (t: Target): string | null => (t.engine ? ENGINE_TABLE[t.engine] : (t.provider ?? null));
+
 /**
- * The cache facts with the profile's `engine:` values laid over them. `provider` is optional:
- * when omitted the key comes from `targetKey(p)` (callers holding a usage record pass the
- * record's provider). A provider that names an engine (`lm-warden`, `vllm`, `sglang`, `llama.cpp`)
- * goes through the engine table. A provider with no table of its own (an OpenAI-compatible host
- * such as groq or together) falls back to the profile's target, when one is set.
+ * Key into the provider cache tables for a profile with one target: the engine's table if `engine` is
+ * set, else `provider`, else null. Throws `AmbiguousTargetError` when the profile lists several targets.
+ */
+export function targetKey(p: Profile): string | null {
+  const ts = profileTargets(p);
+  if (ts.length > 1) throw new AmbiguousTargetError(undefined, ts.length);
+  return ts[0] ? keyOf(ts[0]) : null;
+}
+
+/** The engine facts that apply to one engine target: its own `engine_facts`, else the top-level `engine:`. */
+const engineFactsFor = (p: Profile | null, t: Target | undefined): EngineFacts | undefined => t?.engine_facts ?? p?.engine;
+
+/**
+ * The cache facts with the profile's engine values laid over them. `provider` is optional:
+ * when omitted the key comes from the profile's one target (callers holding a usage record pass the
+ * record's provider). Resolution, for a record:
+ * 1. A provider that names an engine (`lm-warden`, `vllm`, `sglang`, `llama.cpp`) goes through the
+ *    engine table; the engine facts are those of the `targets` entry for that engine, else `engine:`.
+ * 2. A provider with its own table uses it.
+ * 3. A provider with no table of its own (an OpenAI-compatible host such as groq or together) falls back
+ *    to the `targets` entry whose `provider` is that name (it has no table either, so: unknown provider),
+ *    else to the single target. With several targets and no match it throws `AmbiguousTargetError`:
+ *    the record is unmeasured (`ambiguous_target`), never guessed.
  * Engine values apply only to block-mode (self-hosted) tables.
  * `match_unit_tokens` replaces the block size (E9); `speculative` sets whether the last block is dropped.
  */
 export function effectiveFacts(p: Profile | null, facts: Map<string, CacheFacts>, provider?: string): CacheFacts {
+  const ts = p ? profileTargets(p) : [];
   let key = provider;
+  let chosen: Target | undefined;
   if (key !== undefined && (ENGINES as readonly string[]).includes(key)) {
     const table = ENGINE_TABLE[key as Engine];
     if (table === null) throw new Error(`no cache facts for ${key} yet`);
+    chosen = ts.find((t) => t.engine === key);
     key = table;
+  } else if (key !== undefined && !facts.has(key) && p) {
+    const match = ts.find((t) => t.provider === key);
+    if (match) chosen = match;
+    else if (ts.length > 1) throw new AmbiguousTargetError(key, ts.length);
+    else if (ts.length === 1) {
+      chosen = ts[0];
+      key = keyOf(chosen!) ?? key;
+    }
   }
-  if (key !== undefined && !facts.has(key) && p) key = targetKey(p) ?? key;
   if (key === undefined) {
     if (!p) throw new Error("no provider given and no profile to read one from");
-    key = targetKey(p) ?? undefined;
+    if (ts.length > 1) throw new AmbiguousTargetError(undefined, ts.length);
+    chosen = ts[0];
+    key = chosen ? (keyOf(chosen) ?? undefined) : undefined;
     if (key === undefined) {
-      if (p.target.engine) throw new Error(`no cache facts for ${p.target.engine} yet`);
+      if (chosen?.engine) throw new Error(`no cache facts for ${chosen.engine} yet`);
       throw new Error("profile sets neither target.provider nor target.engine");
     }
   }
   const base = facts.get(key);
   if (!base) throw new Error(`unknown provider: ${key}`);
-  if (!p?.engine || base.mode !== "block") return base;
+  const ef = engineFactsFor(p, chosen);
+  if (!ef || base.mode !== "block") return base;
   const out: CacheFacts = { ...base };
-  const { block_tokens, match_unit_tokens, speculative } = p.engine;
+  const { block_tokens, match_unit_tokens, speculative } = ef;
   if (block_tokens !== undefined) out.block_tokens = block_tokens;
   if (match_unit_tokens !== undefined) out.block_tokens = match_unit_tokens;
   if (speculative !== undefined) out.drops_last_block = speculative;

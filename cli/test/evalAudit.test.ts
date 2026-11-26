@@ -129,6 +129,17 @@ describe("eval-audit command", () => {
     expect(r.out).toContain("false positives: 1");
   });
 
+  it("leaves <external> findings out of recall, false positives and unmatched paths, and says how many", async () => {
+    const ext = { rule: "LP-PC-01", file: "<external>", saves: "prefill", severity: "high", where: "engine launch flags" };
+    const r = await run([caseDir, write({ v: 1, findings: [f({ file: "bot.py", line: 24 }), ext] })]);
+    expect(r.code).toBe(0);
+    expect(r.out).toContain("recall: 0.25 (1/4)");
+    expect(r.out).toContain("false positives: 0");
+    expect(r.out).toContain("unmatched paths: 0");
+    expect(r.out).toContain("external findings: 1 (not counted)");
+    expect(r.err).not.toContain("<external>");
+  });
+
   it("lists an unmatched path with a warning and counts it nowhere", async () => {
     const r = await run([caseDir, write(doc({ file: "/tmp/support-bot/nothing.py", line: 24 }))]);
     expect(r.code).toBe(0);
