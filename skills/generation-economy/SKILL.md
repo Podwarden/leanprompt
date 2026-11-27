@@ -1,6 +1,6 @@
 ---
 name: generation-economy
-description: Use when writing, reviewing or debugging code that calls an LLM and controls how much it generates or how often it calls — sample loops, per-question calls over one document, max_tokens and thinking or effort settings, timeouts, retries, response caching, bulk or nightly jobs, model choice for small calls, file edits, JSON parsing — for Anthropic, OpenAI, Gemini, OpenRouter, DeepInfra or a self-hosted vLLM or SGLang server, or when usage shows truncated answers (finish_reason length, stop_reason max_tokens), retries, repeated identical calls or parse failures. Stops paying to generate, or to prefill again, what one call could have produced.
+description: Use when writing, reviewing or debugging code that calls an LLM and controls how much it generates or how often it calls (sample loops, per-question calls over one document, max_tokens and thinking or effort settings, timeouts, retries, response caching, bulk or nightly jobs, model choice for small calls, file edits, JSON parsing), for Anthropic, OpenAI, Gemini, OpenRouter, DeepInfra or a self-hosted vLLM or SGLang server, or when usage shows truncated answers (finish_reason length, stop_reason max_tokens), retries, repeated identical calls or parse failures. Stops paying to generate, or to prefill again, what one call could have produced.
 license: CC-BY-4.0
 ---
 

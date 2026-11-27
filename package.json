@@ -1,12 +1,12 @@
 {
   "name": "leanprompt",
-  "version": "0.1.0-dev.12",
+  "version": "0.1.0-dev.13",
   "description": "Get more from every LLM call your app makes: skills that make prompts cacheable, cut dead weight, stop wasted output and speed up first tokens, without changing the answers, plus a CLI to measure the result.",
   "type": "module",
   "license": "Apache-2.0 AND CC-BY-4.0",
   "author": "The LM Warden Team",
   "bin": { "leanprompt": "cli/dist/main.js" },
-  "files": ["cli/dist", "skills", "providers", "models", "runtimes", "forms", "NOTICE", "LICENSE-DOCS", "!**/__pycache__"],
+  "files": ["cli/dist", "skills", "providers", "models", "runtimes", "forms", "docs/evidence.md", "NOTICE", "LICENSE-DOCS", "!**/__pycache__"],
   "exports": { "./log": { "types": "./cli/dist/log/logger.d.ts", "default": "./cli/dist/log/logger.js" } },
   "engines": { "node": ">=20.19" },
   "scripts": {
@@ -19,7 +19,8 @@
     "lint:facts": "tsx cli/src/lint/facts.ts",
     "build:forms": "tsx scripts/build-forms.ts",
     "build:diffs": "tsx scripts/readme-diffs.ts",
-    "check:numbers": "tsx cli/src/lint/numbers.ts"
+    "check:numbers": "tsx cli/src/lint/numbers.ts",
+    "build:site": "tsx scripts/build-site.ts"
   },
   "dependencies": {
     "@kvsig/core": "0.1.0",
@@ -27,6 +28,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.19.0",
+    "marked": "18.3.0",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"

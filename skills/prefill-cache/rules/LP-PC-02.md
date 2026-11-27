@@ -2,7 +2,7 @@
 id: LP-PC-02
 title: Stable content first, without hurting meaning
 skill: prefill-cache
-applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, sglang]
+applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, lm-warden, sglang]
 saves: prefill
 severity: high
 evidence: [E6]

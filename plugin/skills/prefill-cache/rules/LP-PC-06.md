@@ -2,7 +2,7 @@
 id: LP-PC-06
 title: Append-only history
 skill: prefill-cache
-applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, sglang]
+applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, lm-warden, sglang]
 saves: prefill
 severity: high
 evidence:
@@ -15,7 +15,7 @@ evidence:
 Send every earlier message byte for byte as it was sent before, and add new content only at the end.
 
 ## Why
-A turn can reuse the cache only if every message before it is identical to what was sent last time. A rewrite at message `k` makes everything after `k` a miss, and a rewrite that happens on every call makes every turn a miss. The provider docs require the whole rendered prefix to match ([providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/openai.md), [providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/anthropic.md)). Documented, not yet measured here.
+A turn can reuse the cache only if every message before it is identical to what was sent last time. A rewrite at message `k` makes everything after `k` a miss, and a rewrite that happens on every call makes every turn a miss. The provider docs require the whole rendered prefix to match ([providers/openai.md](../../leanprompt/facts/providers/openai.md), [providers/anthropic.md](../../leanprompt/facts/providers/anthropic.md)). Documented, not yet measured here.
 
 The rewrites that cause it are rarely deliberate:
 - history re-serialised from objects or database rows on each call (different whitespace, key order or number formatting);
@@ -68,4 +68,4 @@ If the app rewrote history to keep the model informed (an updated plan, the curr
 
 ## Waste signal
 Measured: lowers S, the share of prompt tokens that requests continuing a conversation could reuse. Static: severity high for history rebuilt or modified on every call, medium for a one-off rewrite (a single insertion or truncation point).
-<!-- leanprompt:generated v0.1.0-dev.12: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.13: written by leanprompt install; leanprompt update replaces local edits -->

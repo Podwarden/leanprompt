@@ -2,7 +2,7 @@
 id: LP-PC-11
 title: Keep pauses inside the cache lifetime
 skill: prefill-cache
-applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, sglang]
+applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, lm-warden, sglang]
 saves: prefill
 severity: low
 evidence:

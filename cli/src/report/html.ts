@@ -1,15 +1,16 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, dirname, join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { parseDoc } from "../frontmatter.js";
 import { optionsFor } from "../help.js";
 import { REPO } from "../forms.js";
 import { loadRuleIds } from "../lint/rules.js";
 import { loadProfile, type Profile } from "../profile.js";
-import { EXTERNAL, isOpenQuestion, parseFindings, type AverageCall, type Finding, type KvsigUse, type Severity } from "../score/static.js";
-import { costSummary, formatDollars, formatTokens, type CostSummary } from "./cost.js";
-import { filterIgnored, FINDINGS_FILE, PACKAGE_ROOT } from "../score/write.js";
+import { EXTERNAL, parseFindings, type AverageCall, type Finding, type KvsigUse, type Note, type Severity } from "../score/static.js";
+import { costSummary, formatDollars, formatTokens, groupOf, type CostSummary } from "./cost.js";
+import { filterIgnored, FINDINGS_FILE, localDate, PACKAGE_ROOT } from "../score/write.js";
+import { MD_FILE, projectName, rawPriority, renderMarkdown, spliceReport } from "./markdown.js";
 
 export type { RuleInfo } from "../lint/rules.js";
 export { loadRules } from "../lint/rules.js";
@@ -24,7 +25,9 @@ export interface ScoreFile {
   inputs?: { E?: number; S?: number; G?: number };
   calls?: number;
   unmeasured?: number;
-  diagnostics?: { estimate?: string; default_shares?: number; findings?: number };
+  diagnostics?: { estimate?: string; default_shares?: number; findings?: number; server_findings?: number };
+  /** Static only, when there are findings for the server's administrator (0.1.0-dev.13 and later). */
+  server?: { included?: boolean; findings?: number; with_server_score?: number; app_score?: number };
   message?: string;
   color?: string;
   date?: string;
@@ -46,6 +49,8 @@ export interface ReportInput {
   average_call?: AverageCall;
   /** Whether the app already uses kvsig, from findings.json. Shown as one line; it does not change the score. */
   kvsig?: KvsigUse;
+  /** Verified problems outside the rules, from findings.json. Shown after the findings; never scored. */
+  notes?: Note[];
   /** Local git facts for the badge snippet. */
   git?: GitInfo;
 }
@@ -59,7 +64,7 @@ const escapeHtml = (v: unknown): string =>
   String(v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 const e = escapeHtml;
 
-function packageVersion(): string {
+export function packageVersion(): string {
   return (JSON.parse(readFileSync(join(PACKAGE_ROOT, "package.json"), "utf8")) as { version: string }).version;
 }
 
@@ -99,18 +104,27 @@ function scoreSection(score: ScoreFile | null, kvsig?: KvsigUse): string {
   if (defaults) html += `<div><dt>Default shares</dt><dd>${e(d.default_shares)} of ${e(d.findings)}</dd></div>`;
   html += `</dl>`;
   if (defaults) html += `<p class="muted">Findings scored with severity defaults, not estimates. The fewer, the more the static score says about this app.</p>`;
+  const sv = score.server;
+  const svn = num(sv?.findings);
+  if (!measured && sv && svn !== undefined && svn > 0) {
+    if (sv.included) {
+      html += `<p class="muted">${e(`This score counts ${plural(svn, "finding")} for the server's administrator${num(sv.app_score) !== undefined ? `; the app's own score is ${sv.app_score}` : ""}.`)}</p>`;
+    } else {
+      html += `<p class="muted">${e(`This is the app's own score. It leaves out ${plural(svn, "finding")} for the server's administrator, whose fix is a server setting, not the app's code${num(sv.with_server_score) !== undefined ? `; with them it would be ${sv.with_server_score}` : ""}.`)}</p>`;
+    }
+  }
   if (measured) {
     html += `<p class="muted">Reusable tokens are estimated from the character share of each prompt part, not counted by the provider.</p>`;
   } else {
     html += `<p class="muted">A static score is an estimate from the audit's findings, not a measurement.</p>`;
   }
-  if (typeof score.date === "string") html += `<p class="muted">Scored ${e(score.date)}.</p>`;
+  if (typeof score.date === "string") html += `<p class="muted">Scored ${e(score.date)} (the date on the machine that ran it).</p>`;
   html += `</div>${kv}</section>`;
   return html;
 }
 
 /** Where a finding is, as plain text: `file:line`, or for an `<external>` one its `where` text. */
-function whereText(f: Finding): string {
+export function whereText(f: Finding): string {
   if (f.file === EXTERNAL) return `${f.where ?? EXTERNAL}${f.line > 0 ? ` (line ${f.line})` : ""}`;
   return `${f.file}:${f.line}`;
 }
@@ -121,7 +135,7 @@ function location(f: Finding): string {
   return `<code>${e(whereText(f))}</code>`;
 }
 
-const tokensOf = (f: Finding): number | undefined =>
+export const tokensOf = (f: Finding): number | undefined =>
   f.tokens_per_1k ? (f.tokens_per_1k.prompt ?? 0) + (f.tokens_per_1k.uncached ?? 0) + (f.tokens_per_1k.output ?? 0) : undefined;
 
 /**
@@ -140,39 +154,52 @@ export function rankFindings(findings: Finding[]): Finding[] {
   );
 }
 
-const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
-const ruleTitle = (f: Finding, rules: Map<string, RuleInfo>): string => rules.get(f.rule)?.title ?? f.rule;
-const ruleLink = (f: Finding, rules: Map<string, RuleInfo>, version: string): string | undefined => {
+export const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
+export const ruleTitle = (f: Finding, rules: Map<string, RuleInfo>): string => rules.get(f.rule)?.title ?? f.rule;
+export const ruleLink = (f: Finding, rules: Map<string, RuleInfo>, version: string): string | undefined => {
   const r = rules.get(f.rule);
   return r ? `${REPO}/blob/v${version}/skills/${r.skill}/rules/${f.rule}.md` : undefined;
 };
 
-interface Groups {
+export interface Groups {
+  /** The app's confirmed findings: the "places" the headline counts. */
   open: Finding[];
+  /** The app's open questions: outside the repository, or behaviour unconfirmed. */
   questions: Finding[];
+  /** Findings whose fix is a server or engine setting: questions for the server's administrator. */
+  server: Finding[];
   fixed: Finding[];
 }
-function groups(findings: Finding[]): Groups {
+export function groups(findings: Finding[]): Groups {
   const ranked = rankFindings(findings);
   return {
-    open: ranked.filter((f) => !f.fixed && !isOpenQuestion(f)),
-    questions: ranked.filter((f) => !f.fixed && isOpenQuestion(f)),
+    open: ranked.filter((f) => groupOf(f) === "open"),
+    questions: ranked.filter((f) => groupOf(f) === "question"),
+    server: ranked.filter((f) => groupOf(f) === "server"),
     fixed: ranked.filter((f) => f.fixed),
   };
 }
 
 /** "an estimate from the code, not a measurement" or "measured over N calls". */
-const tokenKind = (c: CostSummary): string =>
+export const tokenKind = (c: CostSummary): string =>
   c.measured ? `measured over ${(c.measured_calls ?? 0).toLocaleString("en-US")} calls` : "an estimate from the code, not a measurement";
 
 function headline(o: ReportInput, g: Groups, cost: CostSummary): string {
   const n = g.open.length;
   let h = `<header class="lede" id="s-top"><p class="project">leanprompt audit of <strong>${e(o.project)}</strong></p>`;
+  const extras = (): string => {
+    let x = "";
+    if (g.server.length > 0) {
+      x += `<p class="muted">${e(`Plus ${plural(g.server.length, "question")} for the server's administrator, listed after the findings. They are about the server's settings, not this app's code, so they are not in this app's score.`)}</p>`;
+    }
+    if ((o.notes ?? []).length > 0) x += `<p class="muted">Plus ${e(plural(o.notes!.length, "other problem"))} the audit found outside the rules, listed after the findings. Not scored.</p>`;
+    return x;
+  };
   if (n === 0 && g.questions.length === 0) {
     if (g.fixed.length > 0) {
-      h += `<h1>No open findings</h1><p class="sub">${e(plural(g.fixed.length, "finding"))}, fixed. Nothing open remains.</p>`;
+      h += `<h1>No open findings</h1><p class="sub">${e(plural(g.fixed.length, "finding"))}, fixed. Nothing open remains in this app&#39;s code.</p>`;
     } else h += `<h1>${e("The audit found no place where this app pays for tokens it doesn't need")}</h1>`;
-    return `${h}</header>`;
+    return `${h}${extras()}</header>`;
   }
   if (n === 0) {
     h += `<h1>${e(`Nothing confirmed yet, and ${plural(g.questions.length, "open question")} to settle`)}</h1>`;
@@ -193,7 +220,7 @@ function headline(o: ReportInput, g: Groups, cost: CostSummary): string {
     }
     if (g.questions.length > 0) h += `<p class="muted">Plus ${e(plural(g.questions.length, "open question"))} to confirm, listed after the findings.</p>`;
   }
-  return `${h}</header>`;
+  return `${h}${extras()}</header>`;
 }
 
 // Capitalised words that stay capitalised after a colon: names of providers, tools and languages.
@@ -247,7 +274,7 @@ function tokenBar(open: Finding[], rules: Map<string, RuleInfo>): string {
   return `${html}</ol></figure>`;
 }
 
-function costSection(cost: CostSummary): string {
+function costSection(cost: CostSummary, version: string): string {
   if (cost.rows.filter((r) => !r.finding.fixed).length === 0) return "";
   let html = `<section class="cost" id="s-cost"><h2>What this costs you</h2>`;
   const m = cost.money;
@@ -257,6 +284,7 @@ function costSection(cost: CostSummary): string {
     if (m.percent !== undefined && m.bill_per_month !== undefined) html += ` (about ${e(m.percent.toFixed(1))}% of an estimated ${e(formatDollars(m.bill_per_month))} monthly bill)`;
     html += `.`;
     if (m.questions_per_month !== undefined) html += ` If the open questions hold, add about ${e(formatDollars(m.questions_per_month))} a month.`;
+    if (m.server_per_month !== undefined) html += ` ${e(`The questions for the server's administrator, if they hold, are about ${formatDollars(m.server_per_month)} a month more.`)}`;
     if (m.saved_by_fixes !== undefined) html += ` The fixes already made save about ${e(formatDollars(m.saved_by_fixes))} a month.`;
     html += `</p>`;
   }
@@ -264,13 +292,15 @@ function costSection(cost: CostSummary): string {
     const h = cost.gpu.hours_per_month;
     html += `<p class="big"><strong>About ${e(h.toFixed(1))} ${h === 1 ? "hour" : "hours"} of GPU prefill time a month</strong> at ${e(cost.gpu.calls_per_month.toLocaleString("en-US"))} calls a month and ${e(cost.gpu.prefill_tokens_per_second.toLocaleString("en-US"))} prefill tokens a second.</p>`;
   }
-  html += `<p class="muted">Every figure here is ${e(tokenKind(cost))}. Findings can overlap (one failed call can show up in two), so the sum may count some tokens twice. Money is not part of the score.</p>`;
+  html += `<p class="muted">Every figure here is ${e(tokenKind(cost))}. Findings can overlap (one failed call can show up in two), so the sum may count some tokens twice. Money is not part of the score. ${e("The table lists this app's findings first, largest first, then its open questions, then the questions for the server's administrator.")}</p>`;
   // The inputs, so every figure can be checked by hand.
   html += `<div class="tablewrap"><table><thead><tr><th>Finding</th><th>Where</th><th class="fig">Tokens per 1,000 calls</th>${m ? `<th class="fig">A month</th>` : ""}${cost.rows.some((r) => r.ttft_seconds !== undefined) ? `<th class="fig">First-token time</th>` : ""}</tr></thead><tbody>`;
   for (const r of cost.rows.filter((x) => !x.finding.fixed)) {
     const t = r.finding.tokens_per_1k!;
     const parts = [t.prompt ? `${formatTokens(t.prompt)} prompt` : "", t.uncached ? `${formatTokens(t.uncached)} not cached` : "", t.output ? `${formatTokens(t.output)} output` : ""].filter(Boolean).join(", ");
-    html += `<tr><td class="rule">${e(r.finding.rule)}</td><td class="loc">${location(r.finding)}</td><td class="fig tok">${e(parts || "0")}</td>`;
+    const write = t.cache_write ? `; the fix writes ${formatTokens(t.cache_write)} to the cache at the write price` : "";
+    const tag = r.group === "question" ? " (open question)" : r.group === "server" ? " (server)" : "";
+    html += `<tr><td class="rule">${e(r.finding.rule)}${e(tag)}</td><td class="loc">${location(r.finding)}</td><td class="fig tok">${e((parts || "0") + write)}</td>`;
     if (m) html += `<td class="fig mon">${r.dollars_per_month !== undefined ? e(formatDollars(r.dollars_per_month)) : ""}</td>`;
     if (cost.rows.some((x) => x.ttft_seconds !== undefined)) html += `<td class="fig ttft">${r.ttft_seconds !== undefined ? `+${e(r.ttft_seconds.toFixed(2))} s` : ""}</td>`;
     html += `</tr>`;
@@ -293,7 +323,7 @@ function costSection(cost: CostSummary): string {
   if (inputs.length) html += `<ul class="inputs">${inputs.map((i) => `<li>${i}</li>`).join("")}</ul>`;
   if (cost.missing.length > 0) {
     html += `<p>To see this in money, add to <code>leanprompt.yaml</code>:</p><ul class="missing">${cost.missing.map((x) => `<li><code>${e(x.split("\t")[0])}</code>: ${e(x.split("\t")[1] ?? "")}</li>`).join("")}</ul>`;
-    html += `<p class="muted">leanprompt never guesses a volume or a price. Your coding agent can look up the provider's current price page and add it with the date; <a href="${REPO}/blob/main/docs/profile.md">how</a>.</p>`;
+    html += `<p class="muted">leanprompt never guesses a volume or a price. Your coding agent can look up the provider's current price page and add it with the date; <a href="${REPO}/blob/v${version}/docs/profile.md">how</a>.</p>`;
   }
   return `${html}</section>`;
 }
@@ -304,7 +334,7 @@ export function splitLead(text: string): [string, string] {
   return m ? [m[1]!, text.slice(m[0].length)] : [text, ""];
 }
 
-function card(f: Finding, i: number, o: ReportInput, version: string, kind: "open" | "question" | "fixed"): string {
+function card(f: Finding, i: number, o: ReportInput, version: string, kind: "open" | "question" | "server" | "fixed"): string {
   const link = ruleLink(f, o.rules, version);
   const title = ruleTitle(f, o.rules);
   let html = `<article class="finding sev-${f.severity}${f.fixed ? " fixed" : ""}" data-where="${e(whereText(f))}" id="f${i + 1}">`;
@@ -312,14 +342,19 @@ function card(f: Finding, i: number, o: ReportInput, version: string, kind: "ope
   // The first sentence of the problem is the card's heading; the rest follows it as text.
   const [lead, rest] = f.problem ? splitLead(f.problem) : [title, ""];
   html += `<h3>${e(lead)}</h3>`;
-  html += `<p class="meta"><span class="visually-hidden">Finding ${i + 1}. </span>${location(f)} <span class="sev">${e(f.severity)}</span> <span class="rid">${e(f.rule)}</span>${f.fixed ? ` <span class="tag">fixed</span>` : ""}</p>`;
+  const freq = f.status === "frequency-unknown" ? ` <span class="flag">how often is assumed</span>` : "";
+  const unconfirmed = f.status === "needs-facts" && kind !== "question" ? ` <span class="flag">unconfirmed</span>` : "";
+  html += `<p class="meta"><span class="visually-hidden">Finding ${i + 1}. </span>${location(f)} <span class="sev">${e(f.severity)}</span> <span class="rid">${e(f.rule)}</span>${f.fixed ? ` <span class="tag">fixed</span>` : ""}${freq}${unconfirmed}</p>`;
   if (rest) html += `<p class="rest">${e(rest)}</p>`;
   const estimate = f.estimate ?? (tokensOf(f) !== undefined ? `about ${formatTokens(tokensOf(f)!)} tokens per 1,000 calls` : undefined);
+  const asks = kind === "question" || (kind === "server" && f.status === "needs-facts");
   const dl: [string, string, string | undefined][] = [
-    ["act", kind === "question" ? "Change, if confirmed" : "What to change", f.change],
+    ["act", asks ? "Change, if confirmed" : "What to change", f.change],
     ["why", "Why it matters", f.why],
   ];
-  if (kind === "question") dl.unshift(["act confirm", "To confirm", f.confirm]);
+  if (asks) dl.unshift(["act confirm", kind === "server" ? "What would answer it" : "To confirm", f.confirm]);
+  else if (f.status === "frequency-unknown") dl.push(["why freq", "How often it happens", `The code shows the problem; how often it happens is assumed. To measure it: ${f.confirm ?? ""}`]);
+  if (f.planned) dl.push(["why planned", "Already planned", f.planned]);
   const rows = dl.filter(([, , v]) => v).map(([c, k, v]) => `<div class="${c}"><dt>${e(k)}</dt><dd>${e(v)}</dd></div>`);
   if (estimate || f.assumptions) {
     let dd = estimate ? `<span class="est">${e(estimate)}</span>` : "";
@@ -341,30 +376,63 @@ function card(f: Finding, i: number, o: ReportInput, version: string, kind: "ope
 
 function findingsSection(o: ReportInput, g: Groups, version: string): string {
   const all = g.open.length + g.questions.length;
-  let html = `<section class="findings" id="s-findings"><h2>${e("What's wrong and what to change")}</h2><p class="muted">${all} open, ${g.fixed.length} fixed`;
+  let html = `<section class="findings" id="s-findings"><h2>${e("What's wrong and what to change")}</h2><p class="muted">${all} open, ${g.server.length > 0 ? e(`${g.server.length} for the server's administrator, `) : ""}${g.fixed.length} fixed`;
   if (o.ignored) html += `, ${o.ignored} ignored by the profile`;
   html += `. Largest first, by the audit's estimate of tokens lost per 1,000 calls.</p>`;
   html += g.open.map((f, i) => card(f, i, o, version, "open")).join("");
   if (g.open.length === 0) html += `<p>No confirmed findings.</p>`;
   html += `</section>`;
   if (g.questions.length > 0) {
-    html += `<section class="findings" id="s-questions"><h2>Open questions</h2><p class="muted">Findings outside this repository, or waiting on a fact the code cannot show. They still count in the score. Each says what to confirm.</p>`;
+    html += `<section class="findings" id="s-questions"><h2>Open questions</h2><p class="muted">Findings outside this repository, or whose behaviour the code cannot show. They still count in the score. Each says what to confirm.</p>`;
     html += g.questions.map((f, i) => card(f, g.open.length + i, o, version, "question")).join("");
     html += `</section>`;
   }
+  if (g.server.length > 0) {
+    html += `<section class="findings" id="s-server"><h2>${e("Questions for the server's administrator")}</h2>`;
+    html += `<p class="muted">${e("These are about the server or engine the app calls (its launch settings, its cache, its replicas), not this app's code, so they are not in this app's score;")} <code>npx leanprompt score --with-server</code> counts them. Each says what would answer it. For an LM Warden server, <code>npx leanprompt profile detect --lmwarden &lt;url&gt;</code> reads the engine&#39;s cache facts (block size, match unit, speculative decoding) into <code>leanprompt.yaml</code>.</p>`;
+    html += g.server.map((f, i) => card(f, all + i, o, version, "server")).join("");
+    html += `</section>`;
+  }
+  html += notesSection(o.notes ?? []);
   if (g.fixed.length > 0) {
+    const start = all + g.server.length;
     html += `<section class="findings" id="s-fixed"><details class="fixed-list"><summary><h2>${e(plural(g.fixed.length, "fixed finding"))}</h2></summary>`;
-    html += g.fixed.map((f, i) => card(f, all + i, o, version, "fixed")).join("");
+    html += g.fixed.map((f, i) => card(f, start + i, o, version, "fixed")).join("");
     html += `</details></section>`;
   }
   return html;
 }
 
-const NPX = "npx leanprompt";
+/** Where a note is: `file:line`, or for an `<external>` one just that. */
+export const noteWhere = (n: Note): string => (n.file === EXTERNAL ? "outside the repository" : n.line > 0 ? `${n.file}:${n.line}` : n.file);
 
-/** The block a user pastes into their coding agent: self-contained instructions plus the open findings. */
-export function handoffText(findings: Finding[], rules: Map<string, RuleInfo>): string {
+/** Verified problems outside the rules: correctness bugs on the LLM paths. Never scored. */
+function notesSection(notes: Note[]): string {
+  if (notes.length === 0) return "";
+  let html = `<section class="findings notes" id="s-notes"><h2>Other problems the audit found</h2>`;
+  html += `<p class="muted">Problems the audit checked in the code that no rule covers, such as a spend meter that ignores cache tokens or a cut-off answer accepted as complete. They are not scored. Check each one before you change anything.</p>`;
+  notes.forEach((n, i) => {
+    html += `<article class="finding note" data-where="${e(noteWhere(n))}" id="n${i + 1}"><div class="num" aria-hidden="true">N${i + 1}</div><div class="body">`;
+    html += `<h3>${e(n.title)}</h3><p class="meta"><span class="visually-hidden">Note ${i + 1}. </span>${n.file === EXTERNAL ? e(noteWhere(n)) : `<code>${e(noteWhere(n))}</code>`} <span class="flag">not scored</span></p>`;
+    html += `<p class="rest">${e(n.problem)}</p>`;
+    const rows: [string, string, string | undefined][] = [["act", "What to change", n.change], ["why", "Why it matters", n.why]];
+    html += `<dl class="why">${rows.filter(([, , v]) => v).map(([c, k, v]) => `<div class="${c}"><dt>${e(k)}</dt><dd>${e(v)}</dd></div>`).join("")}</dl>`;
+    if (n.verify) html += `<footer class="check"><p><span class="k">How to check the fix</span> ${e(n.verify)}</p></footer>`;
+    html += `</div></article>`;
+  });
+  return `${html}</section>`;
+}
+
+const NPX_BARE = "npx leanprompt";
+
+/**
+ * The block a user pastes into their coding agent: self-contained instructions plus the open findings, the
+ * questions for the server's administrator and the notes. With `version`, the commands name that version
+ * (`npx leanprompt@<version>`), so the skills installed match the CLI that wrote the page.
+ */
+export function handoffText(findings: Finding[], rules: Map<string, RuleInfo>, opts: { notes?: Note[]; version?: string } = {}): string {
   const g = groups(findings);
+  const NPX = opts.version ? `npx leanprompt@${opts.version}` : NPX_BARE;
   const lines = [
     "Please check and fix the LLM-call findings from a leanprompt audit of this repository.",
     "",
@@ -383,6 +451,15 @@ export function handoffText(findings: Finding[], rules: Map<string, RuleInfo>): 
     lines.push("", "Open questions (confirm before fixing):");
     for (const f of g.questions) lines.push(`- ${f.rule} (${whereText(f)}): ${f.problem ?? ruleTitle(f, rules)}${f.confirm ? ` To confirm: ${f.confirm}` : ""}`);
   }
+  if (g.server.length > 0) {
+    lines.push("", "Questions for the server's administrator (not this app's code; do not change the app for these):");
+    for (const f of g.server) lines.push(`- ${f.rule} (${whereText(f)}): ${f.problem ?? ruleTitle(f, rules)}${f.confirm ? ` What would answer it: ${f.confirm}` : ""}`);
+  }
+  const notes = opts.notes ?? [];
+  if (notes.length > 0) {
+    lines.push("", "Other problems found outside the rules (check each against the code first; not scored):");
+    for (const n of notes) lines.push(`- ${n.title} (${noteWhere(n)}): ${n.problem} Change: ${n.change}`);
+  }
   return lines.join("\n");
 }
 
@@ -393,7 +470,7 @@ function copyButton(id: string, label = "Copy"): string {
 function handoffSection(o: ReportInput): string {
   let html = `<section class="handoff" id="s-fix"><h2>Fix it with your coding agent</h2>`;
   html += `<p>Paste this into Claude Code, Codex, Cursor or any coding assistant. It will check each finding against your code and propose fixes one at a time, asking before it changes anything.</p>`;
-  html += `<div class="copybox">${copyButton("handoff", "Copy for your agent")}<pre id="handoff" tabindex="0">${e(handoffText(o.findings, o.rules))}</pre></div>`;
+  html += `<div class="copybox">${copyButton("handoff", "Copy for your agent")}<pre id="handoff" tabindex="0">${e(handoffText(o.findings, o.rules, { notes: o.notes ?? [], version: o.version ?? packageVersion() }))}</pre></div>`;
   return `${html}</section>`;
 }
 
@@ -501,6 +578,8 @@ function navRail(o: ReportInput, g: Groups, cost: CostSummary): string {
   if (cost.rows.some((r) => !r.finding.fixed)) items.push(["s-cost", "Cost", ""]);
   items.push(["s-findings", "Findings", String(g.open.length)]);
   if (g.questions.length > 0) items.push(["s-questions", "Questions", String(g.questions.length)]);
+  if (g.server.length > 0) items.push(["s-server", "For the server", String(g.server.length)]);
+  if ((o.notes ?? []).length > 0) items.push(["s-notes", "Other problems", String(o.notes!.length)]);
   if (g.fixed.length > 0) items.push(["s-fixed", "Fixed", String(g.fixed.length)]);
   items.push(["s-fix", "Hand-off to your agent", ""], ["s-score", "Score", o.score && num(o.score.score) !== undefined ? String(o.score.score) : ""]);
   if (worthSharing(o)) items.push(["s-share", "Share", ""]);
@@ -515,7 +594,7 @@ export function renderReport(o: ReportInput): string {
   const cost = costSummary(o.findings, o.profile ?? null, o.average_call);
   const body =
     headline(o, g, cost) +
-    costSection(cost) +
+    costSection(cost, version) +
     findingsSection(o, g, version) +
     handoffSection(o) +
     scoreSection(o.score, o.kvsig) +
@@ -547,7 +626,7 @@ export function readGit(dir: string): GitInfo | undefined {
   return info;
 }
 
-function readScore(file: string): ScoreFile | null {
+export function readScore(file: string): ScoreFile | null {
   if (!existsSync(file)) return null;
   try {
     const d: unknown = JSON.parse(readFileSync(file, "utf8"));
@@ -557,17 +636,25 @@ function readScore(file: string): ScoreFile | null {
   }
 }
 
-/** `leanprompt report --html [--out <file>] [--dir <project>]` */
+/** `leanprompt report --html|--md [--out <file>] [--project <name>] [--dir <project>]` */
 export async function reportCommand(args: string[]): Promise<number> {
-  let values: { html?: boolean; out?: string; dir?: string };
+  let values: { html?: boolean; md?: boolean; out?: string; dir?: string; project?: string };
   try {
     values = parseArgs({ args, options: optionsFor("report"), strict: true }).values;
   } catch (err) {
     process.stderr.write(`leanprompt: ${(err as Error).message}\n`);
     return 2;
   }
-  if (!values.html) {
-    process.stderr.write("leanprompt: use --html (the Markdown report is leanprompt-report.md, written by the audit)\n");
+  if (!values.html && !values.md) {
+    process.stderr.write("leanprompt: use --html (the page), --md (leanprompt-report.md), or both\n");
+    return 2;
+  }
+  if (values.html && values.md && values.out !== undefined) {
+    process.stderr.write("leanprompt: --out names one file; with both --html and --md, leave it out (they go to .leanprompt/report.html and leanprompt-report.md)\n");
+    return 2;
+  }
+  if (values.project !== undefined && values.project.trim() === "") {
+    process.stderr.write("leanprompt: --project needs a name\n");
     return 2;
   }
   const dir = resolve(values.dir ?? ".");
@@ -575,6 +662,7 @@ export async function reportCommand(args: string[]): Promise<number> {
   let ignored = 0;
   let average_call: AverageCall | undefined;
   let kvsig: KvsigUse | undefined;
+  let notes: Note[] | undefined;
   const profile = loadProfile(dir);
   const fpath = join(dir, FINDINGS_FILE);
   if (existsSync(fpath)) {
@@ -584,21 +672,38 @@ export async function reportCommand(args: string[]): Promise<number> {
     ignored = parsed.findings.length - findings.length;
     average_call = parsed.average_call;
     kvsig = parsed.kvsig;
+    notes = parsed.notes;
   }
-  const html = renderReport({
+  const input: ReportInput = {
     findings,
     ignored,
     score: readScore(join(dir, SCORE_FILE)),
     rules: loadRules(PACKAGE_ROOT),
-    project: basename(dir),
+    project: values.project?.trim() ?? projectName(dir),
     profile,
     ...(average_call ? { average_call } : {}),
     ...(kvsig ? { kvsig } : {}),
+    ...(notes ? { notes } : {}),
     git: readGit(dir),
-  });
-  const target = resolve(dir, values.out ?? DEFAULT_OUT);
-  mkdirSync(dirname(target), { recursive: true });
-  writeFileSync(target, html);
-  process.stdout.write(`${target}\n`);
+  };
+  if (values.md) {
+    const target = resolve(dir, values.html ? MD_FILE : (values.out ?? MD_FILE));
+    const existing = existsSync(target) ? readFileSync(target, "utf8") : null;
+    const priority = rawPriority(dir);
+    const text = spliceReport(existing, renderMarkdown(input, { date: localDate(), ...(priority !== undefined ? { priority } : {}) }));
+    if (text === null) {
+      process.stderr.write(`leanprompt: ${target} exists and was not written by report --md (it has no generated block); move it aside or pass --out <file>\n`);
+      return 1;
+    }
+    mkdirSync(dirname(target), { recursive: true });
+    writeFileSync(target, text);
+    process.stdout.write(`${target}\n`);
+  }
+  if (values.html) {
+    const target = resolve(dir, values.out ?? DEFAULT_OUT);
+    mkdirSync(dirname(target), { recursive: true });
+    writeFileSync(target, renderReport(input));
+    process.stdout.write(`${target}\n`);
+  }
   return 0;
 }

@@ -43,12 +43,14 @@ If another command already has that name, the full name is `/leanprompt:leanprom
   themselves. It runs on your machine, where it reads and writes files in your project and makes no
   network calls. Only `profile detect
   --lmwarden <url>` reads from a server: the LM Warden server you name, for its engine facts.
-- Links to provider tables and docs open pages on GitHub; the skills do not fetch them on their own.
+- The provider, model and runtime fact tables, the evidence table and the profile reference are included
+  under `skills/leanprompt/facts/`, so an audit needs no network. Other links open pages on GitHub; the
+  skills do not fetch them on their own.
 
 ## More
 
 Source, documentation and other assistants (Codex, Cursor, OpenCode): https://github.com/Podwarden/leanprompt. This folder is generated
-from that repository for version 0.1.0-dev.12.
+from that repository for version 0.1.0-dev.13.
 
 ## Licence
 

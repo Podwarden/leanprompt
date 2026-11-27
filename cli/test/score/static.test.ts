@@ -15,7 +15,7 @@ const W = (o: Partial<Weights> = {}): Weights => ({
 
 describe("staticScore", () => {
   it("no findings gives 100", () => {
-    expect(staticScore([])).toEqual({ score: 100, inputs: { E: 1, S: 1, G: 0 }, weights: "default", default_shares: { used: 0, of: 0 } });
+    expect(staticScore([])).toEqual({ score: 100, inputs: { E: 1, S: 1, G: 0 }, weights: "default", default_shares: { used: 0, of: 0 }, server_findings: 0, included_server: false });
   });
   it("one high prefill finding gives 70", () => {
     const r = staticScore([f()]);
@@ -156,7 +156,7 @@ describe("parseFindings: the plain-English fields and token estimates", () => {
     }
   });
   it("validates tokens_per_1k and model", () => {
-    for (const t of [3, [], { prompt: -1 }, { output: "9" }, { uncached: Infinity }, { measured_calls: 1.5 }, { other: 1 }, {}]) {
+    for (const t of [3, [], { prompt: -1 }, { output: "9" }, { uncached: Infinity }, { measured_calls: 1.5 }, { other: 1 }, { measured_calls: 3 }, { cache_write: 5 }]) {
       const r = parseFindings(file([{ ...f(), tokens_per_1k: t }]), IDS);
       expect(r.findings, JSON.stringify(t)).toEqual([]);
       expect(r.errors[0]).toMatch(/tokens_per_1k/);

@@ -12,7 +12,7 @@ From your project root:
 npx leanprompt install
 ```
 
-To pin a release, add its version: `npx leanprompt@0.1.0-dev.12 install`. To run the latest code from GitHub instead: `npx github:Podwarden/leanprompt install`.
+To pin a release, add its version: `npx leanprompt@0.1.0-dev.13 install`. To run the latest code from GitHub instead: `npx github:Podwarden/leanprompt install`.
 
 In a terminal, `install`:
 
@@ -20,6 +20,10 @@ In a terminal, `install`:
 2. asks: install for this project or for all your projects?
 3. lists every file it will write, update or skip, and asks before writing;
 4. ends with what to type next in each assistant, for example `Next: open Claude Code here and type /leanprompt audit`.
+
+The installed skills carry what an audit needs offline: the provider, model and runtime fact tables, the evidence table and the profile reference, under `leanprompt/facts/` next to the other skills, linked from the rules. Their commands name the version that installed them (`npx leanprompt@<version> score`), so the skills and the CLI they call stay in step; `update` moves both to a new version.
+
+Auditing a repository that is not yours? Install with `--scope=global` so nothing is written into it, and see "Auditing someone else's repository" in the audit skill's `presenting.md`.
 
 Reload your assistant afterwards so it sees the new skills. Then type `/leanprompt init` (`$leanprompt init` in Codex) to set up `leanprompt.yaml`, or `/leanprompt audit` to go straight to the audit.
 
@@ -116,5 +120,5 @@ curl -fsSL https://raw.githubusercontent.com/Podwarden/leanprompt/main/scripts/i
 To pin a release, set the version for `sh`:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/Podwarden/leanprompt/main/scripts/install.sh | LEANPROMPT_VERSION=0.1.0-dev.12 sh -s -- --providers=cursor
+curl -fsSL https://raw.githubusercontent.com/Podwarden/leanprompt/main/scripts/install.sh | LEANPROMPT_VERSION=0.1.0-dev.13 sh -s -- --providers=cursor
 ```

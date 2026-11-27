@@ -2,7 +2,7 @@
 id: LP-PD-05
 title: Drop stale history on purpose, not by stripping
 skill: prompt-diet
-applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, sglang, any]
+applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, lm-warden, sglang, any]
 saves: prefill
 severity: medium
 evidence:

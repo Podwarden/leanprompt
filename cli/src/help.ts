@@ -60,6 +60,7 @@ export const SPECS: CommandSpec[] = [
       { name: "static", type: "string", arg: "[<findings.json>]", desc: "score from the audit's findings (default .leanprompt/findings.json)" },
       { name: "github", type: "boolean", desc: "also print a GitHub Actions annotation for each open finding in .leanprompt/findings.json" },
       { name: "fail-under", type: "string", arg: "<N>", desc: "exit 3 when the score is below N (default: never fail on the score)" },
+      { name: "with-server", type: "boolean", desc: "count the findings for the server's administrator in the static score too (default: the app's own score)" },
       DIR,
     ],
   },
@@ -85,10 +86,12 @@ export const SPECS: CommandSpec[] = [
   },
   {
     name: "report",
-    summary: "Write the findings and the score to a local HTML page.",
+    summary: "Write the findings and the score to a local HTML page, or to leanprompt-report.md.",
     flags: [
-      { name: "html", type: "boolean", desc: "write the HTML page (required)" },
-      { name: "out", type: "string", arg: "<file>", desc: "where to write it (default .leanprompt/report.html)" },
+      { name: "html", type: "boolean", desc: "write the HTML page" },
+      { name: "md", type: "boolean", desc: "write leanprompt-report.md from the findings (keeps the inventory and next steps below its generated block)" },
+      { name: "out", type: "string", arg: "<file>", desc: "where to write it (default .leanprompt/report.html, or leanprompt-report.md with --md)" },
+      { name: "project", type: "string", arg: "<name>", desc: "the project's name on the page (default: package.json or pyproject.toml name, else the git remote, else the folder)" },
       DIR,
     ],
   },

@@ -2,7 +2,7 @@
 id: LP-GE-06
 title: Cache exact responses for deterministic requests
 skill: generation-economy
-applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, sglang, any]
+applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, lm-warden, sglang, any]
 saves: both
 severity: medium
 evidence:
@@ -15,7 +15,7 @@ evidence:
 When the app sends the same request again and wants the same answer (classifying a label set, extracting fields from a document it has seen, summarising an unchanged file), store the response in the app keyed by the exact request, and serve it from there instead of calling the model.
 
 ## Why
-A provider's prompt cache only makes the prompt cheaper. The repeated call still pays for cached input at a reduced rate, pays the full price for every output token, and waits for the model to generate again ([providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/anthropic.md), [providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/openai.md), [providers/gemini.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/gemini.md), [providers/deepinfra.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/deepinfra.md)). A self-hosted engine reuses the prefix but still spends the decode time ([providers/vllm.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/vllm.md), [providers/sglang.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/sglang.md)). None of the provider tables lists a response cache; it belongs in the app, and OpenRouter forwards each call to a provider like any other ([providers/openrouter.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/openrouter.md)).
+A provider's prompt cache only makes the prompt cheaper. The repeated call still pays for cached input at a reduced rate, pays the full price for every output token, and waits for the model to generate again ([providers/anthropic.md](../../leanprompt/facts/providers/anthropic.md), [providers/openai.md](../../leanprompt/facts/providers/openai.md), [providers/gemini.md](../../leanprompt/facts/providers/gemini.md), [providers/deepinfra.md](../../leanprompt/facts/providers/deepinfra.md)). A self-hosted engine reuses the prefix but still spends the decode time ([providers/vllm.md](../../leanprompt/facts/providers/vllm.md), [providers/sglang.md](../../leanprompt/facts/providers/sglang.md)). None of the provider tables lists a response cache; it belongs in the app, and OpenRouter forwards each call to a provider like any other ([providers/openrouter.md](../../leanprompt/facts/providers/openrouter.md)).
 
 The shapes: a pipeline that re-runs over every document each night although most did not change; a page that classifies the same product text on every view; a retry wrapper that resends a request that already succeeded; tests and evaluation runs that call the live model with fixed inputs.
 
@@ -73,4 +73,4 @@ Serve a stored answer only when a fresh call would be expected to give the same 
 
 ## Waste signal
 Measured: output tokens on calls repeated identically (same exact ids, same `params`) count as generation waste. Static: severity medium for a deterministic call (temperature zero, a classification or extraction prompt) on a path that runs repeatedly for the same input with no cache in front; low for tests that call the live model.
-<!-- leanprompt:generated v0.1.0-dev.12: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.13: written by npx leanprompt install; npx leanprompt update replaces local edits -->

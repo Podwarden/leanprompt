@@ -2,7 +2,7 @@
 id: LP-PC-08
 title: Cache-aware compaction
 skill: prefill-cache
-applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, sglang]
+applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, lm-warden, sglang]
 saves: prefill
 severity: medium
 evidence:

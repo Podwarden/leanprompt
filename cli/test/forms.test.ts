@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve, posix } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
-import { buildForms, pluginText, PLUGIN_CLI_NOTE, PACKAGE_PAGES, SKILLS, BLOCK_BEGIN, BLOCK_END, BINARY_COPIES, ICON_PATH, ICON_SOURCE } from "../src/forms.js";
+import { buildForms, pluginText, PLUGIN_CLI_NOTE, PACKAGE_PAGES, SKILLS, BLOCK_BEGIN, BLOCK_END, BINARY_COPIES, ICON_PATH, ICON_SOURCE, pinNpx } from "../src/forms.js";
 import { parseDoc } from "../src/frontmatter.js";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -82,7 +82,7 @@ describe("buildForms", () => {
       const tree = trees.find((t) => path.startsWith(t + "/"));
       if (!tree || !path.endsWith(".md") && !path.endsWith(".mdc")) continue;
       for (const l of relLinks(text)) {
-        const abs = posix.normalize(posix.join(posix.dirname(path), l.split(/[#?]/)[0]!));
+        const abs = posix.normalize(posix.join(posix.dirname(path), l.split(/[#?]/)[0]!)).replace(/\/$/, "");
         expect(abs.startsWith(tree + "/"), `${path} -> ${l}`).toBe(true);
         expect(built.has(abs) || [...built.keys()].some((k) => k.startsWith(abs + "/")), `${path} -> ${l}`).toBe(true);
         checked++;
@@ -93,12 +93,33 @@ describe("buildForms", () => {
     for (const [path, text] of built) if (path.startsWith("forms/cursor/")) expect(relLinks(text), path).toEqual([]);
   });
 
-  it("pins escaping links to the release tag", () => {
+  it("pins escaping links to the release tag, except the fact tables, which are installed with the skills", () => {
     const text = built.get("forms/skills/prefill-cache/rules/LP-PC-01.md")!;
-    expect(text).toContain(`https://github.com/Podwarden/leanprompt/blob/v${pkg.version}/providers/`);
+    expect(text).toContain("](../../leanprompt/facts/providers/anthropic.md)");
+    expect(text).not.toContain(`/blob/v${pkg.version}/providers/`);
     expect(text).not.toMatch(/\]\(\.\.\/\.\.\/\.\.\//);
-     const ge04 = built.get("forms/skills/generation-economy/rules/LP-GE-04.md")!;
-    expect(ge04).toContain(`https://github.com/Podwarden/leanprompt/blob/v${pkg.version}/runtimes/http-clients.md`);
+    const ge04 = built.get("forms/skills/generation-economy/rules/LP-GE-04.md")!;
+    expect(ge04).toContain("](../../leanprompt/facts/runtimes/http-clients.md)");
+    const audit = built.get("forms/skills/llm-call-audit/SKILL.md")!;
+    expect(audit).toContain(`https://github.com/Podwarden/leanprompt/blob/v${pkg.version}/docs/calibration.md`);
+    expect(audit).toContain("](../leanprompt/facts/docs/profile.md)");
+  });
+
+  it("installs the provider, model and runtime tables, the evidence table and profile.md under leanprompt/facts", () => {
+    for (const f of ["providers/anthropic.md", "providers/vllm.md", "models/qwen.md", "runtimes/http-clients.md", "docs/evidence.md", "docs/profile.md"]) {
+      const text = built.get(`forms/skills/leanprompt/facts/${f}`);
+      expect(text, f).toBeDefined();
+      expect(text!, f).toContain("leanprompt:generated");
+      expect(built.has(`plugin/skills/leanprompt/facts/${f}`), f).toBe(true);
+    }
+  });
+
+  it("pins the CLI in installed skills to the version they came with", () => {
+    const sk = built.get("forms/skills/leanprompt/SKILL.md")!;
+    expect(sk).toContain(`\`npx leanprompt@${pkg.version} score\``);
+    expect(sk.split("<!-- leanprompt:generated")[0]).not.toMatch(/npx leanprompt(?![@\w-])/);
+    expect(pinNpx("npx leanprompt-cli and npx -y leanprompt score", "9.9.9")).toBe("npx leanprompt-cli and npx -y leanprompt@9.9.9 score");
+    expect(pinNpx("npx leanprompt@1.0.0 score", "9.9.9")).toBe("npx leanprompt@1.0.0 score");
   });
 
   it("plugin and marketplace files match the schema in docs/assistant-paths.md", () => {
@@ -193,7 +214,7 @@ describe("buildForms", () => {
   });
 
   it("forms/ keeps the exact npx and install commands", () => {
-    expect(built.get("forms/skills/leanprompt/SKILL.md")!).toContain("`npx leanprompt score`");
+    expect(built.get("forms/skills/leanprompt/SKILL.md")!).toContain(`\`npx leanprompt@${pkg.version} score\``);
     const ml = built.get("forms/skills/measure-loop/SKILL.md")!;
     for (const c of ["`npm i leanprompt`", "`pip install --pre leanprompt-cli`", "`npm i -D @kvsig/core@0.1.0`", "`pip install kvsig==0.1.0`"]) expect(ml, c).toContain(c);
     expect(built.get("forms/skills/measure-loop/templates/stable-head.template.ts")!).toContain("// Install: npm i -D @kvsig/core@0.1.0 ");

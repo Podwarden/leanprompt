@@ -20,7 +20,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npx --yes leanprompt@0.1.0-dev.12 score --static --github
+      - run: npx --yes leanprompt@0.1.0-dev.13 score --static --github
 ```
 
 Pin a version, so a new release cannot change a build without a commit.
@@ -29,7 +29,7 @@ Pin a version, so a new release cannot change a build without a commit.
 
 - One line per open finding, which GitHub shows as a warning on that file and line:
   `::warning file=src/agent/prompt.ts,line=12,title=leanprompt LP-PC-03%3A ...::The system prompt starts with the current time ...`
-  A finding outside the repository (`"file": "<external>"`) is annotated without a file, with where it lives. An open question (`"status": "needs-facts"`) says what would confirm it.
+  A finding outside the repository (`"file": "<external>"`) is annotated without a file, with where it lives. An open question (`"status": "needs-facts"`) says what would confirm it. A finding for the server's administrator is annotated too, and says so; it is not in the app's score (`--with-server` counts it).
 - One summary line, shown as a notice: the score with its kind, and how many findings are open.
 - The usual `score` output, and `.leanprompt/score.json` as on your machine.
 

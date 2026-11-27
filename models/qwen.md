@@ -18,6 +18,12 @@ Status: template facts observed in each model's `chat_template.jinja` on 2026-09
 
 Passing `reasoning_effort` to a server that serves a template without it changes nothing and raises nothing. Check the template before relying on it.
 
+## Where the template writes the effort (Qwen3.8-27B)
+
+Read in the model's `chat_template.jinja` at the source URL on 2026-11-26. While thinking is enabled, the template turns `reasoning_effort` into a sentence and writes it at the very start of the system message, before the tool definitions and before the app's own system prompt: `xhigh` (the default) and `low` each add their own sentence, `medium` adds none. With `enable_thinking: false` no sentence is written. A system message is rendered even when the app sends none, if there is a sentence to write.
+
+So on this template the first tokens of the prompt depend on the thinking flag and the effort. Two calls that share a long system prompt and differ only in effort or thinking share no prefix at all, even single-turn calls with no history (LP-PC-09). Documented, not yet measured here. The other two templates above have no `reasoning_effort`; whether they render anything about thinking in the system message was not checked on 2026-11-26.
+
 ## Cache effects
 
 - The chat template renders earlier assistant turns differently depending on the thinking flag, so toggling thinking between turns of one session changes the prefix. Measured loss: 47% of what those turns could have reused (329k tokens), E7. Fix the flag per session.

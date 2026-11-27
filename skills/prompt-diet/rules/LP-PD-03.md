@@ -2,7 +2,7 @@
 id: LP-PD-03
 title: Do not resend the same boilerplate on every turn
 skill: prompt-diet
-applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, sglang, any]
+applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, lm-warden, sglang, any]
 saves: prefill
 severity: medium
 evidence:

@@ -1,0 +1,26 @@
+{
+  "v": 1,
+  "average_call": {
+    "prompt_tokens": 6800,
+    "output_tokens": 60
+  },
+  "findings": [
+    {
+      "rule": "LP-PC-03",
+      "line": 11,
+      "saves": "prefill",
+      "severity": "high",
+      "share": 0.9,
+      "problem": "The system prompt starts with the current time to the second. Every call therefore begins with a different line, so a provider that caches by prefix can reuse nothing, and the roughly 6,000-token handbook after it is read again on every call.",
+      "change": "Take the time out of the system prompt and put it in a labelled <environment> block at the top of the newest user message, as LP-PC-03 recommends. The system prompt is then the same on every call.",
+      "why": "A prefix cache matches from the first token and stops at the first difference. With nothing changing at the top, the handbook can be served from the cache on every call after the first.",
+      "estimate": "about 6.7 million prompt tokens per 1,000 calls that the cache could have served",
+      "assumptions": "An average call of about 6,800 prompt tokens (the handbook, the instructions and a short question) and 60 output tokens; every call after the first in a cache lifetime could reuse all but the newest message.",
+      "verify": "Send two requests a few seconds apart and compare the provider's cached prompt tokens: near zero before, close to the handbook's size after.",
+      "tokens_per_1k": {
+        "uncached": 6700000
+      },
+      "file": "examples/dated-chat/before/app.ts"
+    }
+  ]
+}

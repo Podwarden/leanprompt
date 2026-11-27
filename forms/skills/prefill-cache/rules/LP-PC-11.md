@@ -2,7 +2,7 @@
 id: LP-PC-11
 title: Keep pauses inside the cache lifetime
 skill: prefill-cache
-applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, sglang]
+applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, lm-warden, sglang]
 saves: prefill
 severity: low
 evidence:
@@ -17,7 +17,7 @@ evidence:
 Schedule work that shares a prefix so the gaps between its requests stay inside the provider's cache lifetime; where they cannot, pick a longer lifetime only when the break-even rule favours it, or expect a cold prefix.
 
 ## Why
-A cached prefix expires after a period without use. The lifetimes differ by provider and option, and some are refreshed on each read; they are in the provider tables ([providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/anthropic.md), [providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/openai.md), [providers/gemini.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/gemini.md), [providers/deepinfra.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/deepinfra.md)). Self-hosted engines have no lifetime but evict under memory pressure ([providers/vllm.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/vllm.md), [providers/sglang.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/sglang.md)). On OpenRouter, sticky routing to the provider that holds the cache has its own inactivity timer ([providers/openrouter.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/openrouter.md)). Documented, not yet measured here.
+A cached prefix expires after a period without use. The lifetimes differ by provider and option, and some are refreshed on each read; they are in the provider tables ([providers/anthropic.md](../../leanprompt/facts/providers/anthropic.md), [providers/openai.md](../../leanprompt/facts/providers/openai.md), [providers/gemini.md](../../leanprompt/facts/providers/gemini.md), [providers/deepinfra.md](../../leanprompt/facts/providers/deepinfra.md)). Self-hosted engines have no lifetime but evict under memory pressure ([providers/vllm.md](../../leanprompt/facts/providers/vllm.md), [providers/sglang.md](../../leanprompt/facts/providers/sglang.md)). On OpenRouter, sticky routing to the provider that holds the cache has its own inactivity timer ([providers/openrouter.md](../../leanprompt/facts/providers/openrouter.md)). Documented, not yet measured here.
 
 The shapes: a batch job that processes documents round-robin, so each document's long prefix comes back only after every other document has been seen; an agent waiting for a human approval; a rate limiter that spaces calls further apart than the lifetime; a cron job that runs the same long prompt at an interval just over it.
 
@@ -69,4 +69,4 @@ Regrouping changes the order in which work runs, not the prompts, so answers do 
 
 ## Waste signal
 Measured: not counted against the app. The score caps "reusable" by the provider's cache lifetime, so a prefix last seen longer ago than the lifetime leaves E and S unchanged; the audit reports how many requests had a cold prefix. Static: severity low, with the break-even advice (mark, don't mark, longer lifetime, restructure).
-<!-- leanprompt:generated v0.1.0-dev.12: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.13: written by npx leanprompt install; npx leanprompt update replaces local edits -->

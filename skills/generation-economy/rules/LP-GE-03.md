@@ -2,7 +2,7 @@
 id: LP-GE-03
 title: Output and thinking budgets that fit the task
 skill: generation-economy
-applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, sglang, any]
+applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, lm-warden, sglang, any]
 saves: generation
 severity: high
 evidence:

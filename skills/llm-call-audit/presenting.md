@@ -25,11 +25,19 @@ Choosing `don't flag this again` writes an `ignore:` entry to `leanprompt.yaml`,
 
 Present each open question (a finding in `"<external>"` or with `status: "needs-facts"`) in its place in the ranking, marked as an open question: say where it lives, the tokens it would lose with the kind of that number, and its `confirm` text as the question to settle. If the user gives the fact and it confirms the finding, drop `status` and go on with the four choices; if it dismisses the finding, remove it from `.leanprompt/findings.json` and rescore; if the user does not know yet, leave it open: it stays in the score and in the report's "Open questions".
 
+A finding marked `frequency-unknown` is a finding, not a question: present it with the four choices, and say that the code shows the problem and only how often it happens is assumed, with its `confirm` text as the way to measure it.
+
+Present the questions for the server's administrator (`fix_by: "server"`) after the app's findings, as questions, not defects: what the server would need to have, what would answer it (for an LM Warden server, `npx leanprompt profile detect --lmwarden <url>`), and that they are not in the app's score. The user may be the administrator, or may pass them on; do not offer to change the app's code for them.
+
+After the findings, present the notes (problems outside the rules) one at a time the same way, with `fix now`, `explain more` and `skip`. They are not scored, so a fixed note changes no score; remove it from `notes` once it is fixed.
+
 Accept a short answer: the choice's words, its number, or "yes" for `fix now`. After the last finding, say what changed: fixed, skipped and ignored counts, and the new score with its kind.
 
 ## Asking questions
 
 When you have your own question tool, use it: in Claude Code, the option prompts of its question tool (`AskUserQuestion`), which show the choices as options the user picks from. Without one, write numbered choices in text, one per line, and accept the number or the words as the answer. Ask one question at a time.
+
+If you cannot ask (an unattended run, a subagent, CI), do not guess an answer and do not wait for one: use what `leanprompt.yaml` says, leave the rest unset, and let `npx leanprompt report --md` list each open question under "Questions for the owner". Say in the summary that the run was unattended.
 
 Ask only what the code cannot answer. Read everything you can first: the SDK, the base URL, the model names, the launch files, `leanprompt.yaml`. The questions that are usually left:
 
@@ -38,7 +46,7 @@ Ask only what the code cannot answer. Read everything you can first: the SDK, th
 - **Whether a trim may cut something the model needs,** before a fix that removes content (an `LP-PD-*` finding: a tool, an instruction, part of a tool result, old turns). Say what would be removed and from which calls, that the fix ships only after an answer check, and, when it touches the cached head, what the one-time cache loss is. Stripping reasoning from history is the known failure here (E11).
 - **The provider or model,** only when the code reads it from the environment at run time and nothing else names it.
 
-Offer to save each answer to `leanprompt.yaml` so it is never asked twice: show the lines that would be written (the priority under `priority:`, the provider or engine under `target:`, or one entry per backend under `targets:` when the app calls more than one, [docs/profile.md](../../docs/profile.md)) and write them only on a yes. Answering a question is not consent to writing the file; if the user declines, keep the answer for this session only. The file accepts only `target` (or `targets`), `engine`, `priority` and `ignore`, and any other key makes leanprompt stop with `unknown key`, so do not add keys of your own. A "no, the order matters" to a reorder question can be saved, on the same offer, as an `ignore:` entry for that rule and file, so the content stays where it is. A "yes" needs no entry: the fix is made, with its answer check, and the finding is gone.
+Offer to save each answer to `leanprompt.yaml` so it is never asked twice: show the lines that would be written (the priority under `priority:`, the provider or engine under `target:`, or one entry per backend under `targets:` when the app calls more than one, [docs/profile.md](../../docs/profile.md)) and write them only on a yes. Answering a question is not consent to writing the file; if the user declines, keep the answer for this session only. The file accepts only `target` (or `targets`), `engine`, `priority`, `ignore`, `volume` and `prices`, and any other key makes leanprompt stop with `unknown key`, so do not add keys of your own. A "no, the order matters" to a reorder question can be saved, on the same offer, as an `ignore:` entry for that rule and file, so the content stays where it is. A "yes" needs no entry: the fix is made, with its answer check, and the finding is gone.
 
 ## Fixes and proofs
 
@@ -69,3 +77,12 @@ After the summary, run `npx leanprompt report --html` and give the user the path
 The page's "Fix it with your coding agent" block is for a user who reads the page later, or in another tool: it is self-contained instructions (install leanprompt if it is missing, read the findings, check each against the code, fix one at a time with the user's yes, prove each with `measure-loop`) and the list of findings. If you are already going through the findings with the user, say so and carry on; the block is for a fresh session.
 
 The page asks for a star or a word to a colleague only after it has shown an estimate or a measured score, and offers the README badge only when the repository's remote is on GitHub, GitLab.com or Bitbucket. Do not ask for either yourself. The Markdown report, `leanprompt-report.md`, stays the record either way.
+
+## Auditing someone else's repository
+
+When the repository is not the user's (an open-source project, a client's code, a clone made only to audit it), leave it as you found it:
+
+- **Install outside it.** Install the skills for all your projects (`npx leanprompt install --scope=global`) instead of into the repository's `.claude/` or `.agents/`, which may already hold the author's own agent files. If they must go in the project, tell the user which folders were added.
+- **Keep the audit's files out of its history.** `leanprompt-report.md` and `.leanprompt/` are the user's notes, not a contribution. Add them to `.git/info/exclude` (local to this clone, not committed) or keep the clone separate from any checkout used for a pull request, and never commit them to someone else's repository.
+- **Read its policy before reporting upstream.** If the user wants to tell the maintainers, check the repository's contribution guide and any policy on AI-generated issues or pull requests first. Report one verified finding at a time (the one with the clearest fix), in the maintainers' words and format, say that the audit used leanprompt and an AI assistant, and do not open a pull request unless the maintainers ask for one. Never paste the whole report into an issue.
+

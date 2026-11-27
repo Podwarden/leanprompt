@@ -2,7 +2,7 @@
 id: LP-PD-04
 title: Trim tool results and retrieved context at the tool boundary
 skill: prompt-diet
-applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, sglang, any]
+applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, lm-warden, sglang, any]
 saves: prefill
 severity: high
 evidence:

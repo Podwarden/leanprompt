@@ -2,7 +2,7 @@
 id: LP-PC-05
 title: Tool lists grow only at the end
 skill: prefill-cache
-applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, sglang]
+applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, lm-warden, sglang]
 saves: prefill
 severity: medium
 evidence: [E3]

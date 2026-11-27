@@ -23,18 +23,18 @@ Caching never changes answers, so these rules apply whatever the project's prior
 
 ## Does self-hosting pay
 
-Self-hosting tends to pay when traffic is steady, many requests share a long prefix, the data must not leave your host, and you already own NVIDIA GPUs. It tends not to pay with no GPU, with spiky and low traffic (an idle GPU still costs), or when the work needs a frontier model that cannot be self-hosted. This skill does not price either side; the cost of a hosted call comes from [providers/](https://github.com/Podwarden/leanprompt/tree/v0.1.0-dev.12/providers/) and the cost of a GPU from your own bill.
+Self-hosting tends to pay when traffic is steady, many requests share a long prefix, the data must not leave your host, and you already own NVIDIA GPUs. It tends not to pay with no GPU, with spiky and low traffic (an idle GPU still costs), or when the work needs a frontier model that cannot be self-hosted. This skill does not price either side; the cost of a hosted call comes from [providers/](../leanprompt/facts/providers/) and the cost of a GPU from your own bill.
 
 ## The options
 
 | Option | What it is | What this repo has on it |
 |---|---|---|
-| vLLM | Inference engine with automatic prefix caching in blocks | [providers/vllm.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/vllm.md) (E9) |
-| SGLang | Inference engine with a radix-tree prefix cache | [providers/sglang.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/sglang.md), documented, not yet measured here |
-| llama.cpp | Inference engine for GGUF models, CPU or GPU | accepted as `target.engine` in [leanprompt.yaml](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/docs/profile.md); no cache table yet |
+| vLLM | Inference engine with automatic prefix caching in blocks | [providers/vllm.md](../leanprompt/facts/providers/vllm.md) (E9) |
+| SGLang | Inference engine with a radix-tree prefix cache | [providers/sglang.md](../leanprompt/facts/providers/sglang.md), documented, not yet measured here |
+| llama.cpp | Inference engine for GGUF models, CPU or GPU | accepted as `target.engine` in [leanprompt.yaml](../leanprompt/facts/docs/profile.md); no cache table yet |
 | Ollama | Local model runner built on llama.cpp | no table here |
 | LM Warden | A server that runs vLLM and llama.cpp behind one OpenAI-compatible port on your NVIDIA GPUs | its facts are read from its own API (below); it uses the vLLM table |
-| Hosted APIs | Anthropic, OpenAI, Gemini, OpenRouter, DeepInfra | [providers/](https://github.com/Podwarden/leanprompt/tree/v0.1.0-dev.12/providers/) |
+| Hosted APIs | Anthropic, OpenAI, Gemini, OpenRouter, DeepInfra | [providers/](../leanprompt/facts/providers/) |
 
 Pick on your hardware, models and operations, not on this table. Running vLLM or SGLang directly is a reasonable choice when you want one engine and already have the tooling around it.
 
@@ -57,9 +57,9 @@ The routing result, with its limits (E10): on one box of four NVIDIA RTX A4000 c
 ## Workflow
 
 1. **Know the target.** Read `leanprompt.yaml` (`target.engine`, `engine:`; or the engine entries of `targets` when the app also calls a hosted API). If the project has none, infer the server from `base_url` and the launch files, and ask if it is unclear.
-2. **Get the engine facts.** For LM Warden, let the CLI read them instead of asking (next section). For vLLM or SGLang, read the block or page size and the speculative-decoding setting from the server's startup log and launch arguments, and put them under `engine:` ([docs/profile.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/docs/profile.md)).
+2. **Get the engine facts.** For LM Warden, let the CLI read them instead of asking (next section). For vLLM or SGLang, read the block or page size and the speculative-decoding setting from the server's startup log and launch arguments, and put them under `engine:` ([docs/profile.md](../leanprompt/facts/docs/profile.md)).
 3. **Check each rule,** in the order of the index below. Each rule's "Detect in code" gives `rg` patterns and code shapes for launch files and for Python, TS/JS and Go clients.
-4. **Propose the fix.** Give the rule id, file and line, and the smallest change from the rule's "Fix", with its "Don't break meaning" check. When the launch configuration is not in this repository, the audit records the finding with `"file": "<external>"` and a `where`; when it hangs on an engine fact you do not have yet (the block size, the match unit), it also gets `status: "needs-facts"` and a `confirm` naming that fact.
+4. **Propose the fix.** Give the rule id, file and line, and the smallest change from the rule's "Fix", with its "Don't break meaning" check. When the launch configuration is not in this repository, the audit records the finding with `"file": "<external>"` and a `where`; when it hangs on an engine fact you do not have yet (the block size, the match unit), it also gets `status: "needs-facts"` and a `confirm` naming that fact. An `LP-LW-*` finding in `<external>` is for the server's administrator (`fix_by: "server"`, the default): the page shows it under "Questions for the server's administrator", and the app's static score leaves it out (0.1.0-dev.13 and later; `npx leanprompt@0.1.0-dev.13 score --with-server` counts it). Write such a finding as a question with what would answer it, not as a defect of the app.
 5. **Verify.** Use the rule's "Verify": the usage the server reports across two requests, and the kvsig ids that must stay equal. The `measure-loop` skill turns the second into a test.
 
 ## Reading the engine facts from LM Warden
@@ -70,7 +70,7 @@ leanprompt profile detect --lmwarden https://lm.example.com [--token-env <VAR>] 
 
 The key is the inference key the app already uses. The user makes it available to the command in their own shell, under the variable that `--token-env` names (see `leanprompt profile detect --help` for the default); never ask for the key in chat, and never write it to a file. The command reads `GET <url>/api/me/engine` with the key as a bearer token and writes `block_tokens`, `match_unit_tokens` and `speculative` (true when the engine reports a speculative-decoding method) under `engine:` in `leanprompt.yaml`. It also sets `target.context_tokens` from `max_model_len` when the file does not already set it. Everything else in the file is kept. If there is no `leanprompt.yaml` it creates one with `target: {engine: lm-warden}`. In a profile with `targets:` it writes into the `lm-warden` entry (else the `vllm` entry, else it adds an `lm-warden` entry), under that entry's `engine_facts`, or under the top-level `engine:` when that block exists and the profile has one engine entry. A value the server cannot determine is left out and named in a printed note. If the key can use several models, pass `--model` or the command stops and lists their names.
 
-Auto-detect needs an LM Warden release that has this endpoint. A server without it answers 404, and the command says so; then set the `engine:` block by hand from the engine's startup log (step 2 above). The command makes one request, to the URL you give, and never prints the key.
+Auto-detect needs LM Warden v2026.11.26.1 or later. An older server answers 404, and the command says so; then ask its admin to upgrade, or set the `engine:` block by hand from the engine's startup log (step 2 above). A 403 means the key may not read engine facts: the command shows the server's reason, and the user asks the admin to allow "Engine facts" on that key. If the model is loaded but its engine has not reported yet, the command leaves those fields out and says to run it again after the model has served a request; never fill them in by guess. The command makes one request, to the URL you give, and never prints the key.
 
 ## Prompt Lens (planned)
 
@@ -84,13 +84,13 @@ Prompt Lens is planned: an LM Warden view that names the first part of a prompt 
 | [LP-LW-02](rules/LP-LW-02.md) | Keep a conversation on the replica that holds its cache | medium | E10 |
 | [LP-LW-03](rules/LP-LW-03.md) | One key per app or tenant; cache scope is a privacy boundary | medium | provider docs |
 
-Evidence rows (E1 to E12) are in [docs/evidence.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/docs/evidence.md). A rule whose only source is documentation says "documented, not yet measured here".
+Evidence rows (E1 to E12) are in [docs/evidence.md](../leanprompt/facts/docs/evidence.md). A rule whose only source is documentation says "documented, not yet measured here".
 
 ## Hardware notes
 
-A longer context and more concurrent sequences take more KV-cache memory, and the cache that holds reusable prefixes competes for the same memory; that follows from how engines work and is untested here. Put the KV memory you have under `kv_memory_gb` in `engine:` when you know it ([docs/profile.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/docs/profile.md)). Engine flags change over versions: read the flag's meaning in your version's documentation before changing it.
+A longer context and more concurrent sequences take more KV-cache memory, and the cache that holds reusable prefixes competes for the same memory; that follows from how engines work and is untested here. Put the KV memory you have under `kv_memory_gb` in `engine:` when you know it ([docs/profile.md](../leanprompt/facts/docs/profile.md)). Engine flags change over versions: read the flag's meaning in your version's documentation before changing it.
 
 ## What this skill does not do
 
 It does not make the model faster, change how much it generates (that is `generation-economy`), or change the prompt (that is `prefill-cache`). It does not choose hardware, and it does not promise the E9 or E10 results for another model, card count or workload.
-<!-- leanprompt:generated v0.1.0-dev.12: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.13: written by npx leanprompt install; npx leanprompt update replaces local edits -->

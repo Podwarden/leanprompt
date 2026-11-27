@@ -23,7 +23,7 @@ The first release.
 - `install` (also `init`): installs the skills for Claude Code, Codex, OpenCode, Cursor and any `AGENTS.md` reader, detected or chosen with `--providers`, for this project or all your projects (`--scope`), after showing the files and asking. Idempotent; leaves user text outside its marked block untouched and never overwrites files it did not generate. `update` refreshes an earlier install.
 - `score`: writes `.leanprompt/score.json`, measured from the usage log (at least 50 measured calls) or static from the audit's findings; the file is also the shields.io endpoint badge source. `--github` adds GitHub Actions annotations.
 - `calibrate`: fits the static score's weights to an app from a trial run.
-- `report --html`: a local page for the person who reads the audit: the findings in plain English, what they cost, a hand-off block for their coding agent, the score, and the badge when it can work.
+- `report --html`: a local page for the person who reads the audit: the findings in plain English, what they cost, a hand-off block for their coding agent, the score, and the badge when it can work. `report --md` writes `leanprompt-report.md` from the same findings.
 - `profile detect --lmwarden <url>`: reads engine cache facts from LM Warden into `leanprompt.yaml`.
 - `eval-audit`: scores an audit's findings against the seeded example cases.
 - The target profile, `leanprompt.yaml` (target, engine, priority, ignore list).
@@ -41,9 +41,48 @@ The first release.
 - `npm run check:numbers`: every number with a unit in the README, the public docs and the skills cites an evidence row or a measured result.
 - Apache-2.0 for code, CC BY 4.0 for the skills and docs; README, CONTRIBUTING, GOVERNANCE and SECURITY (the last three under `.github/`).
 
+## 0.1.0-dev.13 – 2026-11-26
+
+Fixes for what real users hit, from feedback from four real audits, including one run independently by an app's own team.
+
+### Score change
+
+- The static score is now the app's own score. Findings whose fix is a setting of the server or engine the app calls (`"fix_by": "server"`; by default an `LP-LW-*` finding recorded in `<external>`) are left out of it. The formula is unchanged; it runs over the app's findings only. A findings file with such findings can score higher than it did in 0.1.0-dev.12; one without them scores the same. `score.json` keeps the old figure under `server.with_server_score`, and `score --static --with-server` makes it the headline again (its message says `with server`). Details in [score.md](score.md#the-apps-score-and-the-servers-questions).
+- A finding that saves both prefill and output can give each side its own share (`share_prefill`, `share_output`); `share` alone still applies to both sides, so existing files score the same.
+
+### Added
+
+- Questions for the server's administrator: the page and the Markdown report list server findings in their own section, after the app's, each with what would answer it and, for an LM Warden server, `leanprompt profile detect --lmwarden <url>`. The hand-off block lists them apart, with a note not to change the app for them.
+- Notes: a top-level `notes` array in `findings.json` for verified problems the rules have no place for, such as a spend meter that ignores cache tokens or a cut-off answer accepted as complete (`title`, `file`, `line`, `problem`, `change`, and optionally `why` and `verify`). Validated, never scored; shown after the findings on the page and in the Markdown report, and included in the hand-off block. The audit skill says when to record one.
+- Two kinds of unknown: `status: "frequency-unknown"` for a finding the code shows for certain whose rate is assumed (listed with the findings, marked "how often is assumed"), next to `needs-facts` for behaviour that is not confirmed (an open question).
+- `planned` on a finding: the issue or plan it already belongs to, shown as "Already planned".
+- `tokens_per_1k.cache_write`: for a fix that adds cache marks, the tokens it would newly write to the cache; the money estimate subtracts the write premium, so the saving it shows is net.
+- `report --md` writes `leanprompt-report.md` from `findings.json` and `score.json` inside a generated block, and keeps the inventory and the next steps written below it on later runs; it refuses to overwrite a report it did not write. It ends with "Questions for the owner" for the priority, volume and prices nobody answered. `report --project <name>` names the project.
+- `install` also installs the provider, model and runtime fact tables, the evidence table and the profile reference under `leanprompt/facts/`, and the rules link to them there, so an audit works offline. `docs/evidence.md` is in the npm package.
+- The audit skill reads the project's own rules and plans first (`CLAUDE.md`, `AGENTS.md`, decision records, issue references), never proposes a fix the project has ruled out (it offers an alternative, such as repairing a malformed JSON reply locally before asking again), and links planned work instead of presenting it as new. It has an unattended mode that asks nothing and records the open questions. `presenting.md` has a section on auditing someone else's repository: install outside it, keep the audit's files out of its history, read its policy before reporting upstream.
+
+### Changed
+
+- LP-GE-05: a truncation can arrive as an SDK exception (`LengthFinishReasonError` and `ContentFilterFinishReasonError` from the OpenAI Python SDK's `parse()`), so exclusion-list retry filters around it are checked; for a model whose reasoning cannot be turned off the fix is a larger limit on the second attempt, not removing the retry; one retry of an empty answer after a normal stop is not a finding.
+- LP-PC-01: medium severity for partial marking (the head marked, the messages of a loop not); a warning that adding marks moves tokens into cache fields a spend meter may not read, with Anthropic's total-input formula in the provider table.
+- LP-GE-04: a serverless function's time limit around a whole agent turn (Vercel's `maxDuration`), with the setting in the runtimes table.
+- LP-PC-09: a chat template that writes the effort into the system message; `models/qwen.md` records where the Qwen3.8-27B template writes it, read from the model's template. Template placement on a server the app does not control is a question for its administrator.
+- LP-LW-01, LP-LW-02 and LP-LW-03 say their findings are for the server's administrator and how to phrase uncertain ones as questions.
+- Every rule that lists `vllm` in `applies_to` also lists `lm-warden`.
+- `tokens_per_1k: {}` is accepted and means no estimate; `share: 0` is documented.
+- Installed skills call the CLI they came with (`npx leanprompt@<version> ...`), and the page's hand-off block names the page's version.
+- Dates in `score.json` and on the page are the local date of the machine that ran the command, not the UTC date, and the page says so.
+- The page's cost table is in token order: the app's findings, then its open questions, then the server's. The page's link to the profile reference is pinned to the release, like the rule links.
+- The page and the report are titled with the project's name from `package.json` or `pyproject.toml`, else the git remote's repository name, else the folder.
+- The report template says the headline count leaves out open questions, server questions and notes.
+
 ## 0.1.0-dev.12 – 2026-11-26
 
 Passes the plugin directory's checks.
+
+### Fixed
+
+- `profile detect --lmwarden`: a 403 shows LM Warden's own reason (for example a key without the engine facts permission); a 404 says the warden is older than v2026.11.26.1; a loaded model whose engine has not reported yet gets "run this again after it has served a request", and nothing is guessed.
 
 ### Changed
 

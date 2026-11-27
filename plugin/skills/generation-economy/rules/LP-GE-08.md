@@ -2,7 +2,7 @@
 id: LP-GE-08
 title: Route trivially small calls to a small model
 skill: generation-economy
-applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, sglang, any]
+applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, lm-warden, sglang, any]
 saves: both
 severity: medium
 evidence:
@@ -15,9 +15,9 @@ evidence:
 Send calls whose task is small and checkable (a conversation title, a label, a yes/no classification, a short rewrite) to a small, fast model instead of the app's main model, and keep the change only where an answer check passes.
 
 ## Why
-Apps often send every call to the model chosen for the hardest task, at its default effort. A title or a label then pays the large model's price for every input and output token, waits for its slower decode, and on a reasoning model may spend more tokens thinking than answering ([models/openai-reasoning.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/models/openai-reasoning.md), [models/anthropic-thinking.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/models/anthropic-thinking.md)). Smaller models and their prices are on each provider's model and pricing pages; the tables here record what changes caching and generation for them ([providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/anthropic.md), [providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/openai.md), [providers/gemini.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/gemini.md), [providers/openrouter.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/openrouter.md), [providers/deepinfra.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/deepinfra.md)). On a self-hosted server a second model costs GPU memory; it pays only if the small calls are frequent ([providers/vllm.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/vllm.md), [providers/sglang.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/sglang.md)).
+Apps often send every call to the model chosen for the hardest task, at its default effort. A title or a label then pays the large model's price for every input and output token, waits for its slower decode, and on a reasoning model may spend more tokens thinking than answering ([models/openai-reasoning.md](../../leanprompt/facts/models/openai-reasoning.md), [models/anthropic-thinking.md](../../leanprompt/facts/models/anthropic-thinking.md)). Smaller models and their prices are on each provider's model and pricing pages; the tables here record what changes caching and generation for them ([providers/anthropic.md](../../leanprompt/facts/providers/anthropic.md), [providers/openai.md](../../leanprompt/facts/providers/openai.md), [providers/gemini.md](../../leanprompt/facts/providers/gemini.md), [providers/openrouter.md](../../leanprompt/facts/providers/openrouter.md), [providers/deepinfra.md](../../leanprompt/facts/providers/deepinfra.md)). On a self-hosted server a second model costs GPU memory; it pays only if the small calls are frequent ([providers/vllm.md](../../leanprompt/facts/providers/vllm.md), [providers/sglang.md](../../leanprompt/facts/providers/sglang.md)).
 
-Two cache effects to account for. A model has its own cache, so a small call that repeats the main conversation's long prefix on another model pays for that prefix again, cold (LP-PC-12): send the small model only what the small task needs. And a small model can have a different minimum cacheable length (per-model table in [providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/anthropic.md)).
+Two cache effects to account for. A model has its own cache, so a small call that repeats the main conversation's long prefix on another model pays for that prefix again, cold (LP-PC-12): send the small model only what the small task needs. And a small model can have a different minimum cacheable length (per-model table in [providers/anthropic.md](../../leanprompt/facts/providers/anthropic.md)).
 
 Untested here: the cited pages document the cache minimums and reasoning effort, not the size of the saving.
 
@@ -68,4 +68,4 @@ A smaller model can give different, worse answers. Run an answer check before sw
 
 ## Waste signal
 Not in the score (model choice is outside it). Static: severity medium for a label, title or yes/no call on the app's main or reasoning model; reported with the answer-check requirement.
-<!-- leanprompt:generated v0.1.0-dev.12: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.13: written by leanprompt install; leanprompt update replaces local edits -->

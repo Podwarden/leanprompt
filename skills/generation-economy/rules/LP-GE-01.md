@@ -2,7 +2,7 @@
 id: LP-GE-01
 title: n samples in one request
 skill: generation-economy
-applies_to: [openai, gemini, deepinfra, vllm, sglang]
+applies_to: [openai, gemini, deepinfra, vllm, lm-warden, sglang]
 saves: prefill
 severity: medium
 evidence:

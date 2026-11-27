@@ -2,7 +2,7 @@
 id: LP-GE-09
 title: Predicted outputs for mostly unchanged text
 skill: generation-economy
-applies_to: [openai, vllm, anthropic, gemini, openrouter, deepinfra, sglang]
+applies_to: [openai, vllm, lm-warden, anthropic, gemini, openrouter, deepinfra, sglang]
 saves: generation
 severity: low
 evidence:

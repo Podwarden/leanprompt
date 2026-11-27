@@ -2,7 +2,7 @@
 id: LP-PC-03
 title: No ids, timestamps, versions or paths at the top of the prompt
 skill: prefill-cache
-applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, sglang]
+applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, lm-warden, sglang]
 saves: prefill
 severity: high
 evidence: [E4, E5]

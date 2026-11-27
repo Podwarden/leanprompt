@@ -2,7 +2,7 @@
 id: LP-PD-01
 title: Offer each route only the tools it can use
 skill: prompt-diet
-applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, sglang, any]
+applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, lm-warden, sglang, any]
 saves: prefill
 severity: medium
 evidence:

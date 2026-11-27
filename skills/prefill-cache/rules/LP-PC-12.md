@@ -2,7 +2,7 @@
 id: LP-PC-12
 title: Do not split one prefix across models or keys that do not share a cache
 skill: prefill-cache
-applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, sglang]
+applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, lm-warden, sglang]
 saves: prefill
 severity: medium
 evidence:

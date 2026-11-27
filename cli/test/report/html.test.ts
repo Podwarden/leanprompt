@@ -446,7 +446,7 @@ describe("report command", () => {
 
   it("without --html exits 2 with the pointer", async () => {
     expect(await main(["report"])).toBe(2);
-    expect(err).toContain("use --html (the Markdown report is leanprompt-report.md, written by the audit)");
+    expect(err).toContain("use --html (the page), --md (leanprompt-report.md), or both");
   });
 
   it("writes the page, applies ignore, prints the path", async () => {

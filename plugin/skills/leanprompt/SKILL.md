@@ -16,11 +16,11 @@ The command line tool is the `leanprompt` npm package. If `leanprompt` is not av
 | Command | What it does | Read |
 |---|---|---|
 | `init` | Reads the code, asks only what it cannot infer (targets, priority, monthly volume, prices with source and date), and writes `leanprompt.yaml` on a yes | [init.md](init.md) |
-| `audit [path]` | Finds every LLM call, checks it against the rules, ranks the findings, writes `leanprompt-report.md` and `.leanprompt/findings.json` | [llm-call-audit](../llm-call-audit/SKILL.md) |
+| `audit [path] [--unattended]` | Finds every LLM call, checks it against the rules, ranks the findings, writes `.leanprompt/findings.json` and `leanprompt-report.md`; `--unattended` asks nothing and records the open questions | [llm-call-audit](../llm-call-audit/SKILL.md) |
 | `fix [rule or file]` | Works through the open findings one at a time: checks each against the code first, shows the diff, applies it only on a yes | [fix.md](fix.md) |
 | `measure` | Proves a fix with a before and after on the same scenario; sets up the usage logger and the stable-head test | [measure-loop](../measure-loop/SKILL.md) |
 | `score` | Runs `leanprompt score` and explains the number and its kind (measured or static) | [llm-call-audit](../llm-call-audit/SKILL.md#the-score) |
-| `report` | Runs `leanprompt report --html` and gives the path of the page to read and share | [presenting.md](../llm-call-audit/presenting.md#the-page-the-hand-off-and-sharing) |
+| `report` | Runs `leanprompt report --html` (and `--md` for `leanprompt-report.md`) and gives the path of the page to read and share | [presenting.md](../llm-call-audit/presenting.md#the-page-the-hand-off-and-sharing) |
 | `lesson` | Drafts a lesson-learned issue on this machine with `leanprompt lesson`; sends nothing | [llm-call-audit](../llm-call-audit/SKILL.md#sharing-a-lesson) |
 
 The rules themselves live in [prefill-cache](../prefill-cache/SKILL.md), [generation-economy](../generation-economy/SKILL.md), [prompt-diet](../prompt-diet/SKILL.md) and [lmwarden](../lmwarden/SKILL.md). Load a rule file only when a command points at it.
@@ -46,5 +46,5 @@ The rules themselves live in [prefill-cache](../prefill-cache/SKILL.md), [genera
 
 ## Running the CLI
 
-The commands above call the leanprompt CLI as `leanprompt <command>`. `score`, `report --html` and `calibrate` only read and write files under `.leanprompt/` and make no network calls. Ask before editing code, installing a package, or running anything that sends requests to a provider, which are billed.
-<!-- leanprompt:generated v0.1.0-dev.12: written by leanprompt install; leanprompt update replaces local edits -->
+The commands above call the leanprompt CLI as `leanprompt <command>`. In the installed skills the command names the version they came with (`leanprompt@<version> <command>`), so the skills and the CLI stay in step. `score`, `report --html` and `calibrate` only read and write files under `.leanprompt/` (and `report --md` writes `leanprompt-report.md`) and make no network calls. Ask before editing code, installing a package, or running anything that sends requests to a provider, which are billed.
+<!-- leanprompt:generated v0.1.0-dev.13: written by leanprompt install; leanprompt update replaces local edits -->

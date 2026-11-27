@@ -2,7 +2,7 @@
 id: LP-PC-07
 title: Shared context before per-user context
 skill: prefill-cache
-applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, sglang]
+applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, lm-warden, sglang]
 saves: prefill
 severity: medium
 evidence:

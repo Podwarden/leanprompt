@@ -2,7 +2,7 @@
 id: LP-PD-04
 title: Trim tool results and retrieved context at the tool boundary
 skill: prompt-diet
-applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, sglang, any]
+applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, lm-warden, sglang, any]
 saves: prefill
 severity: high
 evidence:
@@ -16,7 +16,7 @@ evidence:
 Before a tool result or a retrieved document enters the prompt, cut it to what the model needs for the task: select the fields, cap the rows and the length, and summarise long text, in the code that runs the tool, so the smaller version is the only one the history ever holds.
 
 ## Why
-A tool that returns a whole API response, a database row with every column, a web page with its markup, or ten retrieved chunks where two answer the question, puts all of it into the prompt. Anthropic counts `tool_result` blocks as input tokens ([providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/anthropic.md)). In an agent loop the result stays in the history, so it is paid once uncached on the next call and then on every later call of the conversation, read from the cache or, after the cache lifetime, at the full price again ([providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/openai.md)). Large results also push conversations into compaction sooner (LP-PC-08). Documented, not yet measured here.
+A tool that returns a whole API response, a database row with every column, a web page with its markup, or ten retrieved chunks where two answer the question, puts all of it into the prompt. Anthropic counts `tool_result` blocks as input tokens ([providers/anthropic.md](../../leanprompt/facts/providers/anthropic.md)). In an agent loop the result stays in the history, so it is paid once uncached on the next call and then on every later call of the conversation, read from the cache or, after the cache lifetime, at the full price again ([providers/openai.md](../../leanprompt/facts/providers/openai.md)). Large results also push conversations into compaction sooner (LP-PC-08). Documented, not yet measured here.
 
 The boundary matters for the cache. Trim when the result is first added: the trimmed text then never changes, and the history stays append-only. Shortening a result later, after it has been sent, rewrites the history and loses the cached prefix from that point (LP-PC-06).
 
@@ -74,4 +74,4 @@ The field the model needs is sometimes the one you would cut. Choose the fields 
 
 ## Waste signal
 Measured: the drop in `prompt_tokens` per turn times the turns after each tool call; the score does not count it, the report shows it as `tokens_per_1k.prompt`. Static: severity high for raw API responses, HTML pages or `SELECT *` results put whole into an agent loop's history; medium for retrieval with no cap on chunks or length; low for a few unused fields.
-<!-- leanprompt:generated v0.1.0-dev.12: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.13: written by npx leanprompt install; npx leanprompt update replaces local edits -->

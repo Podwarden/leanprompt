@@ -2,7 +2,7 @@
 id: LP-GE-04
 title: Stream long outputs; timeouts that match generation time
 skill: generation-economy
-applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, sglang, any]
+applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, lm-warden, sglang, any]
 saves: both
 severity: high
 evidence:
@@ -13,6 +13,8 @@ evidence:
   - doc: https://github.com/openai/openai-python/blob/main/README.md
     checked: 2026-11-26
   - doc: runtimes/http-clients.md
+    checked: 2026-11-26
+  - doc: https://vercel.com/docs/functions/configuring-functions/duration
     checked: 2026-11-26
 ---
 ## Rule
@@ -26,6 +28,8 @@ A retry after that timeout pays for the prompt again (prefill) while the abandon
 A call that sets no timeout of its own gets the HTTP client's default, and the defaults differ by runtime, from a wait shorter than many generations to no limit at all. Look up your client's default in [runtimes/http-clients.md](../../../runtimes/http-clients.md) (Node's built-in `fetch`, Python `httpx` and `requests`, Go `net/http`), not from memory. A non-streaming completion usually sends nothing, headers included, until the whole answer is ready, so a default wait for headers or for the first byte applies to the whole generation, and when it fires the client gives up while the server goes on generating. Not yet measured here.
 
 A default that is too short for the generation behaves like a short explicit timeout, and the failure is often filed as retryable and sent again (LP-GE-05). A missing timeout repeats nothing, but a stalled call ties up the worker and hides the failure.
+
+A serverless function has a time limit of its own, above every HTTP timeout: the platform ends the function when it runs past it (Vercel's `maxDuration`, for example; [runtimes/http-clients.md](../../../runtimes/http-clients.md), "Platform time limits"). An agent turn that makes several model calls inside one function must finish within that limit as a whole. When it does not, the function is ended: the tokens already generated are billed, the answer is lost, and code after the calls (writing the usage record, saving the turn) never runs. Streaming the answer to the browser does not lift the limit. Not yet measured here.
 
 Streaming fixes the measurement problem: the first token arrives early, so the client can tell "slow but working" from "dead" with an idle timeout instead of a total one. It also allows stopping early on purpose; on OpenRouter, aborting a stream stops processing and billing on the providers it lists as supported (OpenAI, Anthropic, DeepInfra and others; not Google) ([providers/openrouter.md](../../../providers/openrouter.md)). Anthropic advises streaming or the batch API for long requests, and its SDK checks that a non-streaming request is not expected to exceed its timeout ([providers/anthropic.md](../../../providers/anthropic.md)). Whether a client disconnect stops generation on a direct Gemini, DeepInfra, vLLM or SGLang call is not stated on the pages read; through OpenRouter, Google does not stop on abort ([providers/gemini.md](../../../providers/gemini.md), [providers/deepinfra.md](../../../providers/deepinfra.md), [providers/vllm.md](../../../providers/vllm.md), [providers/sglang.md](../../../providers/sglang.md)).
 
@@ -56,6 +60,12 @@ rg -n 'fetch\(|signal:|dispatcher:|setGlobalDispatcher|headersTimeout|bodyTimeou
 rg -n 'http\.DefaultClient|http\.(Post|Get)\(|&?http\.Client\{\s*\}' -g '*.go'
 ```
 Shape: a non-streaming completion call with a large output limit and no timeout of its own, neither in its arguments nor on its client (a `fetch` with no `signal` or `dispatcher`, `requests.post(...)` or `httpx.post(...)` with no `timeout=`, `http.Post` or `&http.Client{}` with no `Timeout`). Look up the client's default timeouts in [runtimes/http-clients.md](../../../runtimes/http-clients.md) and compare them with the longest generation the call can produce; then check what the app does when the default fires (a generic error that a retry path or a person sends again is LP-GE-05).
+
+A serverless route that runs a whole agent turn (a loop of model and tool calls) in one function:
+```
+rg -n 'maxDuration|export const runtime|"functions"' -g '*.{ts,tsx,js,mjs,json}'
+```
+Shape: a route with `maxDuration` (or the platform's default) shorter than the longest turn the loop allows (its step limit times the time per call), with the usage record written only after the loop ends.
 
 Not a finding: a short timeout on a call whose output limit is small enough to finish within it.
 
@@ -101,6 +111,8 @@ for await (const chunk of res.body!) {
 clearTimeout(idle);
 ```
 
+For a serverless agent turn, bound the turn, not only each call: cap the loop's steps so the longest turn fits the function's limit with room to spare, record usage after each call rather than once at the end, and move turns that can run longer to a background job or a platform with a longer limit.
+
 A Node call that must stay non-streaming passes a `dispatcher` (an undici `Agent` with `headersTimeout` and `bodyTimeout` set above the longest generation time) instead of relying on the default ([runtimes/http-clients.md](../../../runtimes/http-clients.md)).
 
 With httpx, `read` is the longest wait between two received chunks, so it acts as an idle timeout on a stream. If a call must stay non-streaming, set its total timeout above the output limit divided by the slowest decode rate you observe, and keep one retry layer (the SDK's or the app's, not both).
@@ -114,4 +126,4 @@ Streaming does not change the answer, but the code that assembles it must: colle
 (b) leanprompt usage record: before, records with `finish: "error"` followed by a record with `flags.retry_of` pointing at them and equal `params`; after, none for timeouts. The stream's final usage gives `output_tokens` for each record.
 
 ## Waste signal
-Measured: output tokens of a call repeated after a timeout count as generation waste (a retry of an identical call). Static: severity high for a total timeout shorter than the expected generation time on a non-streaming call with a large output limit, or for stacked retry layers around one; the same when no timeout is set and the client's default ([runtimes/http-clients.md](../../../runtimes/http-clients.md)) is shorter than that generation time. Medium for a long-output call that does not stream, and for one with no timeout at all where the runtime has none (a hung worker, not a repeated generation).
+Measured: output tokens of a call repeated after a timeout count as generation waste (a retry of an identical call). Static: severity high for a total timeout shorter than the expected generation time on a non-streaming call with a large output limit, or for stacked retry layers around one; the same when no timeout is set and the client's default ([runtimes/http-clients.md](../../../runtimes/http-clients.md)) is shorter than that generation time. Medium for a long-output call that does not stream, and for one with no timeout at all where the runtime has none (a hung worker, not a repeated generation). Medium for a serverless agent turn whose longest run can pass the function's time limit; when the code shows the limit but not how long turns take in practice, record it with `status: "frequency-unknown"`.

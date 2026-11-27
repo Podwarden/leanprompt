@@ -8,7 +8,7 @@ import { loadRuleIds, loadRules, type RuleInfo } from "../lint/rules.js";
 import { parseUsageLog } from "../log/record.js";
 import { effectiveFacts, loadProfile, type Profile } from "../profile.js";
 import { measuredScore, MIN_CALLS, type MeasuredScore, type UnmeasuredReason } from "./measured.js";
-import { parseFindings, staticScore, type Finding, type Weights } from "./static.js";
+import { isServerFinding, parseFindings, staticScore, type Finding, type Weights } from "./static.js";
 
 export type Kind = "measured" | "static";
 
@@ -21,6 +21,12 @@ export const USAGE_FILE = ".leanprompt/usage.jsonl";
 export const FINDINGS_FILE = ".leanprompt/findings.json";
 export const WEIGHTS_FILE = ".leanprompt/weights.json";
 const SCORE_FILE = join(".leanprompt", "score.json");
+
+/** Today's date on this machine's clock, `YYYY-MM-DD` (local time, not UTC: the date the user sees). */
+export function localDate(d: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
 
 /** shields.io colour for a score. Static scores are estimates from an audit, so they are always grey. */
 export function badgeColor(score: number, kind: Kind): string {
@@ -97,7 +103,8 @@ export function githubAnnotations(findings: Finding[], rules: Map<string, RuleIn
       props.push(`title=${ghEscape(`leanprompt ${f.rule}${title ? `: ${title}` : ""}`, true)}`);
       const where = f.file === "<external>" ? ` (${f.where ?? "outside the repository"})` : "";
       const question = f.status === "needs-facts" ? ` Open question: ${f.confirm ?? "confirm before fixing"}` : "";
-      const msg = `${f.problem ?? title ?? f.rule}${where}${f.estimate ? ` Estimate: ${f.estimate}.` : ""}${question}`;
+      const server = isServerFinding(f) ? " For the server's administrator, not in the app's score." : "";
+      const msg = `${f.problem ?? title ?? f.rule}${where}${f.estimate ? ` Estimate: ${f.estimate}.` : ""}${question}${server}`;
       return `::warning ${props.join(",")}::${ghEscape(msg)}`;
     });
 }
@@ -107,7 +114,7 @@ export function githubAnnotations(findings: Finding[], rules: Map<string, RuleIn
  * A bare `--measured` or `--static` means the project's own `.leanprompt/usage.jsonl` or `.leanprompt/findings.json`.
  */
 export async function scoreCommand(args: string[]): Promise<number> {
-  let values: { measured?: string; static?: string; dir?: string; github?: boolean; "fail-under"?: string };
+  let values: { measured?: string; static?: string; dir?: string; github?: boolean; "fail-under"?: string; "with-server"?: boolean };
   // parseArgs has no optional-value strings: give a bare flag an empty value, resolved below.
   const argv = args.map((a, i) => ((a === "--static" || a === "--measured") && (args[i + 1] === undefined || args[i + 1]!.startsWith("--")) ? `${a}=` : a));
   try {
@@ -140,6 +147,10 @@ export async function scoreCommand(args: string[]): Promise<number> {
     }
   }
 
+  if (values["with-server"] === true && measuredPath !== undefined) {
+    process.stderr.write("leanprompt: --with-server is for the static score (the measured score reads the usage log); add --static\n");
+    return 2;
+  }
   const profile = loadProfile(dir);
   let kind: Kind;
   let score: number;
@@ -181,17 +192,27 @@ export async function scoreCommand(args: string[]): Promise<number> {
     if (parsed.errors.length > 0) throw new Error(`${file}: ${parsed.errors.join("; ")}`);
     const findings = filterIgnored(parsed.findings, profile);
     const w = loadWeights(join(dir, WEIGHTS_FILE));
-    const s = staticScore(findings, w ?? undefined);
+    const withServer = values["with-server"] === true;
+    const s = staticScore(findings, w ?? undefined, { includeServer: withServer });
     score = s.score;
     inputs = s.inputs;
     weights = s.weights;
-    evidence = { diagnostics: { default_shares: s.default_shares.used, findings: s.default_shares.of } };
+    evidence = {
+      diagnostics: { default_shares: s.default_shares.used, findings: s.default_shares.of, ...(s.server_findings > 0 ? { server_findings: s.server_findings } : {}) },
+    };
+    if (s.server_findings > 0) {
+      // The other figure, so the app score and the one with the server's findings can both be read from the file.
+      const other = withServer ? staticScore(findings, w ?? undefined) : staticScore(findings, w ?? undefined, { includeServer: true });
+      evidence.server = withServer
+        ? { included: true, findings: s.server_findings, app_score: other.score, app_inputs: other.inputs }
+        : { included: false, findings: s.server_findings, with_server_score: other.score, with_server_inputs: other.inputs };
+    }
   }
 
   const out = {
     schemaVersion: 1,
     label: "leanprompt",
-    message: `${score} ${kind}${weights === "calibrated" ? ", calibrated" : ""}`,
+    message: `${score} ${kind}${weights === "calibrated" ? ", calibrated" : ""}${(evidence.server as { included?: boolean } | undefined)?.included ? ", with server" : ""}`,
     color: badgeColor(score, kind),
     v: 1,
     score,
@@ -199,7 +220,7 @@ export async function scoreCommand(args: string[]): Promise<number> {
     inputs,
     weights,
     ...evidence,
-    date: new Date().toISOString().slice(0, 10),
+    date: localDate(),
     leanprompt: VERSION,
   };
   const target = join(dir, SCORE_FILE);
@@ -209,8 +230,16 @@ export async function scoreCommand(args: string[]): Promise<number> {
   const f = (x: number): string => x.toFixed(2);
   process.stdout.write(`leanprompt score: ${out.message}\n  E prefill reuse ${f(inputs.E)}, S prefix stability ${f(inputs.S)}, G generation waste ${f(inputs.G)}\n`);
   if (kind === "static") {
-    const d = evidence.diagnostics as { default_shares: number; findings: number };
+    const d = evidence.diagnostics as { default_shares: number; findings: number; server_findings: number };
     process.stdout.write(`  default_shares: ${d.default_shares} of ${d.findings} findings used the severity default share, not an estimate\n`);
+    const sv = evidence.server as { included: boolean; app_score?: number; with_server_score?: number } | undefined;
+    if (sv && !sv.included) {
+      process.stdout.write(
+        `  server: ${d.server_findings} finding${d.server_findings === 1 ? "" : "s"} for the server's administrator left out of this app score (with them: ${sv.with_server_score}; --with-server counts them)\n`,
+      );
+    } else if (sv) {
+      process.stdout.write(`  server: ${d.server_findings} finding${d.server_findings === 1 ? "" : "s"} for the server's administrator counted (app only: ${sv.app_score})\n`);
+    }
     if (d.findings > 0 && d.default_shares === d.findings) {
       process.stdout.write(`  note: every share is a severity default, so this score says little about this app; give each finding a share from the audit's estimate (skills/llm-call-audit/SKILL.md, "The findings file")\n`);
     }

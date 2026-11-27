@@ -18,10 +18,10 @@ const FLAGS: Record<string, string[]> = {
   install: ["--providers", "--scope", "--yes", "--assistant", "--global", "--dir", "--dry-run"],
   init: ["--providers", "--scope", "--yes", "--assistant", "--global", "--dir", "--dry-run"],
   update: ["--scope", "--dir", "--dry-run"],
-  score: ["--measured", "--static", "--github", "--fail-under", "--dir"],
+  score: ["--measured", "--static", "--github", "--fail-under", "--with-server", "--dir"],
   calibrate: ["--findings", "--usage", "--synthetic", "--yes", "--dir"],
   "profile detect": ["--lmwarden", "--token-env", "--model"],
-  report: ["--html", "--out", "--dir"],
+  report: ["--html", "--md", "--out", "--project", "--dir"],
   lesson: ["--rule", "--before", "--dir"],
   "eval-audit": ["--form"],
 };

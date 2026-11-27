@@ -2,7 +2,7 @@
 id: LP-PD-06
 title: Compact serialisation for data in the prompt
 skill: prompt-diet
-applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, sglang, any]
+applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, lm-warden, sglang, any]
 saves: prefill
 severity: low
 evidence:

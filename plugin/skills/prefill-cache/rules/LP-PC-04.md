@@ -2,7 +2,7 @@
 id: LP-PC-04
 title: Fixed tool order and JSON key order
 skill: prefill-cache
-applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, sglang]
+applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, lm-warden, sglang]
 saves: prefill
 severity: high
 evidence:
@@ -15,7 +15,7 @@ evidence:
 Build the tool list in one fixed order and serialise every JSON value in the prompt (tool schemas, tool-call arguments, tool results, structured context) the same way every time.
 
 ## Why
-The tool list is part of the prefix: first on Anthropic; after the system prompt on OpenAI and DeepInfra as observed, not documented (render-order rows in [providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/openai.md) and [providers/deepinfra.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/deepinfra.md)); wherever the chat template puts it on a self-hosted engine. A different tool order, or the same schema with its keys in a different order, is a different prompt even though it means the same thing. On Anthropic a change to the tool definitions invalidates tools, system and messages ([providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/anthropic.md)); OpenAI requires the whole rendered prefix to match ([providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/openai.md)). Documented, not yet measured here.
+The tool list is part of the prefix: first on Anthropic; after the system prompt on OpenAI and DeepInfra as observed, not documented (render-order rows in [providers/openai.md](../../leanprompt/facts/providers/openai.md) and [providers/deepinfra.md](../../leanprompt/facts/providers/deepinfra.md)); wherever the chat template puts it on a self-hosted engine. A different tool order, or the same schema with its keys in a different order, is a different prompt even though it means the same thing. On Anthropic a change to the tool definitions invalidates tools, system and messages ([providers/anthropic.md](../../leanprompt/facts/providers/anthropic.md)); OpenAI requires the whole rendered prefix to match ([providers/openai.md](../../leanprompt/facts/providers/openai.md)). Documented, not yet measured here.
 
 Common causes: a registry filled in import or plugin-load order; MCP servers whose tools are listed in registration order, which depends on which server connected first; tools collected from concurrent discovery in completion order; a `set` of tools; Go `map` iteration, which is randomised on every run; dicts built in varying order and dumped without sorting; a schema generator whose field order changed between library versions.
 
@@ -78,4 +78,4 @@ Some models favour tools listed earlier. If the existing order was deliberate (t
 
 ## Waste signal
 Measured: order that varies per process or per conversation shows as several `tools` ids for one tool set and a short shared prefix on first requests; order that varies per call inside a conversation lowers S. Static: severity high for a tool list built by iterating a map, set or registry without a fixed order, medium for unsorted JSON serialisation of content that goes back into the prompt.
-<!-- leanprompt:generated v0.1.0-dev.12: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.13: written by leanprompt install; leanprompt update replaces local edits -->

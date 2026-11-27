@@ -1,0 +1,38 @@
+# One audit = one folder, site/audits/<owner>__<repo>/ (the GitHub owner and repository name,
+# two underscores between them), holding this file and the audit's findings.json, unchanged
+# from what `/leanprompt audit` wrote to .leanprompt/findings.json.
+#
+# The build (npm run build:site) refuses an audit that breaks a rule below. Folders whose
+# name starts with "_", like this one, are never published.
+#
+# Before publishing: open an issue (or a discussion) on the repository with the findings,
+# set status: notified and link it below, and give the maintainers time to answer.
+
+# The repository audited. Must be a PUBLIC repository on github.com.
+repo: https://github.com/<owner>/<repo>
+# Required, and must say public: only audits of public repositories are published.
+visibility: public
+# The full 40-character SHA of the commit the audit read.
+commit: 0000000000000000000000000000000000000000
+# The leanprompt version that ran the audit (npx leanprompt --version).
+leanprompt: 0.1.0
+# The day the audit ran.
+date: 2026-12-01
+# draft      not published (the build skips it)
+# notified   the maintainers were told (needs maintainer.issue or maintainer.pr)
+# published  published without a maintainer thread
+# acknowledged, fixed, disputed   what the maintainers said (needs maintainer.issue or .pr;
+#            disputed also needs maintainer.response)
+# withdrawn  taken down (the build skips it; keep the folder as the record)
+# demo       an audit of leanprompt's own examples
+status: draft
+# Optional: the folder audited, when it was not the whole repository.
+# path: src/llm
+# Optional: one or two neutral sentences for the audits list (at most 400 characters).
+# summary: ...
+# Optional: where the maintainers were told, and what they said.
+# maintainer:
+#   issue: https://github.com/<owner>/<repo>/issues/123
+#   pr: https://github.com/<owner>/<repo>/pull/124
+#   response: Their words, quoted or summarised with their agreement.
+#   response_date: 2026-12-03

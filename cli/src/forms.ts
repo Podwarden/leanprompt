@@ -63,6 +63,21 @@ export function listFiles(dir: string, rel = ""): string[] {
 const LINK = /\]\(([^)\s]+)((?:\s+"[^"]*")?)\)/g;
 
 /**
+ * The fact tables the skills link to, installed with them under `leanprompt/facts/` (same paths as in the
+ * repository) so an audit works offline. Directories are copied whole.
+ */
+export const FACT_DIRS = ["providers", "models", "runtimes"] as const;
+export const FACT_FILES = ["docs/evidence.md", "docs/profile.md"] as const;
+export const FACTS_HOME = "skills/leanprompt/facts";
+export const isFact = (repoPath: string): boolean =>
+  (FACT_FILES as readonly string[]).includes(repoPath) || FACT_DIRS.some((d) => repoPath === d || repoPath === `${d}/` || repoPath.startsWith(`${d}/`));
+
+/** `npx leanprompt <cmd>` -> `npx leanprompt@<version> <cmd>`, so installed skills call the CLI they came with. */
+export function pinNpx(text: string, version: string): string {
+  return text.replace(/\bnpx (-y |--yes )?leanprompt(?![@\w-])/g, (_m, y: string | undefined) => `npx ${y ?? ""}leanprompt@${version}`);
+}
+
+/**
  * Rewrite markdown links in `text`, which lives at repo path `fromFile`.
  * mode "skills": links that stay inside skills/ remain relative; everything else becomes a GitHub URL.
  * mode "flat": every local link becomes a GitHub URL (the file is installed outside the skills tree).
@@ -73,6 +88,8 @@ export function rewriteLinks(
   mode: "skills" | "flat",
   root: string,
   version: string,
+  /** Where the file is installed, as a repository-like path under skills/ (a fact table: skills/leanprompt/facts/...). */
+  installedAs: string = fromFile,
 ): string {
   return text.replace(LINK, (whole, target: string, title: string) => {
     if (/^[a-z][a-z0-9+.-]*:/i.test(target) || target.startsWith("#") || target.startsWith("/")) return whole;
@@ -83,8 +100,17 @@ export function rewriteLinks(
     if (resolved.startsWith("..")) throw new Error(`${fromFile}: link ${target} leaves the repo`);
     const abs = join(root, resolved);
     if (!existsSync(abs)) throw new Error(`${fromFile}: link ${target} points at a missing file (${resolved})`);
-    if (mode === "skills" && resolved.startsWith("skills/")) return whole;
     const dir = statSync(abs).isDirectory();
+    if (mode === "skills") {
+      // Inside the installed tree: a link to another skill file, or to an installed fact table, stays relative.
+      const to = resolved.startsWith("skills/") ? resolved : isFact(resolved) ? `${FACTS_HOME}/${resolved}` : undefined;
+      if (to !== undefined) {
+        if (to === resolved && installedAs === fromFile) return whole;
+        let rel = posix.relative(posix.dirname(installedAs), to) || ".";
+        if (dir) rel = rel.replace(/\/+$/, "") + "/";
+        return `](${rel}${tail}${title})`;
+      }
+    }
     const p = dir ? resolved.replace(/\/+$/, "") + "/" : resolved;
     return `](${REPO}/${dir ? "tree" : "blob"}/v${version}/${p}${tail}${title})`;
   });
@@ -184,7 +210,9 @@ function pluginReadme(version: string): string {
     "  themselves. It runs on your machine, where it reads and writes files in your project and makes no",
     "  network calls. Only `profile detect",
     "  --lmwarden <url>` reads from a server: the LM Warden server you name, for its engine facts.",
-    "- Links to provider tables and docs open pages on GitHub; the skills do not fetch them on their own.",
+    "- The provider, model and runtime fact tables, the evidence table and the profile reference are included",
+    "  under `skills/leanprompt/facts/`, so an audit needs no network. Other links open pages on GitHub; the",
+    "  skills do not fetch them on their own.",
     "",
     "## More",
     "",
@@ -280,13 +308,21 @@ export function buildForms(root: string): Map<string, string> {
     const base = join(root, "skills", name);
     for (const f of listFiles(base)) {
       let text = lf(readFileSync(join(base, f), "utf8"));
-      if (f.endsWith(".md")) text = rewriteLinks(text, `skills/${name}/${f}`, "skills", root, version);
+      if (f.endsWith(".md")) text = pinNpx(rewriteLinks(text, `skills/${name}/${f}`, "skills", root, version), version);
       if (f.endsWith(".md")) text = stamp(text, version);
       else if (f.endsWith(".ts")) text = stampCode(text, "//", version);
       else if (f.endsWith(".py")) text = stampCode(text, "#", version);
       out.set(`forms/skills/${name}/${f}`, text);
     }
     skillMeta(root, name); // throws when a skill has no description
+  }
+
+  // The fact tables, so the links above work with no network (FACT_DIRS, FACT_FILES).
+  const facts = [...FACT_DIRS.flatMap((d) => listFiles(join(root, d)).filter((f) => f.endsWith(".md")).map((f) => `${d}/${f}`)), ...FACT_FILES];
+  for (const repoPath of facts) {
+    const installedAs = `${FACTS_HOME}/${repoPath}`;
+    const text = pinNpx(rewriteLinks(lf(readFileSync(join(root, repoPath), "utf8")), repoPath, "skills", root, version, installedAs), version);
+    out.set(`forms/${installedAs}`, stamp(text, version));
   }
 
   out.set(

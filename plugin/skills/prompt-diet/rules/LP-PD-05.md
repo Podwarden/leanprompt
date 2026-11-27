@@ -2,7 +2,7 @@
 id: LP-PD-05
 title: Drop stale history on purpose, not by stripping
 skill: prompt-diet
-applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, sglang, any]
+applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, lm-warden, sglang, any]
 saves: prefill
 severity: medium
 evidence:
@@ -20,9 +20,9 @@ Keep a long conversation's history bounded with one deliberate step taken rarely
 ## Why
 An agent that keeps every turn and every tool output sends all of it on every call. Past some point most of it no longer bears on the answer: the files read before the last edit, the search results of a question already answered. Each call pays for it, read from the cache at a fraction of the price or, after a pause longer than the cache lifetime, at the full price (LP-PC-11).
 
-Trimming it the wrong way costs more than it saves. Removing old messages or old tool outputs a little on every call rewrites the history, so the cached prefix ends at the first removed piece and everything after it is prefilled again on every call (LP-PC-06). Stripping the model's earlier reasoning to save tokens produced about 3x more generation in agent loops (E11): the model redid the reasoning it could no longer see. On Anthropic, the thinking blocks of a tool-use turn in progress must be passed back complete and unmodified, the API itself filters older thinking blocks, and on models with preserved thinking a change to an earlier message can make the request fail ([providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/anthropic.md)).
+Trimming it the wrong way costs more than it saves. Removing old messages or old tool outputs a little on every call rewrites the history, so the cached prefix ends at the first removed piece and everything after it is prefilled again on every call (LP-PC-06). Stripping the model's earlier reasoning to save tokens produced about 3x more generation in agent loops (E11): the model redid the reasoning it could no longer see. On Anthropic, the thinking blocks of a tool-use turn in progress must be passed back complete and unmodified, the API itself filters older thinking blocks, and on models with preserved thinking a change to an earlier message can make the request fail ([providers/anthropic.md](../../leanprompt/facts/providers/anthropic.md)).
 
-So the step is rare and large. Compaction (summarise and continue) is described in LP-PC-08, which says how to keep the head cached across it; this rule says when to do it and what to keep. On Anthropic, context editing (beta) can clear old tool results past a token trigger, and its `clear_at_least` setting skips a clearing that would remove too little to be worth the cache write ([providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/anthropic.md)). Documented, not yet measured here.
+So the step is rare and large. Compaction (summarise and continue) is described in LP-PC-08, which says how to keep the head cached across it; this rule says when to do it and what to keep. On Anthropic, context editing (beta) can clear old tool results past a token trigger, and its `clear_at_least` setting skips a clearing that would remove too little to be worth the cache write ([providers/anthropic.md](../../leanprompt/facts/providers/anthropic.md)). Documented, not yet measured here.
 
 ## Detect in code
 Python:
@@ -68,4 +68,4 @@ What looks stale may be what the model needs: the file it read before the edit, 
 
 ## Waste signal
 Measured: a sliding window shows as `cached_tokens` far below `prompt_tokens` on calls that continue a conversation (the score's S falls); an unbounded history shows as `prompt_tokens` that keep growing per conversation. Static: severity medium for a per-call window or per-call trimming of old turns (it breaks the cache on every call; also LP-PC-06), medium for stripping reasoning or thinking blocks from the history (E11), low for a history with no bound in an app whose conversations are long.
-<!-- leanprompt:generated v0.1.0-dev.12: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.13: written by leanprompt install; leanprompt update replaces local edits -->

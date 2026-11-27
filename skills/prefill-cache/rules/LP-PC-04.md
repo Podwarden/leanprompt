@@ -2,7 +2,7 @@
 id: LP-PC-04
 title: Fixed tool order and JSON key order
 skill: prefill-cache
-applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, sglang]
+applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, lm-warden, sglang]
 saves: prefill
 severity: high
 evidence:

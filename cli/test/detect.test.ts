@@ -84,6 +84,25 @@ describe("profile detect", () => {
     expect(p.target).toEqual({ engine: "lm-warden", context_tokens: 32768 });
     expect(p.engine).toEqual({ block_tokens: 1584, match_unit_tokens: 16, speculative: true });
   });
+  it("a 403 shows the server's own reason and writes nothing", async () => {
+    const dir = dirWith();
+    const io = capture();
+    const msg = "this key may not read engine facts; ask the admin to allow it";
+    expect(await detectCommand(["--lmwarden", "http://h"], { fetch: reply(403, { detail: msg }), env: { LMWARDEN_API_KEY: "tok-1234" }, cwd: dir })).toBe(1);
+    expect(io.err()).toContain(`LM Warden returned 403: ${msg}`);
+    expect(() => readFileSync(join(dir, "leanprompt.yaml"))).toThrow();
+    const io2 = capture();
+    expect(await detectCommand(["--lmwarden", "http://h"], { fetch: reply(403, {}), env: { LMWARDEN_API_KEY: "tok-1234" }, cwd: dir })).toBe(1);
+    expect(io2.err()).toContain("LM Warden returned 403: this key may not read engine facts");
+  });
+  it("a loaded model whose engine has not reported yet: says to retry and guesses nothing", () => {
+    const row = { ...ROW, running: true, engine_block_tokens: null, speculative: null, unknown: ["engine_block_tokens", "speculative"] };
+    const d = detectFromLmWarden(resp(row));
+    expect(d.retry).toBe(true);
+    expect(d.engine.block_tokens).toBeUndefined();
+    expect(d.engine.speculative).toBeUndefined();
+    expect(detectFromLmWarden(resp({ ...ROW, running: false, engine_block_tokens: null, unknown: ["engine_block_tokens"] })).retry).toBeUndefined();
+  });
   it("a 401 exits 1 with the public message and writes nothing", async () => {
     const dir = dirWith();
     const io = capture();
@@ -95,7 +114,7 @@ describe("profile detect", () => {
   it("a 404 says the release lacks the endpoint; a null field is left out with a note", async () => {
     const io = capture();
     expect(await detectCommand(["--lmwarden", "http://h"], { fetch: reply(404, {}), env: { LMWARDEN_API_KEY: "tok-1234" }, cwd: dirWith() })).toBe(1);
-    expect(io.err()).toContain("this LM Warden does not have /api/me/engine yet; it needs a newer release");
+    expect(io.err()).toContain("this LM Warden is older than v2026.11.26.1");
     const dir = dirWith();
     const row = { ...ROW, engine_match_unit_tokens: null, unknown: ["engine_match_unit_tokens"] };
     expect(await detectCommand(["--lmwarden", "http://h"], { fetch: reply(200, resp(row)), env: { LMWARDEN_API_KEY: "tok-1234" }, cwd: dir })).toBe(0);

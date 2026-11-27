@@ -1,15 +1,17 @@
 # Report template: `leanprompt-report.md`
 
-Write the report at the project root with the sections below, in this order. It follows the same order as the page `leanprompt report --html` writes: what is wrong and what it costs first, in plain English, then the hand-off for a coding agent, then the score and the detail. Replace every `<...>`; leave no placeholder in the written report. Keep the rule text out of it: link the rule file instead. The same content is what you present in the conversation ([presenting.md](presenting.md)); the file is the record.
+Write the report with `leanprompt report --md`. It writes `leanprompt-report.md` at the project root from `.leanprompt/findings.json` and `.leanprompt/score.json`: everything from the title to "Questions for the owner" goes inside a generated block, so the report, the page and the hand-off block cannot disagree. You write the two sections below the block, "Inventory" and "Next steps"; a later `report --md` replaces the block and keeps them. To change the generated part, change the findings file and run it again. The template below shows what each section holds, in the order the page `leanprompt report --html` uses, and is what you write by hand only when the CLI cannot run (then replace every `<...>` and leave no placeholder). Keep the rule text out of it: link the rule file instead. The same content is what you present in the conversation ([presenting.md](presenting.md)); the file is the record.
 
-The plain-English lines come from each finding's fields in `.leanprompt/findings.json` (`problem`, `change`, `why`, `estimate`, `assumptions`, `verify`), so the report, the page and the hand-off block say the same thing. Write them for a person who has not read the rule: no rule ids in the sentences, no jargon.
+The plain-English lines come from each finding's fields in `.leanprompt/findings.json` (`problem`, `change`, `why`, `estimate`, `assumptions`, `verify`), so write them for a person who has not read the rule: no rule ids in the sentences, no jargon. Rule links point at the rule file on GitHub, pinned to the leanprompt version, as on the page.
 
 ````markdown
 # leanprompt report: <project name>
 
 <date> · leanprompt <version> · target: <provider or engine, model family> · priority: <cost | speed | quality | weights>
 
-**<n> places where this app pays for tokens it doesn't need.** The biggest: <rule title, plain> at <file>:<line>, about <tokens> tokens per 1,000 calls. Together about <total tokens> tokens per 1,000 calls (<"estimate from the code, not a measurement" | "measured over N calls">).<If there are open questions:> Plus <n> open questions to confirm.
+**<n> places where this app pays for tokens it doesn't need.** The biggest: <rule title, plain> at <file>:<line>, about <tokens> tokens per 1,000 calls. Together about <total tokens> tokens per 1,000 calls (<"estimate from the code, not a measurement" | "measured over N calls">).<If there are open questions:> Plus <n> open questions to confirm; if they hold, add about <tokens>.<If there are server questions:> Plus <n> questions for the server's administrator, not in this app's score.<If there are notes:> Plus <n> other problems outside the rules, not scored.
+
+`<n>` counts the app's confirmed findings only (including those marked "how often is assumed"), the same as the page: not the open questions, the questions for the server's administrator or the notes.
 
 ## What this costs you
 
@@ -35,7 +37,9 @@ Largest first, by estimated tokens lost per 1,000 calls. Findings that change pr
 - **Why it matters:** <`why`: why it costs tokens or time>
 - **Estimate:** <`estimate`>, tokens lost per 1,000 calls (<estimate | measured, N calls>)
 - **Assumes:** <`assumptions`: call mix, tokens per call, how often this path runs>
-- **Share:** <0.000> of <prompt | output> tokens = <tokens lost per 1,000 calls> ÷ <that side's tokens for the same 1,000 calls>. <Or: "severity default share: no estimate possible, because <reason>">
+- **Share:** <0.000> of <prompt | output> tokens = <tokens lost per 1,000 calls> ÷ <that side's tokens for the same 1,000 calls>. <For a `both` finding with two shares: "<0.000> of prompt tokens and <0.000> of output tokens">. <Or: "severity default share: no estimate possible, because <reason>">
+- **How often:** <only for `frequency-unknown`: "the code shows the problem; how often it happens is assumed. To measure it: <confirm>">
+- **Already planned:** <only with `planned`: the issue or plan it belongs to>
 - **Don't break meaning:** <the rule's check for this fix, or "caching only: answers cannot change">
 - **How to check the fix:** <`verify`: the usage field that must change and the kvsig id that must stay equal>; proved with `measure-loop`
 - **Rule:** [<rule id> <rule title>](<link to the rule file>)
@@ -53,6 +57,29 @@ Findings outside this repository (`"<external>"`) or waiting on a fact (`needs-f
 - **Estimate:** <`estimate`> (estimate); <what it assumes about the missing fact>
 - **Rule:** [<rule id> <rule title>](<link to the rule file>)
 - **Status:** <open question | confirmed | dismissed>
+
+## Questions for the server's administrator
+
+Findings whose fix is a setting of the server or engine the app calls (`fix_by: "server"`; an `LP-LW-*` finding in `"<external>"` by default). They are not in this app's score (`leanprompt score --with-server` counts them). For an LM Warden server, `leanprompt profile detect --lmwarden <url>` reads the engine's cache facts. Leave this heading out when there are none.
+
+#### <n>. <the question, in a few words> · <where>
+
+- **Problem:** <`problem`, written as a question when it is not confirmed>
+- **What would answer it:** <`confirm`>
+- **Change, if confirmed:** <`change`>
+- **Rule:** [<rule id> <rule title>](<link to the rule file>)
+- **Status:** question for the server's administrator
+
+## Other problems the audit found
+
+The `notes` of the findings file: verified problems outside the rules, never scored. Leave this heading out when there are none.
+
+### N<n>. <title> · <file>:<line>
+
+- **Problem:** <`problem`>
+- **What to change:** <`change`>
+- **Why it matters:** <`why`>
+- **How to check the fix:** <`verify`>
 
 ## Fix it with your coding agent
 
@@ -73,6 +100,12 @@ Findings, largest first:
 
 Open questions (confirm before fixing):
 - <rule id> (<where>): <problem> To confirm: <confirm>
+
+Questions for the server's administrator (not this app's code; do not change the app for these):
+- <rule id> (<where>): <problem> What would answer it: <confirm>
+
+Other problems found outside the rules (check each against the code first; not scored):
+- <title> (<file>:<line>): <problem> Change: <change>
 ```
 
 ## Score
@@ -91,7 +124,17 @@ Open questions (confirm before fixing):
 
 <Static only:> This score is an estimate from code. A trial run with `leanprompt calibrate` fits it to this app.
 
+<Static, with server questions:> This is the app's own score: it leaves out <n> findings for the server's administrator; with them it would be <score>.
+
 Money is not part of the score.
+
+## Questions for the owner
+
+What the audit could not ask (an unattended run) or the user did not answer: the priority (cost, speed or quality), the volume (calls a month) and the prices. Each with the `leanprompt.yaml` key that answers it. Leave this heading out when every one is answered.
+
+- **Priority:** <the question, and "answer with `priority:` in leanprompt.yaml">
+
+<!-- leanprompt:report:end, in the written file: everything above is generated by report --md -->
 
 ## Inventory
 
@@ -110,4 +153,4 @@ Money is not part of the score.
 ````
 
 Write the numbers with their kind every time: "(estimate)" next to a figure from code, "(measured, N calls)" next to a figure from the usage log. A static score is never presented as measured, and money is shown only from the user's own volume and a price with its source and checked date; never invent either.
-<!-- leanprompt:generated v0.1.0-dev.12: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.13: written by leanprompt install; leanprompt update replaces local edits -->

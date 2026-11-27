@@ -71,7 +71,7 @@ Most apps call the SDK in one or two helper functions (`call_llm`, `askModel`, `
 3. The model string: a router prefix such as `anthropic/` or `google/` means the upstream is that provider even though the SDK is `openai` (the cache marks then matter: LP-PC-01).
 4. Environment and config files (`.env.example`, `settings.py`, `config.ts`) when the model or URL is read from a variable.
 
-When these disagree, or the value comes only from the environment at run time, write "unknown" in the inventory and ask (see [presenting.md](presenting.md)); `leanprompt.yaml` settles it for the next run ([docs/profile.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/docs/profile.md)).
+When these disagree, or the value comes only from the environment at run time, write "unknown" in the inventory and ask (see [presenting.md](presenting.md)); `leanprompt.yaml` settles it for the next run ([docs/profile.md](../leanprompt/facts/docs/profile.md)).
 
 ## Call kind
 
@@ -108,4 +108,4 @@ rg -n "kvsig" -g '!{node_modules,.venv,venv,vendor,dist,build}/**'
 A hit counts as use when it is an import (`from "@kvsig/core"`, `require("@kvsig/core")`, `from kvsig import`, `import kvsig`) or a dependency (`@kvsig/core` in `package.json`; `kvsig` in `pyproject.toml` or a `requirements*.txt` file). The npm package is `@kvsig/core` and the PyPI package is `kvsig`. A mention in a comment, a README or a lock file alone is not use. The leanprompt usage logger computes kvsig ids too, but that is leanprompt measuring the app, not the app's own use, so it does not count here.
 
 When the app uses it, note per call site which prompt parts carry ids (`sys`, `tools`, `head`, `nodes`, `conv`, or a `loose_*` form) and where the app computes or checks them: a test, a log line, a gateway. [SKILL.md](SKILL.md) ("When the app already uses kvsig") says how the findings use them.
-<!-- leanprompt:generated v0.1.0-dev.12: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.13: written by leanprompt install; leanprompt update replaces local edits -->

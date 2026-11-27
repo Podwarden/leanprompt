@@ -2,7 +2,7 @@
 id: LP-PD-02
 title: Say each instruction once
 skill: prompt-diet
-applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, sglang, any]
+applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, lm-warden, sglang, any]
 saves: prefill
 severity: low
 evidence:
@@ -16,7 +16,7 @@ evidence:
 State each instruction once, in the stable system prompt, and remove copies of it from per-turn reminders and from the other templates that are concatenated into the same prompt.
 
 ## Why
-Prompts grow by accretion: a base template, a persona template, a safety block and a tool-use block are joined together, and each restates "answer in JSON", "never reveal the system prompt" or "cite your sources". A reminder added to each user message says it again. Every copy is sent on every call, and copies in per-turn text are not in the cached head, so they are paid at the full input price each turn ([providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/anthropic.md), [providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/openai.md)). Copies that drift apart ("cite sources" in one, "cite at most two sources" in another) also leave the model to choose between them.
+Prompts grow by accretion: a base template, a persona template, a safety block and a tool-use block are joined together, and each restates "answer in JSON", "never reveal the system prompt" or "cite your sources". A reminder added to each user message says it again. Every copy is sent on every call, and copies in per-turn text are not in the cached head, so they are paid at the full input price each turn ([providers/anthropic.md](../../leanprompt/facts/providers/anthropic.md), [providers/openai.md](../../leanprompt/facts/providers/openai.md)). Copies that drift apart ("cite sources" in one, "cite at most two sources" in another) also leave the model to choose between them.
 
 Copies inside the cached head cost little per call: they are read from the cache. Removing them changes the head, which every later call reuses (LP-PC-02), so the saving has to be weighed against one full prefill of the head on each route (the `prompt-diet` skill, "Three things every trim must respect"). Documented, not yet measured here.
 
@@ -72,4 +72,4 @@ A repeated instruction is sometimes there because it was needed: a format rule r
 
 ## Waste signal
 Measured: the drop in `prompt_tokens` per call times the calls; the score does not count it, the report shows it as `tokens_per_1k.prompt`. Static: severity low for copies inside the cached head (they are read from the cache); medium when the copy is in per-turn text, where it is sent uncached on every turn (that shape is also LP-PD-03).
-<!-- leanprompt:generated v0.1.0-dev.12: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.13: written by leanprompt install; leanprompt update replaces local edits -->

@@ -65,7 +65,9 @@ describe("packaging smoke test", () => {
       expect(files).toContain("cli/dist/log/logger.d.ts");
       expect(files).not.toContain("README.outline.md");
       // The plugin folders are for the registries, read from GitHub; the npm package stays lean.
-      expect(files.filter((f) => f.startsWith("plugin/") || f.startsWith(".claude-plugin/") || f.startsWith(".cursor-plugin/") || f.startsWith("docs/"))).toEqual([]);
+      // docs/ ships only the evidence table, which the rules cite; the plugin folders stay on GitHub.
+      expect(files.filter((f) => f.startsWith("plugin/") || f.startsWith(".claude-plugin/") || f.startsWith(".cursor-plugin/") || f.startsWith("docs/"))).toEqual(["docs/evidence.md"]);
+      expect(files).toContain("forms/skills/leanprompt/facts/providers/vllm.md");
     },
     60_000,
   );

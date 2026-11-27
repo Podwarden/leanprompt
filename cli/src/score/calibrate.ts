@@ -10,7 +10,7 @@ import { loadRuleIds } from "../lint/rules.js";
 import { parseUsageLog, type UsageRecord } from "../log/record.js";
 import { effectiveFacts, loadProfile } from "../profile.js";
 import { measuredScore, MIN_CALLS } from "./measured.js";
-import { FINDINGS_FILE, filterIgnored, PACKAGE_ROOT, USAGE_FILE, WEIGHTS_FILE } from "./write.js";
+import { FINDINGS_FILE, filterIgnored, localDate, PACKAGE_ROOT, USAGE_FILE, WEIGHTS_FILE } from "./write.js";
 import { parseFindings, staticScore, type Finding, type Weights } from "./static.js";
 
 const BASE_SHARES = { high: 0.5, medium: 0.2, low: 0.05 } as const;
@@ -131,7 +131,7 @@ export function calibrate(findings: readonly Finding[], records: readonly UsageR
     k_gen,
     source: o.source,
     calls: m.calls - m.unmeasured,
-    date: o.date ?? new Date().toISOString().slice(0, 10),
+    date: o.date ?? localDate(),
   };
   let prompt = 0;
   let output = 0;

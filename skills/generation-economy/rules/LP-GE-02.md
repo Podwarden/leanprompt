@@ -2,7 +2,7 @@
 id: LP-GE-02
 title: Batch independent questions about one context
 skill: generation-economy
-applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, sglang, any]
+applies_to: [anthropic, openai, gemini, openrouter, deepinfra, vllm, lm-warden, sglang, any]
 saves: both
 severity: medium
 evidence:

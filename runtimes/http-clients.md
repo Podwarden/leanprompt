@@ -18,3 +18,13 @@ Status: documented, not yet measured here. Used by LP-GE-04: a call that sets no
 | Go `net/http` (`http.Client`, `http.DefaultClient`) | No timeout: a zero `Timeout` means none, and `DefaultClient` (used by `http.Get`, `http.Head`, `http.Post`) is `&Client{}` | `Client.Timeout` covers connection time, redirects and reading the response body | https://pkg.go.dev/net/http#Client |
 
 SDKs set their own defaults on top of these: the OpenAI Python SDK's default timeout and retries are in [providers/openai.md](../providers/openai.md).
+
+## Platform time limits for a whole function
+
+A serverless platform ends a function that runs past its time limit, however its HTTP client is set up. An agent turn that makes several model calls inside one function has to finish within that limit as a whole (LP-GE-04).
+
+| Platform | Setting | What it covers | Source |
+|---|---|---|---|
+| Vercel Functions | `maxDuration`: a named export in a Next.js App Router route file (`export const maxDuration = 60`), or the `functions` object in `vercel.json` (`{"functions": {"api/*.js": {"maxDuration": 15}}}`); the page also documents a team-wide default and longer limits on some plans | The maximum time the function can run, in seconds | https://vercel.com/docs/functions/configuring-functions/duration |
+
+Other platforms (AWS Lambda, Cloudflare Workers, Netlify Functions) have their own limits; they were not read for this table (checked 2026-11-26), so look the limit up in the platform's documentation.

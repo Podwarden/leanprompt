@@ -26,6 +26,7 @@ Frontmatter `min_tokens: 4096` is the conservative default: the largest per-mode
 | Cache write | 1.25x base input (5 minutes), 2x (1 hour) | docs |
 | Cache read | 0.1x base input by default; 0.05x on Opus 5.5 and Sonnet 5.5; 0.025x on Fable 5.2, Mythos 5.2, Fable 5.1, Mythos 5.1 | docs |
 | Usage fields | `cache_creation_input_tokens`, `cache_read_input_tokens`, `input_tokens` | docs |
+| Total input | `cache_read_input_tokens + cache_creation_input_tokens + input_tokens`; `input_tokens` counts only the tokens after the last breakpoint, so a meter that reads `input_tokens` alone undercounts once marks are set | docs (prompt caching, "Understanding the token breakdown"), checked 2026-11-26 |
 | Without markers | nothing cached on the sessions measured | E1 |
 
 ## Minimum cacheable prompt, by model (docs)

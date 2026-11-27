@@ -1,6 +1,6 @@
 # /leanprompt init
 
-Writes `leanprompt.yaml` at the project root, so later commands do not ask the same questions again. The schema is in [docs/profile.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/docs/profile.md). Ask one question at a time, as [presenting.md](../llm-call-audit/presenting.md#asking-questions) describes, and write the file only on a yes.
+Writes `leanprompt.yaml` at the project root, so later commands do not ask the same questions again. The schema is in [docs/profile.md](facts/docs/profile.md). Ask one question at a time, as [presenting.md](../llm-call-audit/presenting.md#asking-questions) describes, and write the file only on a yes.
 
 ## 1. Read first
 
@@ -11,7 +11,7 @@ Before asking anything, read what the code already says ([call-shapes.md](../llm
 - launch files, compose files and engine flags, for the `engine:` facts;
 - an existing `leanprompt.yaml`: keep every key and comment it has, and ask only for what is missing.
 
-For an LM Warden server, offer `npx leanprompt profile detect --lmwarden <url>` instead of asking for the engine facts ([lmwarden](../lmwarden/SKILL.md)).
+For an LM Warden server, offer `npx leanprompt@0.1.0-dev.13 profile detect --lmwarden <url>` instead of asking for the engine facts ([lmwarden](../lmwarden/SKILL.md)).
 
 ## 2. Ask only what the code cannot tell
 
@@ -27,4 +27,4 @@ A user may skip volume and prices: the report then shows tokens only.
 Show the exact lines that would be written, then ask whether to write them. Answering a question is not consent to writing the file. On a yes, write the file and say which keys were added. On a no, keep the answers for this session only.
 
 Then suggest `/leanprompt audit`.
-<!-- leanprompt:generated v0.1.0-dev.12: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.13: written by npx leanprompt install; npx leanprompt update replaces local edits -->

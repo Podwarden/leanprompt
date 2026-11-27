@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- leanprompt icon: a lean gauge with the needle low. Graphite #161b26, signal indigo #2f3db5, white. -->
+  <rect width="1024" height="1024" fill="#161b26"/>
+  <path d="M226.2 731.0 A330 330 0 1 1 797.8 731.0" fill="none" stroke="#2f3db5" stroke-width="124" stroke-linecap="round"/>
+  <path d="M226.2 731.0 A330 330 0 0 1 327.5 292.4" fill="none" stroke="#ffffff" stroke-width="124" stroke-linecap="butt"/>
+  <circle cx="226.2" cy="731.0" r="62" fill="#ffffff"/>
+  <line x1="512" y1="566" x2="385.6" y2="378.6" stroke="#ffffff" stroke-width="80" stroke-linecap="round"/>
+  <circle cx="512" cy="566" r="84" fill="#ffffff"/>
+</svg>

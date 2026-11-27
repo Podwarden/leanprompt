@@ -1,0 +1,10 @@
+# A demonstration: leanprompt audits its own example app, examples/dated-chat/before.
+# The template for a real audit, with every key explained, is site/audits/_template/meta.yaml.
+repo: https://github.com/Podwarden/leanprompt
+visibility: public
+commit: 46d385f531d0d78a1939413d659c300e3a974017
+leanprompt: 0.1.0-dev.12
+date: 2026-11-26
+status: demo
+path: examples/dated-chat/before
+summary: A demonstration on leanprompt's own example app. The before form starts its system prompt with the current time, so no call can reuse the handbook that follows it.

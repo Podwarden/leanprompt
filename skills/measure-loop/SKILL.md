@@ -1,6 +1,6 @@
 ---
 name: measure-loop
-description: Use when you need to prove that a change to an LLM-calling app made it cheaper or faster, or to keep it from regressing — logging cache usage per call (cached_tokens, cache_read_input_tokens, cache_creation_input_tokens), replaying a recorded session before and after a change, writing a CI test that fails when the system prompt or tool list stops being stable, running npx leanprompt score or leanprompt calibrate, or when someone asks "did that fix work?" for Anthropic, OpenAI, Gemini, OpenRouter, DeepInfra or a self-hosted vLLM or SGLang server. Turns each fix from a claim into a before and after number.
+description: Use when you need to prove that a change to an LLM-calling app made it cheaper or faster, or to keep it from regressing (logging cache usage per call in cached_tokens, cache_read_input_tokens and cache_creation_input_tokens, replaying a recorded session before and after a change, writing a CI test that fails when the system prompt or tool list stops being stable, running npx leanprompt score or leanprompt calibrate), or when someone asks "did that fix work?" for Anthropic, OpenAI, Gemini, OpenRouter, DeepInfra or a self-hosted vLLM or SGLang server. Turns each fix from a claim into a before and after number.
 license: CC-BY-4.0
 ---
 

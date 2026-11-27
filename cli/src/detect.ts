@@ -13,7 +13,11 @@ export interface Detected {
   context_tokens?: number;
   /** Fields the server could not determine; left out of the profile. */
   unknown: string[];
+  /** The model is loaded but its engine has not reported yet: retry after it has served a request. */
+  retry?: boolean;
 }
+
+const ENGINE_FIELDS = ["prefix_caching", "engine_block_tokens", "engine_match_unit_tokens", "engine_drops_last_block", "speculative"];
 
 const posInt = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v > 0;
 
@@ -47,9 +51,21 @@ export function detectFromLmWarden(json: unknown, model?: string): Detected {
     else engine.speculative = false;
   } else engine.speculative = true;
   const out: Detected = { engine, unknown: [...unknown] };
+  if (row.running === true && ENGINE_FIELDS.some((f) => unknown.has(f))) out.retry = true;
   if (posInt(row.max_model_len)) out.context_tokens = row.max_model_len;
   else unknown.add("max_model_len"), (out.unknown = [...unknown]);
   return out;
+}
+
+/** The server's own `detail` text (a 403 says why), as plain one-line text of at most 200 characters. */
+async function detail(res: Response): Promise<string | undefined> {
+  try {
+    const j = (await res.json()) as unknown;
+    const d = isObj(j) && typeof j.detail === "string" ? j.detail : undefined;
+    return d ? d.replace(/[\u0000-\u001f\u007f]+/g, " ").trim().slice(0, 200) || undefined : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export interface DetectDeps {
@@ -113,7 +129,8 @@ export async function detectCommand(args: string[], deps: DetectDeps = {}): Prom
     return fail(`could not reach LM Warden at ${base}: ${e instanceof Error ? e.message : String(e)}`);
   }
   if (res.status === 401) return fail(`LM Warden returned 401: check the API key in ${tokenEnv}`);
-  if (res.status === 404) return fail("this LM Warden does not have /api/me/engine yet; it needs a newer release");
+  if (res.status === 403) return fail(`LM Warden returned 403: ${await detail(res) ?? "this key may not read engine facts"}`);
+  if (res.status === 404) return fail("this LM Warden is older than v2026.11.26.1, which added /api/me/engine; ask its admin to upgrade it");
   if (!res.ok) return fail(`LM Warden returned ${res.status}`);
 
   let found: Detected;
@@ -124,7 +141,8 @@ export async function detectCommand(args: string[], deps: DetectDeps = {}): Prom
   }
 
   const { engine, unknown } = found;
-  if (Object.keys(engine).length === 0 && found.context_tokens === undefined) return fail("LM Warden could not determine any engine facts for this model yet; is it loaded?");
+  const retryNote = "the model is loaded but its engine has not reported these yet; run this again after it has served a request (nothing is guessed)";
+  if (Object.keys(engine).length === 0 && found.context_tokens === undefined) return fail(found.retry ? `LM Warden could not determine any engine facts yet: ${retryNote}` : "LM Warden could not determine any engine facts for this model yet; is it loaded?");
   const file = join(deps.cwd ?? process.cwd(), "leanprompt.yaml");
   const doc = parseDocument(existsSync(file) ? readFileSync(file, "utf8") : "target:\n  engine: lm-warden\n");
   if (doc.errors.length) return fail(`${file}: invalid YAML: ${doc.errors[0]!.message.split("\n")[0]}`);
@@ -179,6 +197,7 @@ export async function detectCommand(args: string[], deps: DetectDeps = {}): Prom
   writeFileSync(file, text);
   process.stdout.write(`wrote ${file}: ${Object.entries(engine).map(([k, v]) => `${where}.${k}=${v}`).join(", ")}\n`);
   if (unknown.length) process.stdout.write(`not reported by LM Warden, left out: ${unknown.join(", ")}\n`);
+  if (found.retry) process.stdout.write(`${retryNote}\n`);
   if (note) process.stdout.write(`${note}\n`);
   return 0;
 }

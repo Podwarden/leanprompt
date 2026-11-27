@@ -2,7 +2,7 @@
 id: LP-PC-10
 title: Stable image and attachment placement
 skill: prefill-cache
-applies_to: [anthropic, openai, gemini, openrouter, vllm, sglang]
+applies_to: [anthropic, openai, gemini, openrouter, vllm, lm-warden, sglang]
 saves: prefill
 severity: medium
 evidence:

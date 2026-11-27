@@ -1,5 +1,10 @@
 import { profileTargets, type Price, type Profile } from "../profile.js";
-import { isOpenQuestion, type AverageCall, type Finding } from "../score/static.js";
+import { isOpenQuestion, isServerFinding, type AverageCall, type Finding } from "../score/static.js";
+
+/** Which part of the page a finding belongs to: the app's findings, its open questions, the server's administrator, or fixed. */
+export type Group = "open" | "question" | "server" | "fixed";
+export const groupOf = (f: Finding): Group => (f.fixed ? "fixed" : isServerFinding(f) ? "server" : isOpenQuestion(f) ? "question" : "open");
+const GROUP_ORDER: Record<Group, number> = { open: 0, question: 1, server: 2, fixed: 3 };
 
 /**
  * What the findings cost, from the audit's token estimates and the user's own volume and dated prices
@@ -9,6 +14,7 @@ import { isOpenQuestion, type AverageCall, type Finding } from "../score/static.
  */
 export interface CostRow {
   finding: Finding;
+  group: Group;
   /** prompt + uncached + output tokens per 1,000 calls. */
   tokens: number;
   dollars_per_month?: number;
@@ -20,9 +26,11 @@ export interface CostRow {
 
 export interface CostSummary {
   rows: CostRow[];
-  /** Open findings that are not open questions, with tokens. */
+  /** Open app findings that are not open questions, with tokens. */
   tokens_per_1k: number;
   question_tokens_per_1k: number;
+  /** Open findings for the server's administrator, with tokens: never in the app's totals. */
+  server_tokens_per_1k: number;
   with_tokens: number;
   measured: boolean;
   /** Smallest number of calls behind a measured figure, when `measured`. */
@@ -34,6 +42,7 @@ export interface CostSummary {
     saved_if_fixed: number;
     saved_by_fixes?: number;
     questions_per_month?: number;
+    server_per_month?: number;
     bill_per_month?: number;
     percent?: number;
     prices: { model: string; price: Price }[];
@@ -44,6 +53,7 @@ export interface CostSummary {
   average_call?: AverageCall;
 }
 
+/** Tokens lost: prompt + uncached + output. `cache_write` is a cost of the fix, priced in money only. */
 const tokensOf = (f: Finding): number => (f.tokens_per_1k?.prompt ?? 0) + (f.tokens_per_1k?.uncached ?? 0) + (f.tokens_per_1k?.output ?? 0);
 
 function volumeOf(p: Profile | null): { calls_per_month: number; source?: string } | undefined {
@@ -71,7 +81,10 @@ function throughput(p: Profile | null): number | undefined {
 function dollarsPer1k(f: Finding, price: Price): number | string {
   const t = f.tokens_per_1k ?? {};
   if ((t.uncached ?? 0) > 0 && price.cached_input === undefined) return "cached_input";
-  const perM = (t.prompt ?? 0) * price.input + (t.uncached ?? 0) * (price.input - (price.cached_input ?? 0)) + (t.output ?? 0) * price.output;
+  if ((t.cache_write ?? 0) > 0 && price.cache_write === undefined) return "cache_write";
+  // A fix that adds cache marks writes these tokens at the cache-write price instead of the input price.
+  const premium = (t.cache_write ?? 0) * ((price.cache_write ?? price.input) - price.input);
+  const perM = (t.prompt ?? 0) * price.input + (t.uncached ?? 0) * (price.input - (price.cached_input ?? 0)) + (t.output ?? 0) * price.output - premium;
   return perM / 1e6;
 }
 
@@ -88,7 +101,7 @@ export function costSummary(findings: readonly Finding[], profile: Profile | nul
 
   for (const f of findings) {
     if (!f.tokens_per_1k) continue;
-    const row: CostRow = { finding: f, tokens: tokensOf(f) };
+    const row: CostRow = { finding: f, group: groupOf(f), tokens: tokensOf(f) };
     const model = priceFor(f);
     if (model && volume) {
       const d = dollarsPer1k(f, prices[model]!);
@@ -96,6 +109,8 @@ export function costSummary(findings: readonly Finding[], profile: Profile | nul
         row.dollars_per_month = (d * volume.calls_per_month) / 1000;
         row.model = model;
         usedPrices.set(model, prices[model]!);
+      } else if (d === "cache_write") {
+        missing.add(`prices.${model}.cache_write\tthe cache-write price, to price what writing the new cache marks costs`);
       } else {
         missing.add(`prices.${model}.cached_input\tthe cached-input price, to price the tokens the cache could have served`);
       }
@@ -110,10 +125,13 @@ export function costSummary(findings: readonly Finding[], profile: Profile | nul
     }
     rows.push(row);
   }
+  // The table's order: the app's findings, then its open questions, then the server's, each largest first.
+  rows.sort((a, b) => GROUP_ORDER[a.group] - GROUP_ORDER[b.group] || b.tokens - a.tokens);
 
-  const open = rows.filter((r) => !r.finding.fixed && !isOpenQuestion(r.finding));
-  const questions = rows.filter((r) => !r.finding.fixed && isOpenQuestion(r.finding));
-  const fixed = rows.filter((r) => r.finding.fixed);
+  const open = rows.filter((r) => r.group === "open");
+  const questions = rows.filter((r) => r.group === "question");
+  const server = rows.filter((r) => r.group === "server");
+  const fixed = rows.filter((r) => r.group === "fixed");
   const sum = (rs: CostRow[], k: "tokens" | "dollars_per_month" | "gpu_hours_per_month") => rs.reduce((n, r) => n + (r[k] ?? 0), 0);
   const scored = rows.filter((r) => !r.finding.fixed);
   const measuredCalls = scored.map((r) => r.finding.tokens_per_1k!.measured_calls);
@@ -123,6 +141,7 @@ export function costSummary(findings: readonly Finding[], profile: Profile | nul
     rows,
     tokens_per_1k: sum(open, "tokens"),
     question_tokens_per_1k: sum(questions, "tokens"),
+    server_tokens_per_1k: sum(server, "tokens"),
     with_tokens: open.length,
     measured,
     missing: [],
@@ -147,6 +166,7 @@ export function costSummary(findings: readonly Finding[], profile: Profile | nul
     if (volume.source) money.volume_source = volume.source;
     if (fixed.some((r) => r.dollars_per_month !== undefined)) money.saved_by_fixes = sum(fixed, "dollars_per_month");
     if (questions.some((r) => r.dollars_per_month !== undefined)) money.questions_per_month = sum(questions, "dollars_per_month");
+    if (server.some((r) => r.dollars_per_month !== undefined)) money.server_per_month = sum(server, "dollars_per_month");
     if (average_call && usedPrices.size === 1) {
       const p = [...usedPrices.values()][0]!;
       money.bill_per_month = (volume.calls_per_month * (average_call.prompt_tokens * p.input + average_call.output_tokens * p.output)) / 1e6;

@@ -183,7 +183,17 @@ describe("llm-call-audit SKILL.md workflow", () => {
 describe("llm-call-audit report-template.md", () => {
   it("mirrors the page: costs, findings, hand-off, score, then inventory and next steps", () => {
     const heads = [...read("report-template.md").matchAll(/^## (.+)$/gm)].map((m) => m[1]!.trim());
-    expect(heads).toEqual(["What this costs you", "What's wrong and what to change", "Fix it with your coding agent", "Score", "Inventory", "Next steps"]);
+    expect(heads).toEqual([
+      "What this costs you",
+      "What's wrong and what to change",
+      "Questions for the server's administrator",
+      "Other problems the audit found",
+      "Fix it with your coding agent",
+      "Score",
+      "Questions for the owner",
+      "Inventory",
+      "Next steps",
+    ]);
   });
   it("opens with a plain-English headline and labels the total as an estimate", () => {
     const t = read("report-template.md");
@@ -301,7 +311,7 @@ describe("llm-call-audit: issue #4 decisions", () => {
     expect(step).toMatch(/more than one backend/);
     expect(step).toMatch(/`targets`/);
     expect(step).toMatch(/offer to save[\s\S]*only on a yes/);
-    const rules = SKILL().split("\n").find((l) => l.startsWith("3. **Check the rules.**")) ?? "";
+    const rules = SKILL().split("\n").find((l) => l.startsWith("4. **Check the rules.**")) ?? "";
     expect(rules).toMatch(/per backend|each backend/);
     expect(rules).toMatch(/`applies_to`[^.]*finding's backend|finding's backend[^.]*`applies_to`/);
     expect(PRESENTING()).toMatch(/`targets:`/);

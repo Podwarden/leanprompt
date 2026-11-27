@@ -81,7 +81,8 @@ describe("lmwarden skill content", () => {
     expect(section(t, "Detect in code")).toMatch(/one-shot app/);
   });
   it("auto-detect is described as needing a release with the endpoint", () => {
-    expect(SKILL).toMatch(/needs an LM Warden release that has this endpoint/);
+    expect(SKILL).toMatch(/needs LM Warden v2026\.11\.26\.1 or later/);
+    expect(SKILL).toContain("never fill them in by guess");
     expect(SKILL).toContain("/api/me/engine");
   });
 });
