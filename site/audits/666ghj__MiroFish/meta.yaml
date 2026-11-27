@@ -1,0 +1,18 @@
+repo: https://github.com/666ghj/MiroFish
+visibility: public
+commit: 7657031ac01184afe2cb220f5ee3545573b5e843
+leanprompt: 0.1.0-dev.15
+date: 2026-11-27
+status: notified
+headline: "A report prompt names the section first, so each section pays for it again"
+subtitle: "A multi-agent simulation and report engine on any OpenAI-compatible model; its JSON path already checks for cut-off answers and retries once."
+kind: Cache never hits
+figure:
+  finding: section-prefix
+  label: prompt tokens the cache could have served across report sections
+  unit: runs
+illustration:
+  scene: "a long row of identical thick ledger books, each with a different loose paper tag clipped to its front cover, a rubber stamp and ink pad sitting unused beside them"
+  alt: A long row of ledger books, each with a loose paper tag on its cover, stands beside an unused rubber stamp.
+maintainer:
+  issue: https://github.com/666ghj/MiroFish/issues/1005

@@ -1,0 +1,133 @@
+{
+  "v": 1,
+  "unattended": true,
+  "average_call": {
+    "prompt_tokens": 9000,
+    "output_tokens": 600
+  },
+  "findings": [
+    {
+      "id": "no-marks",
+      "rule": "LP-PC-01",
+      "file": "s08_context_compact/code.py",
+      "line": 554,
+      "saves": "prefill",
+      "severity": "high",
+      "share": 0.85,
+      "tokens_per_1k": {
+        "uncached": 7700000,
+        "cache_write": 1000000
+      },
+      "problem": "Every chapter's agent loop resends the whole growing conversation on each turn with no cache_control mark anywhere in the repository, so on Anthropic nothing is ever read from the prompt cache. The compaction chapter teaches how to shrink context but never shows that the unchanged part of it can be reused at a tenth of the price.",
+      "change": "Mark the end of the tools, the end of the system prompt and the newest message, on copies made at send time (a ten-line helper). Put it in s08, where context cost is the topic, and say in its README why it is safe next to compaction.",
+      "why": "Without marks each turn pays the full input price for the system prompt, the tools and all earlier turns, although the model saw them seconds ago. A coding-agent loop returns within seconds, so a mark pays back after the first read.",
+      "estimate": "about 7.7M prompt tokens per 1,000 loop calls not served from cache (estimate)",
+      "assumptions": "default Anthropic target (claude-sonnet-4-6, .env.example), 9,000-token average call: about 2,000 for system plus tools and 7,000 of history (s08 compacts at 50,000 characters, about 12k tokens); about 1,000 new tokens per turn; calls seconds apart; first turns under the 1,024-token minimum lose nothing. The Anthropic-compatible hosts listed in .env.example (MiniMax, GLM, Kimi, DeepSeek) cache by their own rules: unknown, check each provider's docs. Figures are per 1,000 loop calls of one chapter run by a learner.",
+      "verify": "Run s08 for three tool turns inside five minutes; print response.usage. cache_read_input_tokens should be about the size of the previous request on turns 2 and 3 (it is 0 today), and cache_creation_input_tokens about the new turn.",
+      "overlaps": [
+        "time-in-system",
+        "memory-in-system"
+      ]
+    },
+    {
+      "id": "time-in-system",
+      "rule": "LP-PC-02",
+      "file": "s15_integrated_harness/code.py",
+      "line": 858,
+      "saves": "prefill",
+      "severity": "high",
+      "share": 0.8,
+      "tokens_per_1k": {
+        "uncached": 7400000
+      },
+      "problem": "The capstone rebuilds its system prompt on every model call and writes the current time to the second into it. The prompt is therefore different on every call, so once cache marks exist the provider can reuse nothing after the time line: not the skills catalog, not the memory text, not the conversation.",
+      "change": "Remove the time line from the system prompt. If the model needs the date, give the date only, or put the time in the newest user message.",
+      "why": "The cache reads a prefix byte for byte; one changed byte early in the system prompt re-prices everything after it, which is the whole conversation on every call.",
+      "estimate": "about 7.4M prompt tokens per 1,000 loop calls would still miss the cache after marks are added (estimate)",
+      "assumptions": "marks added as in the other finding; the part before the time line (about 750 tokens of fixed sections) and the tool list stay cacheable; 7,000 tokens of history plus a 400-token tail of the system prompt are lost on each call.",
+      "verify": "After adding marks, run s15 for two tool turns a few seconds apart and compare the system text of the two requests (identical) and cache_read_input_tokens (about the size of the earlier request, not 0).",
+      "overlaps": [
+        "no-marks",
+        "memory-in-system"
+      ]
+    },
+    {
+      "id": "memory-in-system",
+      "rule": "LP-PC-02",
+      "file": "s09_memory/code.py",
+      "line": 731,
+      "saves": "prefill",
+      "severity": "medium",
+      "share": 0.13,
+      "status": "frequency-unknown",
+      "confirm": "how many loop calls a typical user request makes, and whether the .memory folder holds records",
+      "tokens_per_1k": {
+        "uncached": 1170000
+      },
+      "problem": "The memory records chosen for each new user request are written into the system prompt (build_system, lines 353-354, used at line 731; the same in s15 lines 863-864). The system prompt then changes on every new request, so the whole earlier conversation is re-priced at its first call. Issue 311 reported this in May and PR 312 moved the records into the user turn; the current tree has them in the system prompt again.",
+      "change": "Keep the memory index in the system prompt and put the selected records in the newest user message, as PR 312 did.",
+      "why": "The system prompt sits before the messages, so any change to it makes every message after it a cache miss.",
+      "estimate": "about 1.2M prompt tokens per 1,000 loop calls (estimate)",
+      "assumptions": "6 loop calls per user request; one lost history of about 7,000 tokens per request; only matters once marks exist; applies when the memory store is not empty.",
+      "verify": "With marks on, send two requests that select different memories; cache_read_input_tokens on the second request's first call should cover the earlier conversation.",
+      "overlaps": [
+        "no-marks",
+        "time-in-system"
+      ]
+    },
+    {
+      "id": "memory-select-repeat",
+      "rule": "LP-GE-06",
+      "file": "s15_integrated_harness/code.py",
+      "line": 3184,
+      "saves": "both",
+      "severity": "medium",
+      "share_prefill": 0.065,
+      "share_output": 0.028,
+      "status": "frequency-unknown",
+      "confirm": "how many loop calls a typical user request makes, and whether the .memory folder holds records",
+      "tokens_per_1k": {
+        "prompt": 583000,
+        "output": 17000
+      },
+      "problem": "The capstone's loop calls update_context on every cycle (line 3184), and that runs the s09 memory selection (s09 lines 285-310), which is a separate model call. The inputs are the same user text on every tool turn, so one request with six tool turns asks the model the same question six times. In s09 the same call runs once per request.",
+      "change": "Run update_context once per user request, before the while loop, as s09 does; refresh only when a memory is written.",
+      "why": "Each extra selection call sends the request text and up to 12,000 characters of catalog, adds a blocking round trip before every turn, and, because the answer is sampled, can change the system prompt between turns.",
+      "estimate": "about 580k prompt tokens and 17k output tokens per 1,000 loop calls (estimate)",
+      "assumptions": "6 loop calls per user request, so 5 of 6 selection calls repeat; about 700 tokens per selection prompt, 20 output tokens; memory store not empty (selection returns early when it is).",
+      "verify": "Count messages.create calls for one request with five tool turns: after the fix the memory selection runs once, not five times."
+    }
+  ],
+  "notes": [
+    {
+      "title": "A compaction summary cut at 2,000 tokens replaces the whole history",
+      "rule": "LP-GE-12",
+      "severity": "high",
+      "file": "s08_context_compact/code.py",
+      "line": 486,
+      "problem": "summarize_history asks for at most 2,000 tokens and never reads stop_reason. A summary that stopped at the limit becomes the entire conversation (compact_history, line 504) and is trusted as complete. The same pattern is at s15_integrated_harness/code.py line 2205.",
+      "change": "Read response.stop_reason; on max_tokens, ask again with a higher limit or keep the old messages instead of replacing them.",
+      "why": "Nothing fails: the model continues from a summary that is missing its last items, such as remaining work and user constraints.",
+      "verify": "Stub the client to return stop_reason max_tokens: the compactor must not return a one-message history."
+    },
+    {
+      "title": "s15 compaction summarises the oldest 80,000 characters and drops the newest",
+      "file": "s15_integrated_harness/code.py",
+      "line": 2193,
+      "problem": "summarize_history cuts the JSON with [:80000], which keeps the start of the conversation. When history is longer than that, the newest turns, which hold the current state, are not summarised and not marked as omitted. Issue 109 reported the same cut in the old chapter; agents/s06_context_compact.py:118 and agents/s_full.py:255 use [-80000:], and s08_context_compact/code.py:469-475 keeps head and tail with a marker.",
+      "change": "Use the s08 approach: keep a head, a tail and an 'omitted' marker, or summarise only the older part and keep the newest messages.",
+      "why": "A summary of the wrong end of a long conversation makes the agent restart from stale state.",
+      "verify": "Feed a history of 120,000 characters whose last message holds a distinctive string: it must reach the summary prompt."
+    },
+    {
+      "title": "The goal loop's token counter reads two usage fields and skips the evaluator",
+      "rule": "LP-GE-11",
+      "severity": "medium",
+      "file": "s17_goal_loop/code.py",
+      "line": 120,
+      "problem": "_usage_total adds input_tokens and output_tokens only (used at line 705) and the status shows it as 'Tokens' (line 349). Cache read and write tokens are left out, and the evaluator's own call (line 261) is never counted. It enforces nothing, so it only misreports; today, with no cache marks, only the evaluator is missing.",
+      "change": "Add cache_read_input_tokens and cache_creation_input_tokens, and add the evaluator response's usage to the same total.",
+      "verify": "For one goal turn, the status total equals the sum of the usage of the main call and the evaluator call."
+    }
+  ]
+}

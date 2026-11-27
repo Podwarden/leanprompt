@@ -1,0 +1,18 @@
+repo: https://github.com/abi/screenshot-to-code
+visibility: public
+commit: f2e5bbdd1dd5d93c259548d9bccf54e2a5f06a30
+leanprompt: 0.1.0-dev.15
+date: 2026-11-27
+status: notified
+headline: "A cut-off web page is saved as finished"
+subtitle: "Turns screenshots and recordings into code with OpenAI, Anthropic and Gemini models, and stops any single generation at a $3 spend ceiling."
+kind: Cut-off answer
+figure:
+  finding: cutoff-echo
+  label: output and prompt tokens spent when a turn hits the output limit and is retried
+  unit: calls
+illustration:
+  scene: "a sheet of paper cut short by a pair of scissors resting in an office output tray, a round green seal stuck on its torn edge, a ruler lying beside it"
+  alt: A cut sheet of paper rests in a tray with two green seals on it, beside open scissors and a ruler.
+maintainer:
+  issue: https://github.com/abi/screenshot-to-code/issues/651

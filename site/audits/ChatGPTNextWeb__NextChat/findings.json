@@ -1,0 +1,165 @@
+{
+  "v": 1,
+  "unattended": true,
+  "average_call": {
+    "prompt_tokens": 2000,
+    "output_tokens": 500
+  },
+  "findings": [
+    {
+      "id": "time-at-top",
+      "rule": "LP-PC-03",
+      "file": "app/store/chat.ts",
+      "line": 179,
+      "saves": "prefill",
+      "severity": "high",
+      "share": 0.18,
+      "status": "size-unknown",
+      "confirm": "On a gpt-* chat whose prompt is over 1,024 tokens, send two turns a minute apart and read cached_tokens on the second; it should be about 0 today and rise after the time line moves.",
+      "reach": "gpt-* and chatgpt-* models (the default model gpt-4o-mini), default setting on",
+      "tokens_per_1k": {
+        "uncached": 360000
+      },
+      "problem": "For gpt-* models the first message of every request is a system prompt that starts with the current time, written with seconds (new Date().toString()). It differs on every call, so OpenAI's automatic prefix cache cannot reuse anything after it: the memory summary, the mask's context messages and the history.",
+      "change": "Drop the time line from the system message, or move it into the newest user message, so the system message is the same on every call.",
+      "why": "Prompt caching matches from the first byte. A timestamp on line 4 of message 1 makes every later token a cache miss, even when the rest of the prompt is the same as the last turn.",
+      "estimate": "about 360,000 prompt tokens per 1,000 calls not served from cache",
+      "assumptions": "average prompt 2,000 tokens; 30% of calls on gpt-* have a reusable prefix of about 1,200 tokens (the 1,024 minimum applies; short chats lose nothing); the history window and summaries move on some turns, so not every turn can reuse its prefix. The share is of all prompt tokens of gpt-* sessions.",
+      "verify": "Two requests a minute apart in one chat over 1,200 tokens: cached_tokens on the second request rises from 0 to about the size of the earlier turn, and the system message bytes are equal across the two requests."
+    },
+    {
+      "id": "memory-before-context",
+      "rule": "LP-PC-08",
+      "file": "app/store/chat.ts",
+      "line": 636,
+      "saves": "prefill",
+      "severity": "medium",
+      "share": 0.0375,
+      "status": "size-unknown",
+      "overlaps": [
+        "time-at-top"
+      ],
+      "confirm": "How many sessions use a mask with context messages over about 500 tokens (masks the app ships, or user masks).",
+      "reach": "sessions with a mask that has long context messages and a summary",
+      "tokens_per_1k": {
+        "uncached": 75000
+      },
+      "problem": "The request is built as system prompt, then the rewritten memory summary, then the mask's fixed context messages, then history. The summary changes each time it is refreshed, so the mask context that sits behind it is recomputed on every refresh although it never changes.",
+      "change": "Build the list as system prompt, mask context, memory summary, history. The summary then starts after the stable part.",
+      "why": "A cache only reuses tokens up to the first change. A part that changes (the summary) in front of a part that never changes (the mask context) throws the stable part away each time.",
+      "estimate": "about 75,000 prompt tokens per 1,000 calls (estimate)",
+      "assumptions": "10% of calls use a mask with about 1,500 tokens of context; half of those follow a summary refresh. Only pays off once the time line is also out of the first message on gpt-* models, which is why the two overlap.",
+      "verify": "In a chat with a long mask context, force a summary refresh and send the next turn: cached_tokens covers the mask context after the reorder and does not before."
+    },
+    {
+      "id": "anthropic-no-marks",
+      "rule": "LP-PC-01",
+      "file": "app/client/platforms/anthropic.ts",
+      "line": 182,
+      "saves": "prefill",
+      "severity": "high",
+      "share": 0.18,
+      "status": "size-unknown",
+      "confirm": "cache_read_input_tokens and cache_creation_input_tokens on two consecutive turns of a chat over the model's minimum cacheable length.",
+      "reach": "sessions that use Anthropic models",
+      "tokens_per_1k": {
+        "uncached": 360000,
+        "cache_write": 600000
+      },
+      "known": {
+        "kind": "reported",
+        "url": "https://github.com/ChatGPTNextWeb/NextChat/issues/5279",
+        "note": "open feature request (Aug 2024) for Claude prompt caching; a maintainer replied that they would look into it. It proposes custom headers, not cache_control marks."
+      },
+      "problem": "Requests to Anthropic carry no cache_control mark anywhere, and the system and memory messages are sent as ordinary user messages, so nothing is cached on Claude models.",
+      "change": "Send the fixed head (system, mask context) as a system block with one mark, and mark the last stable message. Do this together with the time and order fixes, since a changing head means the marks are written and never read.",
+      "why": "Anthropic caches only at marks. Without them every turn pays full input price for the whole prompt.",
+      "estimate": "about 360,000 prompt tokens per 1,000 calls could be read from cache; about 600,000 newly written (estimate)",
+      "assumptions": "average prompt 2,000 tokens; 30% of calls continue a prefix of about 1,200 tokens that is above the model's minimum (1,024 or 4,096 by model); the history window slides on some turns, so reads per write are near the break-even of about 0.3. Net gain is small and uncertain on the default window settings.",
+      "verify": "Second request in a chat reports cache_read_input_tokens close to the marked prefix; the first reports cache_creation_input_tokens above 0."
+    },
+    {
+      "id": "title-summary-model",
+      "rule": "LP-GE-08",
+      "file": "app/store/chat.ts",
+      "line": 151,
+      "saves": "both",
+      "severity": "medium",
+      "share": 0,
+      "known": {
+        "kind": "reported",
+        "url": "https://github.com/ChatGPTNextWeb/NextChat/issues/5368",
+        "note": "open request to change the model used for auto titles; the compressModel setting (PR 5426, merged) lets a user pick one, but the default is still the chat model."
+      },
+      "problem": "The title and the memory summary use the chat's own model unless it is gpt-*, gemini* or deepseek-*. A user on Claude, Qwen, Grok or any other model pays that model's price for a four-word title and for a 200-word summary that can run after every long turn.",
+      "change": "Default the title and summary model to a small model of the same provider, and keep compressModel as the override.",
+      "why": "A title and a short recap do not need the largest model; it costs more per token and is slower.",
+      "estimate": "no token loss; a price and latency difference (not scored)",
+      "assumptions": "summary runs when more than 1,000 estimated tokens arrived since the last one (chat.ts:761), so with long answers on most turns.",
+      "verify": "Provider usage shows title and summary calls on the small model, and titles pass a fixed check on sample chats."
+    }
+  ],
+  "notes": [
+    {
+      "title": "A cut-off answer is shown as complete (OpenAI reasoning models)",
+      "rule": "LP-GE-12",
+      "severity": "high",
+      "file": "app/client/platforms/openai.ts",
+      "line": 246,
+      "problem": "For gpt-5 and o-series models the limit sent is max_completion_tokens = Max Tokens, 4000 by default (store/config.ts:71). Reasoning tokens count against it. The stream parser reads delta content only (openai.ts:333-366) and never reads finish_reason, so a reply that stopped on the limit, or an empty one after long reasoning, is stored and shown as a finished answer.",
+      "change": "Read finish_reason from the last stream chunk; on length, mark the message as cut off in the UI and offer to continue, and raise or drop the default cap for reasoning models.",
+      "why": "The user pays for the reasoning and gets half an answer with no sign it stopped early.",
+      "verify": "Set a low cap on a gpt-5 chat and ask a long question: the message shows a cut-off marker and the finish reason is length."
+    },
+    {
+      "title": "Claude replies cut at max_tokens are not flagged",
+      "rule": "LP-GE-12",
+      "severity": "medium",
+      "file": "app/client/platforms/anthropic.ts",
+      "line": 244,
+      "problem": "max_tokens defaults to 4000 (anthropic.ts:187). The stream handler checks stop_reason only for refusal; stop_reason max_tokens is ignored, so a long answer ends mid-sentence without notice.",
+      "change": "On message_delta with stop_reason max_tokens, mark the reply as cut off and offer to continue.",
+      "verify": "Ask for a long answer with Max Tokens at 100: the reply shows a cut-off marker."
+    },
+    {
+      "title": "The Max Tokens setting is not sent to most chat providers",
+      "rule": "LP-GE-17",
+      "severity": "medium",
+      "file": "app/client/platforms/openai.ts",
+      "line": 238,
+      "known": {
+        "kind": "declined",
+        "url": "https://github.com/ChatGPTNextWeb/NextChat/blob/1d3dc331512929a4b1d3e82354e72acce33b5c7a/app/client/platforms/openai.ts#L238-L239",
+        "note": "a code comment says max_tokens is deliberately not sent; PR 4401 (optional max_tokens) was closed unmerged."
+      },
+      "problem": "The Max Tokens slider (en.ts:571, 'Maximum length of input tokens and generated tokens') is sent as a limit only for Anthropic, Google, gpt-5, o-series and vision models. For OpenAI chat models and DeepSeek, Moonshot, SiliconFlow, 302.AI and iFlytek the line is commented out, so an owner's cap does nothing for output.",
+      "change": "Send the cap where the provider accepts it, or label the setting as a history budget only.",
+      "verify": "Set Max Tokens to 100 on a gpt-4o-mini chat: replies still run long today; after the change they stop at about 100 tokens."
+    },
+    {
+      "title": "A failed summary leaves a half-written memory",
+      "rule": "LP-GE-12",
+      "severity": "low",
+      "file": "app/store/chat.ts",
+      "line": 783,
+      "problem": "While the summary streams, onUpdate writes the partial text straight into session.memoryPrompt. onError only logs (chat.ts:794), and lastSummarizeIndex is not advanced, so an aborted or failed summary replaces the old memory with a fragment and the same summary is attempted again on the next turn.",
+      "change": "Keep the stream text in a local variable and write memoryPrompt and lastSummarizeIndex together in onFinish.",
+      "verify": "Abort a summary call midway: memoryPrompt keeps its previous value."
+    },
+    {
+      "title": "A chat's summary is built from the open chat's memory",
+      "rule": "LP-GE-12",
+      "severity": "medium",
+      "file": "app/store/chat.ts",
+      "line": 531,
+      "known": {
+        "kind": "in-progress",
+        "url": "https://github.com/ChatGPTNextWeb/NextChat/pull/6936",
+        "note": "open PR fixing issue 6935 (Nov 2026): summarize a chat with its own memory prompt, not the open chat's."
+      },
+      "problem": "getMemoryPrompt reads currentSession(), but summarizeSession(targetSession) calls it at chat.ts:745. If the user opens another chat while a reply streams, the summary of the first chat is built from the second chat's memory.",
+      "change": "Pass the target session into getMemoryPrompt.",
+      "verify": "Start a reply, open another chat that has a memory, and check the first chat's summary does not mention it."
+    }
+  ]
+}

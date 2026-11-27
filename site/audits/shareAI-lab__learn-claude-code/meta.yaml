@@ -1,0 +1,18 @@
+repo: https://github.com/shareAI-lab/learn-claude-code
+visibility: public
+commit: 448c75bb596917ad196cc1fb7558f459c5c50fdd
+leanprompt: 0.1.0-dev.15
+date: 2026-11-27
+status: notified
+headline: "No chapter marks its prompt for caching, so each agent turn is billed in full"
+subtitle: "A step-by-step teaching build of a Claude-Code-style agent: 17 chapters with tests, in three languages, and an active maintainer team."
+kind: Cache never hits
+figure:
+  finding: no-marks
+  label: prompt tokens the cache could have served, on the default Claude model
+  unit: calls
+illustration:
+  scene: "a row of identical paper cups on a conveyor belt, each filled from a tap and then poured away at the end, beside the belt a rack of clean full sealed glass jars that nobody takes from"
+  alt: Four paper cups stand on a small wooden rack beside two clean glass jars that nobody uses.
+maintainer:
+  issue: https://github.com/shareAI-lab/learn-claude-code/issues/629

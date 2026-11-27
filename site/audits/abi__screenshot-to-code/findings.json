@@ -1,0 +1,57 @@
+{
+  "v": 1,
+  "unattended": true,
+  "average_call": {
+    "prompt_tokens": 30000,
+    "output_tokens": 5000
+  },
+  "findings": [
+    {
+      "rule": "LP-GE-05",
+      "id": "cutoff-echo",
+      "file": "backend/agent/tools/runtime.py",
+      "line": 57,
+      "saves": "both",
+      "severity": "high",
+      "share_prefill": 0.0225,
+      "share_output": 0.045,
+      "status": "frequency-unknown",
+      "confirm": "how often a turn ends at the 50,000-token output limit (OpenAI status incomplete, Anthropic stop_reason max_tokens, Gemini MAX_TOKENS), from the run records the app already writes",
+      "tokens_per_1k": {
+        "prompt": 675000,
+        "output": 225000
+      },
+      "problem": "When a turn is cut off at the 50,000-token output limit, nothing reads why it stopped. On OpenAI the cut-off tool call arrives as broken JSON and the whole broken text is sent back to the model as the tool result. The model is told to try again with the same limit, so it writes the whole file again.",
+      "change": "Read the stop reason on each provider (OpenAI status incomplete, Anthropic stop_reason max_tokens, Gemini finishReason MAX_TOKENS). On a cut-off, do not echo the broken arguments back: end the variant with a clear 'output limit reached' error, or continue from the saved file with a higher limit.",
+      "why": "Each cut-off turn bills up to 50,000 output tokens, the retry bills them again, and the echoed broken arguments stay in the history and are re-read on every later turn.",
+      "estimate": "about 225k output and 675k prompt tokens per 1,000 calls",
+      "assumptions": "half a percent of turns end at the limit (guess; only high-effort reasoning models or very large pages should); each wasted turn is about 45k output tokens; the echoed text is carried by about 3 later turns; average turn is 30k prompt and 5k output tokens. Applies mostly to OpenAI, where arguments arrive as broken JSON; on Anthropic the cut-off call is accepted as complete (see the notes).",
+      "verify": "Force a low max_output_tokens in a test double that returns status incomplete with half a create_file argument; the run should stop with a clear error and the next request should not contain the broken arguments.",
+      "reach": "OpenAI models; Anthropic and Gemini see the cut-off as a silent partial file instead"
+    }
+  ],
+  "notes": [
+    {
+      "title": "A cut-off page is saved and shown as finished",
+      "rule": "LP-GE-12",
+      "severity": "high",
+      "file": "backend/agent/providers/anthropic/provider.py",
+      "line": 403,
+      "problem": "All three providers cap output at 50,000 tokens (anthropic/provider.py:371, openai.py:531, gemini.py:325) and none reads the stop reason. On Anthropic the SDK (0.84.0, lib/streaming/_messages.py:480) parses partial tool JSON, so a create_file cut off mid-page arrives as a valid but shorter 'content'. runtime.py:103-113 saves it, replies 'Successfully created file', and the page is shown as complete. On Gemini and a no-tool OpenAI turn the same cut-off text is returned as the final answer.",
+      "change": "Read final_message.stop_reason (Anthropic), response status and incomplete_details (OpenAI) and finishReason (Gemini) after each turn. On max_tokens, do not run the tool call as success; end the variant with an error or ask the model to continue.",
+      "why": "The user sees a half page marked as done and nothing says it was cut.",
+      "verify": "Mock a final message with stop_reason max_tokens and a half create_file input; the variant should end with an error, not a saved file."
+    },
+    {
+      "title": "Cut-off OpenAI turns are not counted against the $3 limit",
+      "rule": "LP-GE-11",
+      "severity": "medium",
+      "file": "backend/agent/providers/openai.py",
+      "line": 246,
+      "problem": "Usage is read only from the response.completed event. A turn that ends at max_output_tokens finishes with response.incomplete, so state.turn_usage stays None (openai.py:548) and the most expensive turn is never added to the total that engine.py:270-276 checks against GENERATION_MAX_COST_USD. Separately, pricing.py:19-20 says cache writes for gpt-5.6 and 6.x are billed at 1.25x but left at 0.",
+      "change": "Read usage on response.incomplete (and response.failed when usage is present) as well as response.completed. Add the cache-write rate once the Responses usage exposes it.",
+      "why": "The spend ceiling undercounts exactly the turns that cost the most, so a run can pass $3.",
+      "verify": "Feed parse_event a response.incomplete event with usage; session.total_cost_usd() should include it."
+    }
+  ]
+}

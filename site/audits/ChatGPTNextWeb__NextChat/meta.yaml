@@ -1,0 +1,18 @@
+repo: https://github.com/ChatGPTNextWeb/NextChat
+visibility: public
+commit: 1d3dc331512929a4b1d3e82354e72acce33b5c7a
+leanprompt: 0.1.0-dev.15
+date: 2026-11-27
+status: notified
+headline: "The current time leads every GPT prompt, so the prompt cache cannot match"
+subtitle: "A popular open-source chat app for web and desktop across many providers; its memory summary and history window keep each request small."
+kind: Cache never hits
+figure:
+  finding: time-at-top
+  label: prompt tokens the cache could have served on gpt models
+  unit: calls
+illustration:
+  scene: "a ring of identical brass keys where the first key has been swapped for a small ticking clock shaped like a key, a heavy lock beside the ring staying shut, a wall of closed drawers behind it"
+  alt: A brass padlock stays shut beside a ring of keys, one of them a small clock, in front of a chest of drawers.
+maintainer:
+  issue: https://github.com/ChatGPTNextWeb/NextChat/issues/6961

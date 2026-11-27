@@ -1,0 +1,91 @@
+{
+  "v": 1,
+  "unattended": true,
+  "run": "one report generation: outline, 2-5 sections, tool-side calls; about 15-40 calls",
+  "average_call": {
+    "prompt_tokens": 9000,
+    "output_tokens": 900
+  },
+  "findings": [
+    {
+      "id": "section-prefix",
+      "rule": "LP-PC-03",
+      "file": "backend/app/services/report_agent.py",
+      "line": 622,
+      "saves": "prefill",
+      "severity": "medium",
+      "share": 0.045,
+      "unit": "run",
+      "tokens_per_run": {
+        "uncached": 9000
+      },
+      "problem": "The section-writing system prompt names the section being written on line 622, before about 3,000 tokens of instructions and the tool list that are the same for every section. Each section therefore starts with a different prompt, and the provider cannot reuse the shared text from the previous section.",
+      "change": "Remove the section title from the system prompt template. The user prompt template already names the section (line 780), so nothing is lost. Keep the report title, summary and scenario lines where they are.",
+      "why": "The first call of every section after the first pays full price for about 3,000 tokens it paid for a minute earlier. The later calls inside one section already share the prompt.",
+      "estimate": "about 9,000 uncached prompt tokens per report (estimate)",
+      "assumptions": "3 of 4 sections miss the cache, 3,000 tokens of static text after the title (about 3,150 characters of Chinese plus the tool list); qwen-plus implicit cache (1,024-token minimum per the Alibaba table) or OpenAI automatic caching; share is of the report path only (about 22 calls, 9,000 prompt tokens each), not the simulation calls made through camel-ai, which were not read.",
+      "verify": "Generate a two-section report and log usage.prompt_tokens_details.cached_tokens on the first call of section 2: it rises from near 0 to roughly 3,000.",
+      "reach": "every report with 2 or more sections"
+    },
+    {
+      "id": "interview-json-indent",
+      "rule": "LP-PD-06",
+      "file": "backend/app/services/zep_tools.py",
+      "line": 1599,
+      "saves": "prefill",
+      "severity": "low",
+      "share": 0.011,
+      "unit": "run",
+      "tokens_per_run": {
+        "prompt": 2200
+      },
+      "status": "size-unknown",
+      "confirm": "how many agents a typical simulation has; the cost scales with it",
+      "problem": "The agent-selection prompt lists every simulated agent with json.dumps(indent=2), so each interested_topics entry goes on its own indented line.",
+      "change": "Use separators=(',', ':') and no indent, or one line per agent.",
+      "why": "Line breaks and indentation are tokens; with 100 agents it adds roughly a fifth to the list.",
+      "estimate": "about 2,200 prompt tokens per interview_agents call at 100 agents (estimate)",
+      "assumptions": "100 agents at about 110 tokens each, 20 percent whitespace overhead, one interview_agents call per report.",
+      "verify": "Count prompt_tokens for the selection call before and after with the same 100 profiles: it drops by about a fifth of the agent list."
+    }
+  ],
+  "notes": [
+    {
+      "title": "chat() never reads the finish reason, so a cut-off report section is saved as finished",
+      "file": "backend/app/utils/llm_client.py",
+      "line": 156,
+      "rule": "LP-GE-12",
+      "severity": "high",
+      "problem": "chat() returns the cleaned text without looking at finish_reason. The report section loop calls it with max_tokens=4096 (report_agent.py:1344 and :1550) and stores any answer as the section, so a section that hit the limit is written as complete.",
+      "change": "Raise on finish_reason == 'length' in chat(), as chat_json() already does at line 242.",
+      "verify": "Mock a completion with finish_reason 'length' and check chat() raises.",
+      "known": {
+        "kind": "in-progress",
+        "url": "https://github.com/666ghj/MiroFish/pull/841",
+        "note": "Open PR 'never save an empty report section from an unusable LLM response' makes chat() reject length stops and drops the cap on retry."
+      }
+    },
+    {
+      "title": "Interview summary is capped at 800 tokens but asked to be up to 1000 characters",
+      "file": "backend/app/services/zep_tools.py",
+      "line": 1727,
+      "rule": "LP-GE-12",
+      "severity": "medium",
+      "problem": "The prompt says the summary must stay within 1000 characters (line 1704) but the call sends max_tokens=800. A thousand Chinese characters is more than 800 tokens, so a full-length summary is cut mid-sentence, and chat() does not check the finish reason, so the cut text goes into the report as a tool result.",
+      "change": "Raise the cap to about 2,000 tokens (or word the limit in tokens), and check the finish reason (see the chat() note).",
+      "why": "A truncated summary of the interviews is what the report writer then quotes from.",
+      "verify": "Feed 10 interview answers of 500 characters each and check the summary ends on a full stop and finish_reason is stop."
+    },
+    {
+      "title": "Cut-off persona and config JSON is closed with brackets and accepted",
+      "file": "backend/app/services/oasis_profile_generator.py",
+      "line": 589,
+      "rule": "LP-GE-12",
+      "severity": "medium",
+      "problem": "When finish_reason is length the code closes the open strings and brackets (_fix_truncated_json) and parses the result as a complete persona. The same pattern is in simulation_config_generator.py:460. A persona cut in the middle becomes a shorter persona with no warning beyond a log line, and in the config version the agents after the cut are likely to fall back to rule-based defaults without a warning.",
+      "change": "On length, retry once (the bounded retry already exists in the loop) or fall back to the rule-based profile, rather than repairing and returning. For the config batch, check that every agent_id of the batch is present before accepting.",
+      "why": "The simulation then runs on truncated personas and partial configs that look valid.",
+      "verify": "Mock a length stop mid-persona and check the generator retries or falls back instead of returning the repaired text."
+    }
+  ]
+}
