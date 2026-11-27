@@ -1,0 +1,188 @@
+{
+  "v": 1,
+  "unattended": true,
+  "average_call": {
+    "prompt_tokens": 12000,
+    "output_tokens": 600
+  },
+  "kvsig": {
+    "used": false
+  },
+  "findings": [
+    {
+      "id": "responses-claude-no-marks",
+      "rule": "LP-PC-01",
+      "file": "relay/bridge/responses_anthropic.go",
+      "line": 197,
+      "saves": "prefill",
+      "severity": "high",
+      "share": 0.1,
+      "status": "frequency-unknown",
+      "confirm": "Share of model calls that go Responses-wire to an Anthropic, Bedrock-Claude or Vertex-Claude channel: every Studio Chat/Work/subagent leg on a claude-* model, plus API clients of /v1/responses on Claude. Read it from the consume log by channel type and from model_invocations.upstream_protocol = anthropic.",
+      "tokens_per_1k": {
+        "uncached": 1224000,
+        "cache_write": 216000
+      },
+      "problem": "When a Responses-format request goes to a Claude channel, the converter builds the Anthropic request with no cache mark at all. Studio's own agent (Chat, Work, subagents) uses exactly this path for every claude-* model (agent/executor.go:326-327 prefers the Anthropic wire). Anthropic caches nothing without a mark, so on every leg of the agent loop the instructions, tools and whole history are billed at the full input price again.",
+      "change": "In the converter, add Anthropic's top-level automatic cache mark ({\"cache_control\":{\"type\":\"ephemeral\"}}) to the request it builds, or marks on the last tool, the system text and the newest message. Bedrock rejects the top-level form, so on AwsClaude channels use block-level marks.",
+      "why": "An agent leg resends everything the previous leg sent plus one tool result. Without a mark the provider recomputes all of it at the full input price instead of about a tenth of it.",
+      "estimate": "about 1.2M prompt tokens per 1,000 calls billed uncached that the cache could serve (estimate)",
+      "assumptions": "40% of calls are Studio agent legs, 30% of those on Claude (12% of all calls); average prompt 12k tokens, 85% of it repeated from the previous leg or turn; legs return within seconds, well inside the 5-minute lifetime, so marks pay back (break-even (1.25-1)/(1-0.1) = 0.28 reads per write). Cache writes of the new tail (~1.8k per call) at 1.25x are listed as cache_write.",
+      "verify": "Run one Studio chat turn with a tool call on a Claude channel and read the upstream usage of its second leg: cache_read_input_tokens rises from 0 to about the size of the first leg's prompt."
+    },
+    {
+      "id": "chat-claude-no-marks",
+      "rule": "LP-PC-01",
+      "file": "relay/bridge/chat_anthropic.go",
+      "line": 184,
+      "saves": "prefill",
+      "severity": "high",
+      "share": 0.09,
+      "status": "frequency-unknown",
+      "confirm": "Share of /v1/chat/completions traffic that lands on Anthropic, AwsClaude or Vertex-Claude channels (controller/relay.go:48-59), and how much of it is multi-turn, from the consume log.",
+      "tokens_per_1k": {
+        "uncached": 1080000,
+        "cache_write": 270000
+      },
+      "problem": "OpenAI-format clients routed to a Claude channel go through this converter, which never adds a cache mark, and a client cannot add one either: extra keys on a message or a text part (such as cache_control) are rejected (relay/bridge/chat_anthropic.go:32, relay/bridge/chat_common.go:128). So every Chat Completions request that reaches Claude through the gateway is billed at the full input price, however much it repeats.",
+      "change": "Add the top-level automatic cache mark to the converted request (block-level marks on Bedrock), optionally behind a channel setting, and accept cache_control on text parts so clients that already mark can keep their marks.",
+      "why": "A chat or agent client resends its whole history each turn; on Claude only a marked prefix is read from the cache at a tenth of the price.",
+      "estimate": "about 1.1M prompt tokens per 1,000 calls billed uncached that the cache could serve (estimate)",
+      "assumptions": "15% of all calls are Chat Completions requests bridged to Claude; average prompt 12k tokens, 60% of it repeated from the client's previous request within 5 minutes; new tail ~1.8k per call written at 1.25x (cache_write).",
+      "verify": "Send the same 5k-token Chat Completions request twice to a Claude channel a few seconds apart: the second response's prompt_tokens_details.cached_tokens is 0 today and close to 5k after the change."
+    },
+    {
+      "id": "compaction-every-turn",
+      "rule": "LP-PC-08",
+      "file": "agent/context.go",
+      "line": 352,
+      "saves": "prefill",
+      "severity": "medium",
+      "share": 0.1,
+      "status": "frequency-unknown",
+      "confirm": "How many Studio chat turns run in sessions whose estimated context exceeds ChatContextBudgetTokens (32,000 by default): count context_compacted run events per session; more than one per session (one per turn) confirms the repeat.",
+      "overlaps": [
+        "compaction-window-slides"
+      ],
+      "tokens_per_1k": {
+        "prompt": 1200000,
+        "output": 30000
+      },
+      "problem": "Once a Studio chat passes the context budget, every new turn makes an extra summarising call with its own system prompt over the whole older transcript. The summary is stored but older messages are never marked as done: the next turn loads all messages again (model/chat.go:270), is over the budget again, and summarises the same history again, plus the previous summary.",
+      "change": "Load only the messages after CompactedThrough, keep the stored summary, and summarise only when the uncompacted tail passes the budget again; run the summary as a continuation of the same instructions, tools and history so it reads the cache.",
+      "why": "The summariser re-reads tens of thousands of tokens of history on every turn and writes up to 1,536 output tokens that the next turn throws away and recomputes.",
+      "estimate": "about 1.2M prompt tokens and 30k output tokens per 1,000 calls (estimate)",
+      "assumptions": "Studio chat turns are 20% of calls (two legs per turn on average); 15% of those turns are in sessions past the 32k budget, so 3% of calls trigger a summariser call; each re-reads about 40k tokens of older transcript (messages cut at 4,000 characters) and writes about 1,000 tokens.",
+      "verify": "In a session past the budget, send three turns: today the run events show a context_compacted event on each turn; after the fix, one, and the next compaction only when the tail grows past the budget again."
+    },
+    {
+      "id": "compaction-window-slides",
+      "rule": "LP-PC-06",
+      "file": "agent/context.go",
+      "line": 281,
+      "saves": "prefill",
+      "severity": "medium",
+      "share": 0.025,
+      "status": "frequency-unknown",
+      "confirm": "Same as the compaction finding: the number of chat turns in sessions past the context budget, and the upstream cached tokens on the first leg of those turns on an automatic-cache provider (OpenAI, Gemini).",
+      "overlaps": [
+        "compaction-every-turn"
+      ],
+      "tokens_per_1k": {
+        "uncached": 300000
+      },
+      "problem": "In a long Studio chat the kept history is recomputed every turn as the newest messages that fit in two fifths of the budget, so the conversation the model sees starts at a different message on every turn. Everything after the instructions and tools is new to the provider's cache on each turn's first leg.",
+      "change": "Keep a fixed compaction boundary (CompactedThrough) between compactions, so the history after it only grows at the end until the next compaction.",
+      "why": "A prefix cache reuses only an unchanged start; moving the start of the history each turn forfeits the reuse of up to 12,800 tokens of history per turn.",
+      "estimate": "about 300k prompt tokens per 1,000 calls not served from cache (estimate)",
+      "assumptions": "3% of calls are first legs of turns in sessions past the budget; about 10k tokens of kept history per such leg would otherwise be read from an automatic cache (OpenAI, Gemini). On Claude nothing is cached today anyway (finding responses-claude-no-marks).",
+      "verify": "On an OpenAI channel, send two turns in a session past the budget: after the fix the second turn's first leg reports cached_tokens covering the history before the new message."
+    },
+    {
+      "id": "skill-guidance-moves",
+      "rule": "LP-PC-06",
+      "file": "agent/skills.go",
+      "line": 62,
+      "saves": "prefill",
+      "severity": "medium",
+      "share": 0.01,
+      "status": "frequency-unknown",
+      "confirm": "How often a Studio turn loads a Skill and how long its instructions are (skills import up to 64 KiB): count Skill tool calls in tool_executions and the instruction length of the skills they load.",
+      "tokens_per_1k": {
+        "uncached": 120000
+      },
+      "problem": "After the model loads a Skill, its instructions are appended as an extra user message at the very end of the input on every following leg. Each leg adds the new tool call and result before them, so the instructions move back one step each time and are recomputed on every leg.",
+      "change": "Insert the loaded instructions once, at the point in the history where the Skill was loaded (right after its tool result), and keep them there for the rest of the turn.",
+      "why": "Content that moves is never part of the unchanged prefix, so the skill text is billed uncached on every leg after it loads.",
+      "estimate": "about 120k prompt tokens per 1,000 calls not served from cache (estimate)",
+      "assumptions": "10% of Studio legs (4% of calls) run after a Skill was loaded; about 3k tokens of instructions per leg would otherwise be cached by an automatic-cache provider.",
+      "verify": "On an OpenAI channel, a turn that loads a Skill and then calls two tools: the third leg's cached_tokens covers the skill text after the fix, not before."
+    },
+    {
+      "id": "random-channel-per-request",
+      "rule": "LP-PC-12",
+      "file": "model/ability.go",
+      "line": 109,
+      "saves": "prefill",
+      "severity": "medium",
+      "share": 0.05,
+      "status": "frequency-unknown",
+      "confirm": "Whether the deployment serves one model through two or more channels of the same priority that use different provider organisations or workspaces; and, from the consume log, how often consecutive requests of one conversation land on different channels.",
+      "tokens_per_1k": {
+        "uncached": 600000
+      },
+      "problem": "Each request picks a channel at random among the same-priority channels for the model (model/ability.go:109, model/cache.go:299), with no memory of the conversation. Studio's agent does the same per leg (agent/executor.go:146). When those channels are different provider accounts, consecutive requests of one conversation hit different caches, and most of them start cold.",
+      "change": "Choose the channel once per conversation (hash a session, conversation or prompt_cache_key value, or the client's token and first message, onto the eligible channels) and fall back to another only on error.",
+      "why": "Anthropic and OpenAI never share a cache between organisations (Anthropic also not between workspaces), so splitting one conversation over N accounts leaves about (N-1)/N of its requests without a cache hit.",
+      "estimate": "about 600k prompt tokens per 1,000 calls not served from cache (estimate)",
+      "assumptions": "30% of calls are for models served by two equal-priority channels on different accounts, so half of their continuing requests miss; about 4k reusable tokens per such request. Zero on a deployment with one account per model.",
+      "verify": "With two channels on different keys for one model, send a 10-turn conversation: today the upstream cached tokens drop to 0 on roughly half the turns; after the fix every turn after the first reports a hit."
+    }
+  ],
+  "notes": [
+    {
+      "title": "The code bills cache reads and writes at the full input price",
+      "file": "relay/billing/native.go",
+      "line": 142,
+      "rule": "LP-GE-11",
+      "severity": "medium",
+      "problem": "The quota charged is (Input + Output x completion ratio) x model ratio x group ratio, and Input includes cache reads and cache writes (relay/native/usage.go:78). The price book has only an input price and an output ratio per model (relay/billing/ratio/model.go:24-29), and the OpenRouter price sync reads only prompt and completion (controller/channel_models.go:343-346). So the code bills cache reads, which providers price at a fraction of input, at the full input price, and Anthropic cache writes (1.25x or 2x) at 1x.",
+      "change": "Add cached-input and cache-write prices per model (sync them from OpenRouter's input_cache_read and input_cache_write), and charge Input minus CacheRead minus CacheCreation at the input price, CacheRead and CacheCreation at their own prices.",
+      "why": "Worked example (estimate; assumes the operator's ratios equal Anthropic's list prices): a coding-agent request of 100k input tokens (95k cache reads, 3k 5-minute writes, 2k uncached) and 1k output priced at 5x input. The provider's bill is 9.5k + 3.75k + 2k + 5k = 20.25k input-token equivalents; the code charges 100k + 5k = 105k, about 5x. List prices, checked 2026-11-26: Anthropic reads 0.1x input by default, writes 1.25x (5 minutes) or 2x (1 hour) (platform.claude.com, prompt caching); OpenAI reads 0.25x or 0.5x by model (OpenRouter's provider notes).",
+      "verify": "For one Claude request with a cached prefix, the consume log's quota equals the provider's bill for the same usage fields priced by hand."
+    },
+    {
+      "title": "The compaction summary never reaches the model",
+      "file": "agent/engine.go",
+      "line": 212,
+      "finding": "compaction-every-turn",
+      "problem": "compactIfNeeded stores a summary in session.Summary and drops the older messages from the working history, but the leg input is built from the reference files and the kept messages only (agent/engine.go:207-221); session.Summary is read only by the token estimate and by the next summariser call (agent/context.go:265, 328-331). Past the budget the model sees only the last ~12,800 tokens of the chat, though a summary call was made for it. A design note the project later removed (commit 31df916a) lists history plus summary as the context builder's job and repeated summary billing as forbidden.",
+      "change": "Put the summary in the input as the first message after the instructions (not in the instructions, so the head stays cached), and load only messages after CompactedThrough.",
+      "verify": "In a session past the budget, ask about a fact from the first turn: the leg's request input contains the summary and the model can answer."
+    },
+    {
+      "title": "OpenAI-format requests to Claude are capped at 1,024 output tokens when no limit is sent",
+      "file": "relay/bridge/chat_anthropic.go",
+      "line": 24,
+      "problem": "Anthropic requires max_tokens, so when a Chat Completions or Responses client omits its limit the converters set 1024 (relay/bridge/chat_anthropic.go:24, relay/bridge/responses_anthropic.go:41; reservation at controller/native.go:126-128). On OpenAI the omitted limit means the model's maximum, so the same client gets answers cut at 1,024 tokens on Claude channels. The cut is reported faithfully as finish_reason length.",
+      "change": "Default to the model's maximum output (or an operator setting per channel) instead of 1024, and document the default.",
+      "verify": "A Chat Completions request without max_tokens asking for a 2,000-word essay on a Claude channel ends with finish_reason stop, not length."
+    },
+    {
+      "title": "Some successful Claude replies become a 502 and are charged at the reservation",
+      "file": "relay/bridge/chat_anthropic.go",
+      "line": 248,
+      "problem": "The non-streaming Chat converter rejects stop_reason refusal (the streaming one maps it, relay/bridge/stream.go:170), and all four Anthropic-to-OpenAI converters reject model_context_window_exceeded (chat_anthropic.go:248, stream.go:176, stream_responses_anthropic.go:346, responses_anthropic.go:447). The upstream reply was generated and billed, but the client gets a 502 and the gateway settles with no usage, which keeps the reservation (relay/lifecycle/forward.go:410-414, relay/billing/native.go:147-150), not the provider's figures.",
+      "change": "Map refusal to finish_reason content_filter (or stop with the refusal text) and model_context_window_exceeded to length, and settle failed conversions from the usage in the upstream body.",
+      "verify": "A non-streaming Chat request that Claude refuses returns 200 with the refusal, and the consume log shows the provider's token counts."
+    },
+    {
+      "title": "Strict field lists block common clients on cross-protocol routes",
+      "file": "relay/bridge/chat_common.go",
+      "line": 25,
+      "problem": "Converters reject unknown fields instead of dropping them. That is safe for semantics, but it also rejects cache hints whose loss is harmless: Anthropic requests with cache_control on a block or tool fail when routed to an OpenAI-chat, Responses or Gemini upstream (relay/bridge/anthropic_chat.go:77 and 186, anthropic_responses.go:154, messages_gemini.go:121), and Chat requests to Claude or Gemini channels fail on stream_options, user or parallel_tool_calls (chat_common.go:25; only the Responses converter accepts stream_options, chat_responses.go:29).",
+      "change": "Accept and drop cache_control when the upstream caches automatically, accept stream_options.include_usage on every Chat converter (the stream already reports usage), and list the rejected fields in the docs.",
+      "verify": "An Anthropic Messages request with cache_control on a block routed to an OpenAI channel, and a streaming Chat request with stream_options.include_usage routed to a Claude channel, both succeed."
+    }
+  ]
+}

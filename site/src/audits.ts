@@ -8,7 +8,8 @@
 //   subtitle says what the project already does well;
 // - the big number at the top is one finding's tokens per 1,000 calls (or runs), always labelled
 //   an estimate, or a count read from the project's own output, labelled as such;
-// - the maintainer's issue, pull request and response are linked when there is one;
+// - the maintainer's issue, pull request and response are linked when there is one; an audit of a
+//   repository with no public channel (issues and discussions off) says so in `no_channel` instead;
 // - every page carries the corrections and takedown line.
 // A folder whose name starts with "_" (the template) is skipped, and so is an audit whose status
 // is `draft` or `withdrawn`. Any other problem fails the build with the folder and the reason.
@@ -85,6 +86,11 @@ export interface AuditMeta {
   kind?: Kind;
   figure?: Figure;
   maintainer?: { issue?: string; pr?: string; response?: string; response_date?: string };
+  /**
+   * Status published only: why there is no maintainer thread to link, in literally true words (the
+   * repository has issues and discussions turned off, say). Shown as the page's status.
+   */
+  no_channel?: string;
 }
 
 export interface Audit {
@@ -207,7 +213,14 @@ export function validateMeta(text: string, slug: string): { meta?: AuditMeta; er
   if (status === "disputed" && !maintainer?.response) errors.push("a disputed audit must quote the maintainer's response");
   if (status && ["notified", "acknowledged", "fixed", "disputed"].includes(status) && !maintainer?.issue && !maintainer?.pr)
     errors.push(`status ${status} needs maintainer.issue or maintainer.pr: link where the maintainers were told`);
-  const known = ["repo", "visibility", "commit", "leanprompt", "date", "status", "path", "summary", "headline", "subtitle", "kind", "figure", "maintainer"];
+  const noChannel = m.no_channel === undefined ? undefined : typeof m.no_channel === "string" ? m.no_channel.trim() : "";
+  if (noChannel !== undefined) {
+    if (!noChannel) errors.push("no_channel must be a sentence: why there is no maintainer thread to link");
+    else if (noChannel.length > 300) errors.push(`no_channel must be at most 300 characters, not ${noChannel.length}`);
+    if (status !== "published") errors.push("no_channel goes only with status: published (an audit with a maintainer thread links it instead)");
+    if (maintainer?.issue || maintainer?.pr) errors.push("no_channel and a maintainer.issue or maintainer.pr contradict each other");
+  }
+  const known = ["repo", "visibility", "commit", "leanprompt", "date", "status", "path", "summary", "headline", "subtitle", "kind", "figure", "maintainer", "no_channel"];
   const unknown = Object.keys(m).filter((k) => !known.includes(k));
   if (unknown.length) errors.push(`unknown keys ${unknown.join(", ")}`);
   if (errors.length) return { errors };
@@ -229,6 +242,7 @@ export function validateMeta(text: string, slug: string): { meta?: AuditMeta; er
       ...(kind ? { kind } : {}),
       ...(figure ? { figure } : {}),
       ...(maintainer && Object.keys(maintainer).length ? { maintainer } : {}),
+      ...(noChannel ? { no_channel: noChannel } : {}),
     },
   };
 }
@@ -326,6 +340,7 @@ export const BADGES = {
   fixed: "Fixed upstream",
   reported: "Reported",
   planned: "Already planned by the maintainers",
+  nochannel: "No public channel to report",
   demo: "Demonstration",
 } as const;
 export type Badge = keyof typeof BADGES;
@@ -333,7 +348,8 @@ export type Badge = keyof typeof BADGES;
 /**
  * The status badge: Fixed upstream when the maintainers changed the code (status fixed); Already
  * planned when the lead finding is in the project's own plans; Reported when the maintainers were
- * told (an issue or pull request is linked); Demonstration for leanprompt's own example.
+ * told (an issue or pull request is linked); No public channel when the repository offers none
+ * (`no_channel`); Demonstration for leanprompt's own example.
  */
 export function badgeOf(a: Audit): Badge | undefined {
   const m = a.meta;
@@ -342,6 +358,7 @@ export function badgeOf(a: Audit): Badge | undefined {
   const lead = leadFinding(a);
   if (lead && knownOf(lead)?.kind === "planned") return "planned";
   if (m.maintainer?.issue || m.maintainer?.pr) return "reported";
+  if (m.no_channel) return "nochannel";
   return undefined;
 }
 

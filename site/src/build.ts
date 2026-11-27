@@ -448,7 +448,7 @@ ${bigNumber(a)}
       "Audits",
       `${audits.length ? strip : ""}
 <p class="lede">What a leanprompt audit finds in public repositories. Each audit names the commit and the leanprompt version it ran on, and links the maintainers’ issue and response. The figures are estimates from reading the code, not measurements.</p>
-<p>We tell the maintainers before an audit is published. ${CORRECTIONS_LINE.replace("open an issue", `<a href="${REPO}/issues/new" rel="noopener">open an issue</a>`).replace(CONTACT, `<a href="mailto:${CONTACT}">${CONTACT}</a>`)}</p>
+<p>We tell the maintainers before an audit is published. Where a repository has no public channel for it, the audit page says so. ${CORRECTIONS_LINE.replace("open an issue", `<a href="${REPO}/issues/new" rel="noopener">open an issue</a>`).replace(CONTACT, `<a href="mailto:${CONTACT}">${CONTACT}</a>`)}</p>
 ${audits.length ? `<ul class="audit-cards">\n${auditOrder.map(auditCard).join("\n")}\n</ul>` : "<p>No audits yet.</p>"}`,
     ),
   });
@@ -531,7 +531,7 @@ ${bigNumber(a, true)}
 ${m.path ? `<div><dt>Folder</dt><dd><a href="${m.repo}/tree/${m.commit}/${m.path}" rel="noopener"><code>${e(m.path)}/</code></a></dd></div>` : ""}
 <div><dt>leanprompt version</dt><dd><a href="${REPO}/tree/v${e(m.leanprompt)}" rel="noopener">${e(m.leanprompt)}</a></dd></div>
 <div><dt>Audit date</dt><dd><time datetime="${m.date}">${m.date}</time></dd></div>
-<div><dt>Status</dt><dd>${e(STATUS_TEXT[m.status])}</dd></div>
+<div><dt>Status</dt><dd>${m.no_channel ? e(m.no_channel).replace(CONTACT, `<a href="mailto:${CONTACT}">${CONTACT}</a>`) : e(STATUS_TEXT[m.status])}</dd></div>
 ${links ? `<div><dt>Maintainers</dt><dd>${links}</dd></div>` : ""}
 ${a.unattended ? `<div><dt>How it ran</dt><dd>${e(UNATTENDED_LINE)}</dd></div>` : ""}
 </dl>

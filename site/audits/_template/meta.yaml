@@ -20,7 +20,8 @@ leanprompt: 0.1.0
 date: 2026-12-01
 # draft      not published (the build skips it)
 # notified   the maintainers were told (needs maintainer.issue or maintainer.pr)
-# published  published without a maintainer thread
+# published  published without a maintainer thread; when the repository has no public channel
+#            (issues and discussions turned off), say so in no_channel below
 # acknowledged, fixed, disputed   what the maintainers said (needs maintainer.issue or .pr;
 #            disputed also needs maintainer.response)
 # withdrawn  taken down (the build skips it; keep the folder as the record)
@@ -53,3 +54,8 @@ status: draft
 #   pr: https://github.com/<owner>/<repo>/pull/124
 #   response: Their words, quoted or summarised with their agreement.
 #   response_date: 2026-12-03
+# Optional, status published only: why there is no maintainer thread to link, in literally true
+# words, shown as the page's status (at most 300 characters).
+# no_channel: >-
+#   The repository has issues and discussions turned off, so there was no public channel to report
+#   this. The maintainers can reach us at info@podwarden.com.

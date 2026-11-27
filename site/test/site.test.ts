@@ -163,6 +163,10 @@ describe("the audits index", () => {
       if (b === "fixed") expect(a.meta.status, a.slug).toBe("fixed");
       if (b === "demo") expect(a.meta.status, a.slug).toBe("demo");
       if (b === "reported" || b === "fixed" || b === "planned") expect(a.meta.maintainer?.issue ?? a.meta.maintainer?.pr, a.slug).toBeTruthy();
+      if (b === "nochannel") {
+        expect(a.meta.status, a.slug).toBe("published");
+        expect(a.meta.no_channel, a.slug).toBeTruthy();
+      }
       expect(index(), a.slug).toContain(`badge badge-${b}">${BADGES[b!]}`);
     }
   });
@@ -266,7 +270,12 @@ describe("audit pages", () => {
         expect(t, a.slug).toContain("Other problems the audit found");
         expect(html.get(`leanprompt/audits/${a.slug}/report/index.html`)!, a.slug).toContain('id="s-notes"');
       }
-      if (a.meta.status !== "demo") expect(a.meta.maintainer?.issue ?? a.meta.maintainer?.pr, a.slug).toBeTruthy();
+      // Every real audit links where the maintainers were told, or says why there was no channel.
+      if (a.meta.status !== "demo" && !a.meta.no_channel) expect(a.meta.maintainer?.issue ?? a.meta.maintainer?.pr, a.slug).toBeTruthy();
+      if (a.meta.no_channel) {
+        expect(t, a.slug).toContain(a.meta.no_channel);
+        expect(t, a.slug).not.toContain("Status Published.");
+      }
     }
   });
 
@@ -311,8 +320,17 @@ figure:
     ["a figure with finding and count", good.replace("figure:\n", "figure:\n  count: 3 of 9\n  finding: a.ts:1\n"), /finding or count, not both/],
     ["a malformed count", good.replace("figure:\n", "figure:\n  count: many\n"), /figure.count must be/],
     ["a figure unit other than calls or runs", good.replace("figure:\n", "figure:\n  unit: days\n"), /figure.unit must be calls or runs/],
+    ["no_channel on a notified audit", good.replace("published", "notified") + "maintainer:\n  issue: https://github.com/acme/widget/issues/1\nno_channel: Issues are off.\n", /no_channel goes only with status: published/],
+    ["an empty no_channel", good + "no_channel: \"\"\n", /no_channel must be a sentence/],
+    ["a no_channel over 300 characters", good + `no_channel: ${"x".repeat(301)}\n`, /no_channel must be at most 300 characters/],
   ])("refuse %s", (_name, text, re) => {
     expect(validateMeta(text, "acme__widget").errors.join("\n")).toMatch(re);
+  });
+
+  it("accept a published audit that says why there is no maintainer thread", () => {
+    const { meta, errors } = validateMeta(good + "no_channel: The repository has issues and discussions turned off.\n", "acme__widget");
+    expect(errors).toEqual([]);
+    expect(meta?.no_channel).toBe("The repository has issues and discussions turned off.");
   });
 
   it("accept a draft without the headline fields", () => {

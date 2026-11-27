@@ -1,0 +1,25 @@
+# Audited with leanprompt 0.1.0-dev.14, unattended, on a clone of main (the only branch) at the
+# commit below. The audit covers the gateway's billing, its protocol converters and the built-in
+# Studio agent's own calls. Changes to the findings file the audit wrote: wording only (the notes say
+# what the code bills, not who pays; the cache-billing note carries its worked example and the dated
+# list prices it rests on; the removed design note is cited by the commit that removed it). Prior art
+# checked: issues and discussions are turned off; the README, docs/, all commit subjects, the 17
+# closed pull requests and the design notes removed in 31df916a mention no prompt caching, cache
+# marks or cache pricing. The token figures rest on an assumed call mix, stated on each finding.
+repo: https://github.com/infinmalum/a1o-platform
+visibility: public
+commit: 1e446018383c993632341312b0019e39859cfd7c
+leanprompt: 0.1.0-dev.14
+date: 2026-11-27
+status: published
+no_channel: >-
+  The repository has issues and discussions turned off, so there was no public channel to report this. The maintainers can reach us at info@podwarden.com.
+summary: >-
+  A self-hosted LLM gateway that converts between the OpenAI, Anthropic and Gemini formats and bills a per-user quota from provider usage, with a built-in agent, Studio. Its billing prices cache reads as ordinary input, and requests it converts for Claude carry no cache mark. Figures are estimates from the code. leanprompt is made by the LM Warden Team, whose LM Warden is in the same market.
+headline: "A gateway that keeps your cache marks, then bills cached tokens at full price"
+subtitle: >-
+  A self-hosted gateway that passes native requests through byte for byte and reads every provider's usage correctly, derived from One API.
+kind: Blind spend meter
+figure:
+  finding: "responses-claude-no-marks"
+  label: "billed uncached on Studio's agent legs to Claude, which carry no cache mark (call mix assumed)"
