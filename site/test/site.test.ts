@@ -1,4 +1,4 @@
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -154,7 +154,7 @@ describe("audit pages", () => {
     const t = page();
     expect(t).toContain("Where leanprompt could save tokens");
     expect(t).toContain("Audited 2026-11-26 with leanprompt 0.1.0-dev.12");
-    expect(t).toContain("46d385f");
+    expect(t).toContain("67e1586");
     expect(t).toContain(ESTIMATE_LABEL);
     const h = html.get("leanprompt/audits/podwarden__leanprompt/index.html")!;
     // Every figure: each finding with tokens carries the Estimate tag.
@@ -170,6 +170,30 @@ describe("audit pages", () => {
     const report = textOf(html.get("leanprompt/audits/podwarden__leanprompt/report/index.html")!).replace(/\s+/g, " ");
     expect(report).toContain("Corrections and takedown: email info@podwarden.com");
     expect(report).toContain(ESTIMATE_LABEL);
+  });
+
+  it("show planned work, how-often flags, fixed findings and notes, and link the code at the commit audited", () => {
+    const audits = loadAudits(ROOT, loadRuleIds(ROOT));
+    for (const a of audits) {
+      const h = html.get(`leanprompt/audits/${a.slug}/index.html`)!;
+      const t = textOf(h).replace(/\s+/g, " ");
+      // The findings.json link names the folder as it is in the repository: GitHub paths are case-sensitive.
+      expect(h, a.slug).toContain(`/blob/main/site/audits/${a.folder}/findings.json`);
+      expect(existsSync(join(ROOT, "site", "audits", a.folder, "findings.json")), a.folder).toBe(true);
+      for (const f of a.findings) if (f.file !== "<external>") expect(h, `${a.slug} ${f.file}`).toContain(`${a.meta.repo}/blob/${a.meta.commit}/${f.file}#L${f.line}`);
+      expect(t.split("Already planned.").length - 1, a.slug).toBe(a.findings.filter((f) => f.planned && !f.fixed).length);
+      expect(t.split("how often is assumed").length - 1, a.slug).toBe(a.findings.filter((f) => f.status === "frequency-unknown").length);
+      if (a.findings.some((f) => f.fixed)) expect(t, a.slug).toContain("Already fixed");
+      for (const n of a.notes ?? []) {
+        expect(t, a.slug).toContain(n.title.replace(/['"&<>]/g, " "));
+        if (n.file !== "<external>") expect(h).toContain(`${a.meta.repo}/blob/${a.meta.commit}/${n.file}#L${n.line}`);
+      }
+      if (a.notes?.length) {
+        expect(t, a.slug).toContain("Other problems the audit found");
+        expect(html.get(`leanprompt/audits/${a.slug}/report/index.html`)!, a.slug).toContain('id="s-notes"');
+      }
+      if (a.meta.status !== "demo") expect(a.meta.maintainer?.issue ?? a.meta.maintainer?.pr, a.slug).toBeTruthy();
+    }
   });
 
   const good = `repo: https://github.com/acme/widget

@@ -279,7 +279,13 @@ export function projectName(dir: string): string {
   try {
     const git = (...a: string[]) => execFileSync("git", ["-C", dir, ...a], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
     // Only the project's own repository: a folder inside another repository does not take that one's name.
-    if (realpathSync(git("rev-parse", "--show-toplevel")) !== realpathSync(dir)) throw new Error("not the top");
+    // realpathSync.native expands Windows 8.3 short names (C:\Users\RUNNER~1\...) that git prints in full;
+    // Windows paths compare without case.
+    const canon = (p: string) => {
+      const r = realpathSync.native(p);
+      return process.platform === "win32" ? r.toLowerCase() : r;
+    };
+    if (canon(git("rev-parse", "--show-toplevel")) !== canon(dir)) throw new Error("not the top");
     const remote = git("remote", "get-url", "origin");
     const m = /([^/:]+?)(?:\.git)?\/?$/.exec(remote);
     if (m && m[1]) return m[1];

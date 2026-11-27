@@ -1,0 +1,12 @@
+# Audited with leanprompt 0.1.0-dev.11; findings converted to the 0.1.0-dev.13 format
+# (notes, frequency-unknown) and re-scored with 0.1.0-dev.13. The commit is the one audited.
+repo: https://github.com/yihong0618/bilingual_book_maker
+visibility: public
+commit: 5e40cbcc6c22a7f057db957348e0be380f6bca10
+leanprompt: 0.1.0-dev.13
+date: 2026-11-26
+status: fixed
+summary: >-
+  A book translator that is already very cache-aware: session mode, Anthropic cache marks, cached-token metering, the batch APIs. A retry of a cut-off batch was fixed in pull request #590 (merged 2026-11-27); a question about stacked timeouts and an unchecked cut-off reply remain. Audited with leanprompt 0.1.0-dev.11, re-scored with 0.1.0-dev.13.
+maintainer:
+  pr: https://github.com/yihong0618/bilingual_book_maker/pull/590

@@ -242,12 +242,13 @@ td.a-right,th.a-right{text-align:right}
 .dateline{font-size:var(--t-small);line-height:1.4;color:var(--ink-2);margin:-12px 0 24px;font-variant-numeric:tabular-nums}
 .notice{margin:0 0 24px;padding:14px 16px;background:var(--notice);border:1px solid var(--notice-edge);border-radius:var(--r);font-size:var(--t-small);max-width:none}
 .notice b{font-weight:640}
-.prose .findings{list-style:none;padding:0;margin:16px 0 0}
-.finding{padding:24px 0;border-top:1px solid var(--rule)}
-.finding h3{margin:0 0 6px}
+.prose .findings,.prose .notes{list-style:none;padding:0;margin:16px 0 0}
+.finding,.note{padding:24px 0;border-top:1px solid var(--rule)}
+.finding h3,.note h3{margin:0 0 6px}
 .prose .finding h3 code{background:none;padding:0;color:var(--accent-text);font-weight:500;margin-right:.3em}
-.finding p{margin-top:10px}
-.finding p.small{margin-top:4px}
+.finding p,.note p{margin-top:10px}
+.finding p.small,.note p.small{margin-top:4px}
+.planned{padding-left:12px;border-left:3px solid var(--notice-edge);overflow-wrap:anywhere}
 .estimate{font-size:var(--t-small)}
 .est-tag{display:inline-block;font:620 .8125rem/1.5 var(--sans);letter-spacing:.01em;padding:0 6px;border:1px solid var(--notice-edge);border-radius:3px;color:var(--accent-text);margin-right:6px;vertical-align:1px}
 .response{margin:16px 0}

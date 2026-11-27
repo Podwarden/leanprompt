@@ -1,0 +1,177 @@
+{
+  "v": 1,
+  "average_call": {
+    "prompt_tokens": 6000,
+    "output_tokens": 1500
+  },
+  "kvsig": {
+    "used": false
+  },
+  "findings": [
+    {
+      "rule": "LP-GE-05",
+      "file": "gpt_researcher/utils/llm.py",
+      "line": 151,
+      "saves": "both",
+      "severity": "high",
+      "share": 0.2,
+      "tokens_per_1k": {
+        "output": 300000,
+        "prompt": 360000
+      },
+      "problem": "When a model returns an empty answer, the shared completion helper sends the exact same request again, up to 10 times. On reasoning models an empty answer almost always means the output limit was used up by reasoning, so the same request fails the same way and every attempt is billed.",
+      "change": "Read the finish reason the provider already returns (finish_reason 'length' on OpenAI-compatible APIs, stop_reason 'max_tokens' on Anthropic, MAX_TOKENS on Gemini). If the empty answer was cut off by the limit, retry at most once with a larger limit (for example double, capped), or raise a clear error naming the token-limit setting. Keep the current retry for empty answers that were not cut off.",
+      "why": "Each repeated attempt bills up to the full output limit (4,000 or 8,000 tokens in deep research) and returns nothing usable.",
+      "estimate": "about 300k output and 360k prompt tokens per 1,000 calls (estimate)",
+      "assumptions": "Call mix: 80% of runs are standard reports (3 calls), 15% deep research (about 33 calls), 5% detailed; so about 60% of calls are deep research. After PR #2260, 2% of result-analysis calls (8,000 limit) and 10% of plan calls and 2% of query calls (4,000 limit) still come back empty from truncation, and when they do the 9 retries also come back empty. Issue #2251 measured 202 empty responses in 13 runs before the fix. Each retry also resends the prompt, about 6k tokens on average, so the prompt side is about 0.06 of prompt tokens; the share recorded is the larger output side.",
+      "verify": "Mock a provider whose response metadata has finish_reason 'length' and empty content: before the fix get_chat_response is awaited 10 times, after it at most 2 times and the second call has a larger max_tokens.",
+      "status": "frequency-unknown",
+      "confirm": "How often a call still comes back empty because the output limit was reached after #2260: count 'Empty response' warnings, with the provider's finish reason, in a deep-research run log.",
+      "planned": "Issue #2251 (closed) proposed retrying a cut-off empty answer once with a larger limit; pull request #2260 (merged) fixed the result-analysis call and the metering. Pull request #2381 (from this audit, open) proposes the rest."
+    },
+    {
+      "rule": "LP-GE-03",
+      "file": "gpt_researcher/skills/deep_research.py",
+      "line": 349,
+      "saves": "generation",
+      "severity": "medium",
+      "share": 0.009,
+      "status": "frequency-unknown",
+      "confirm": "How often gpt-5.4 at reasoning_effort high returns empty content for the research-plan prompt with a 4,000-token limit (count 'LLM returned empty response' warnings in a deep run log).",
+      "tokens_per_1k": {
+        "output": 13000
+      },
+      "problem": "The deep-research plan call runs the strategic model at high reasoning effort with the helper's default 4,000-token limit, which also has to cover the reasoning. This is the same shape PR #2260 fixed for the result-analysis call, but the plan call and the query-generation call were left at 4,000.",
+      "change": "Pass max_tokens=cfg.strategic_token_limit to generate_research_plan and generate_search_queries, as #2260 did for process_research_results.",
+      "why": "A cut-off plan returns empty after spending the whole 4,000-token budget, and then falls into the unchanged retry above.",
+      "estimate": "about 13k output tokens per 1,000 calls (estimate), first attempts only; the retries are counted in the empty-answer finding",
+      "assumptions": "About 18 plan calls and 74 query calls per 1,000 app calls; 10% of plan calls and 2% of query calls are cut off at 4,000 tokens.",
+      "verify": "In a deep run with LOG_LEVEL=DEBUG, the count of empty-response warnings from these two calls drops to zero; existing test tests/test_deep_research_reasoning_budget.py extended to the two calls.",
+      "planned": "Issue #2251 (closed) proposed retrying a cut-off empty answer once with a larger limit; pull request #2260 (merged) fixed the result-analysis call and the metering. Pull request #2381 (from this audit, open) proposes the rest."
+    },
+    {
+      "rule": "LP-PC-02",
+      "file": "backend/chat/chat.py",
+      "line": 246,
+      "saves": "prefill",
+      "severity": "high",
+      "share": 0.016,
+      "tokens_per_1k": {
+        "uncached": 93000
+      },
+      "problem": "The chat-about-the-report system prompt contains the current time down to the microsecond and the report passages retrieved for this turn, and it comes before the conversation history. So the start of every request is new, and none of the earlier turns can be served from the provider's prompt cache.",
+      "change": "Keep the system prompt fixed for the conversation (date only, no time, set once), keep the history after it unchanged, and put the passages retrieved for this turn into the newest user message instead of the system prompt. Retrieval per turn (the comment at line 223) stays as it is.",
+      "why": "On OpenAI, prompt caching is automatic for a repeated prefix of 1,024 tokens or more; with a new prefix on every turn the history is billed at full input price every time.",
+      "estimate": "about 93k prompt tokens per 1,000 calls not served from cache (estimate)",
+      "assumptions": "Chat is 10% of the app's calls; 4 turns per chat; about 650 tokens per turn of history; fixed system part about 300 tokens; only prefixes of 1,024 tokens or more count, in 128-token steps, so turns 1 and 2 gain nothing.",
+      "verify": "Two chat turns a minute apart on the same report: usage prompt_tokens_details.cached_tokens on the third turn rises from 0 to about the size of system prompt plus earlier turns."
+    },
+    {
+      "rule": "LP-GE-10",
+      "file": "gpt_researcher/skills/deep_research.py",
+      "line": 382,
+      "saves": "generation",
+      "severity": "medium",
+      "share": 0.002,
+      "tokens_per_1k": {
+        "output": 3300
+      },
+      "problem": "The deep-research calls ask for JSON in the prompt text but do not use the provider's structured output. The parsers are forgiving and fall back to line parsing, so a malformed answer is rarely re-asked, but when nothing parses the learnings from that query are dropped.",
+      "change": "Where the provider supports it, pass a JSON schema (with_structured_output or response_format json_schema) for the learnings, queries and plan calls, and keep the current parser as the fallback for providers without it.",
+      "why": "An unparseable answer is output that was paid for and thrown away.",
+      "estimate": "about 3k output tokens per 1,000 calls (estimate)",
+      "assumptions": "1% of the 166 result-analysis calls per 1,000 calls fail to parse at about 2,000 output tokens each.",
+      "verify": "Count parse fallbacks (no learnings returned) over a deep run before and after."
+    },
+    {
+      "rule": "LP-PD-06",
+      "file": "gpt_researcher/skills/deep_research.py",
+      "line": 341,
+      "saves": "prefill",
+      "severity": "low",
+      "share": 0.0001,
+      "tokens_per_1k": {
+        "prompt": 900
+      },
+      "problem": "The research-plan prompt pastes the raw search results as a Python list repr, with every key and quote repeated for each result.",
+      "change": "Format the results as short title, URL and snippet lines, as other prompts in the project already do.",
+      "why": "Repeated keys and quoting add tokens that carry no information.",
+      "estimate": "about 1k prompt tokens per 1,000 calls (estimate)",
+      "assumptions": "One plan call per deep run (about 18 per 1,000 calls); about 3,000 tokens of results, 15% of it key and quote overhead.",
+      "verify": "prompt_tokens of the plan call drops by about 15% for the same query."
+    },
+    {
+      "rule": "LP-GE-05",
+      "file": "gpt_researcher/utils/llm.py",
+      "line": 127,
+      "saves": "both",
+      "severity": "high",
+      "share": 0.001,
+      "tokens_per_1k": {
+        "prompt": 0
+      },
+      "problem": "Every exception from the provider is retried up to 10 times with backoff, including errors that cannot succeed on retry: a wrong API key, a rejected parameter, a prompt over the context window, exhausted credit. Sub-query generation chains three such calls, so a bad key takes 30 attempts and about 3 minutes before the run reports the error.",
+      "change": "Do not retry authentication, permission, bad-request and context-length errors (HTTP 400, 401, 403, 404, 413, and 429 for exhausted quota); raise them on the first attempt. Keep retries for connection errors, 408, 409, 429 rate limits and 5xx.",
+      "why": "Rejected requests are usually not billed, so the cost is mostly time and a slow, noisy failure, not tokens.",
+      "estimate": "near zero tokens; up to about 55 s of backoff per call and about 3 minutes per run on a persistent error (estimate)",
+      "assumptions": "Rejected 4xx requests are not billed by the provider. The SDK under LangChain also retries 408, 409, 429 and 5xx twice on its own.",
+      "verify": "A provider that raises an authentication error is awaited once, not 10 times."
+    },
+    {
+      "rule": "LP-GE-08",
+      "file": "gpt_researcher/actions/agent_creator.py",
+      "line": 46,
+      "saves": "both",
+      "severity": "medium",
+      "share": 0.001,
+      "problem": "Picking the research persona is a short label call (a name and a one-paragraph role), but it runs on the smart model, the one used to write the report.",
+      "change": "Run choose_agent on the fast model (FAST_LLM), after an answer check on a sample of queries.",
+      "why": "The smart model (default gpt-6-sol) costs several times the fast model (default gpt-5.4-mini) per token for a task the small model can do.",
+      "estimate": "price only, no tokens saved",
+      "assumptions": "One persona call per research run, and one per nested researcher in deep research.",
+      "verify": "On 20 sample queries, the fast model picks a persona that a reviewer accepts as often as the smart model does."
+    }
+  ],
+  "notes": [
+    {
+      "title": "Cached OpenAI input is priced at half the input rate for every model",
+      "file": "gpt_researcher/utils/costs.py",
+      "line": 24,
+      "problem": "OPENAI_CACHED_INPUT_DISCOUNT = 0.5 applies to every OpenAI model (used at lines 306-313). OpenAI's pricing page (read 2026-11-26) lists cached input at a tenth of the input price for the three default models, so their cached tokens are reported at five times their price. The tests use gpt-4o, where 0.5 is right. The comment at lines 18-23 says to revisit this when a model has a different ratio.",
+      "change": "Add a cached-input price to each OPENAI_MODEL_PRICING row and use it, keeping 0.5 as the fallback for unknown models.",
+      "verify": "A parametrised test in tests/test_costs.py for the default models and gpt-4o."
+    },
+    {
+      "title": "A report cut off at the output limit is accepted as complete",
+      "file": "gpt_researcher/actions/report_generation.py",
+      "line": 292,
+      "problem": "generate_report streams the report with max_tokens set to SMART_TOKEN_LIMIT, which on reasoning models also covers the reasoning. No code reads finish_reason or stop_reason, so a report that hits the limit stops mid-sentence and is saved and shown as complete. Only the empty case is detected (utils/llm.py:151).",
+      "change": "Warn when the response metadata says the limit was reached, naming SMART_TOKEN_LIMIT.",
+      "verify": "With a small SMART_TOKEN_LIMIT, the run logs a warning and the report is marked as cut off."
+    },
+    {
+      "title": "A report stream that fails part way is shown twice",
+      "file": "gpt_researcher/actions/report_generation.py",
+      "line": 307,
+      "problem": "When the streamed report fails after some chunks were sent, generate_report sends the whole report again through the same websocket (lines 307-322). The Next.js frontend appends report chunks (frontend/nextjs/hooks/useWebSocket.ts:120-121), so the user sees the partial report followed by the full one. Read in the code, not reproduced.",
+      "change": "Send a message that clears the partial report before the second attempt, or replace the answer instead of appending on a retry.",
+      "verify": "A provider that fails after a few chunks: the page shows one report."
+    },
+    {
+      "title": "Persona calls in deep research produce a role nobody reads",
+      "file": "gpt_researcher/agent.py",
+      "line": 388,
+      "problem": "Each nested researcher in deep research (about 9 per default run) calls choose_agent on the smart model (lines 388-400). The role is used by the writer and the curator, which nested researchers do not run with the default CURATE_SOURCES=False.",
+      "change": "Pass a fixed agent and role to the nested researchers, so they skip the persona call.",
+      "verify": "A default deep-research run makes about 9 fewer smart-model calls, with the same report."
+    },
+    {
+      "title": "Chat and multi-agent calls are not metered",
+      "file": "backend/chat/chat.py",
+      "line": 155,
+      "problem": "The chat path calls create_chat_completion_with_tools without cost_callback, so chat costs are never counted, and the multi-agent mode has cost_callback commented out (multi_agents/agents/utils/llms.py:30).",
+      "change": "Pass cost_callback on both paths.",
+      "verify": "After one chat turn, get_costs() is above zero."
+    }
+  ]
+}

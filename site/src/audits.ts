@@ -13,7 +13,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { parse } from "yaml";
-import { parseFindings, type AverageCall, type Finding, type KvsigUse } from "../../cli/src/score/static.js";
+import { parseFindings, type AverageCall, type Finding, type KvsigUse, type Note } from "../../cli/src/score/static.js";
 
 export const AUDITS_DIR = "site/audits";
 
@@ -49,11 +49,16 @@ export interface AuditMeta {
 }
 
 export interface Audit {
+  /** The page key: the folder name in lower case. */
   slug: string;
+  /** The folder under site/audits/ as it is in the repository (GitHub paths are case-sensitive). */
+  folder: string;
   meta: AuditMeta;
   findings: Finding[];
   average_call?: AverageCall;
   kvsig?: KvsigUse;
+  /** Verified problems outside the rules: shown after the findings, never scored. */
+  notes?: Note[];
 }
 
 const GITHUB_REPO = /^https:\/\/github\.com\/([A-Za-z0-9-]{1,39})\/([A-Za-z0-9._-]{1,100})$/;
@@ -178,10 +183,12 @@ export function loadAudits(root: string, ruleIds: ReadonlySet<string>): Audit[] 
     }
     out.push({
       slug: slug.toLowerCase(),
+      folder: slug,
       meta,
       findings: parsed.findings,
       ...(parsed.average_call ? { average_call: parsed.average_call } : {}),
       ...(parsed.kvsig ? { kvsig: parsed.kvsig } : {}),
+      ...(parsed.notes?.length ? { notes: parsed.notes } : {}),
     });
   }
   if (problems.length) throw new Error(`audits:\n  ${problems.join("\n  ")}`);

@@ -1,0 +1,84 @@
+{
+  "v": 1,
+  "average_call": {
+    "prompt_tokens": 6830,
+    "output_tokens": 470
+  },
+  "findings": [
+    {
+      "rule": "LP-PC-01",
+      "file": "lib/model/client.ts",
+      "line": 60,
+      "saves": "prefill",
+      "severity": "medium",
+      "share": 0.176,
+      "tokens_per_1k": {
+        "uncached": 1200000
+      },
+      "problem": "Only the system prompt carries a cache mark. Inside one question the tool loop calls the model again after every tool round, and each call resends the question, the model's earlier tool requests and every tool result so far. None of that part is marked, so it is never read from the cache and is paid at the full input price on every round.",
+      "change": "Also mark the newest message: at send time, add cache_control {type: 'ephemeral'} to the last content block of the last message (or set the request-level automatic cache_control). Keep the stored history unchanged. Update the budget meter to count cache writes and reads at the same time (see the notes).",
+      "why": "Each tool round extends the previous request byte for byte, so with a mark on the newest message the next round reads everything before its new tool results from cache at 0.1x the input price instead of paying full price again.",
+      "estimate": "about 1.2M prompt tokens per 1,000 calls not served from cache (estimate)",
+      "assumptions": "3 model calls per question (two tool rounds and the answer, as route.ts:13 and :33 describe); about 10k uncached input tokens per question, inferred from the 5-7 cents per question in route.ts:33 at the prices in lib/budget/pricing.ts; tool rounds of about 3k tokens each; the 3.5k-token tools and system head is already cached. A heavy question (README.md:80, about 40k input) loses proportionally more.",
+      "verify": "Run one question that makes two tool rounds. Before: cache_read_input_tokens on rounds 2 and 3 equals the head (about 3.5k). After: it rises by the size of the earlier messages (about 0.3k on round 2, about 3.3k on round 3), and input_tokens falls by the same amount."
+    },
+    {
+      "rule": "LP-PC-07",
+      "file": "lib/chat/system-prompt.ts",
+      "line": 94,
+      "saves": "prefill",
+      "severity": "low",
+      "share": 0.008,
+      "tokens_per_1k": {
+        "uncached": 57000
+      },
+      "status": "frequency-unknown",
+      "confirm": "How often a visitor starts a conversation within 5 minutes of another visitor's request, and how often their shared location (or the UTC date) differs. Read it from the Vercel request log or the app's budget store timestamps.",
+      "problem": "The visitor's coordinates (line 94) and today's date (line 54) are inside the one system block that carries the cache mark. Two visitors with different locations therefore never share the cached tools and instructions, and the date changes the block once a day.",
+      "change": "Split the system prompt into two blocks: the fixed instructions first with the cache mark, then a short second block with the date and the location line and no mark. Alternatively put a mark on the last tool as well.",
+      "why": "A cache entry is found only for the exact bytes up to the mark, so one changed coordinate in the last paragraph makes the whole 3.5k-token head a miss for that visitor.",
+      "estimate": "about 57k prompt tokens per 1,000 calls (estimate, depends on traffic)",
+      "assumptions": "6 calls per conversation (two questions of three calls), so 167 first calls per 1,000; 10% of them start within the 5-minute cache lifetime of another visitor with a different location or date; about 3.4k tokens would be shared. At the demo's stated traffic (about 15 questions a day) the real figure is close to zero.",
+      "verify": "Two first questions from two different locations within 5 minutes: before, the second reports cache_creation_input_tokens of about 3.5k; after, it reports cache_read_input_tokens of about 3.4k."
+    },
+    {
+      "rule": "LP-GE-04",
+      "file": "app/api/chat/route.ts",
+      "line": 15,
+      "saves": "both",
+      "severity": "low",
+      "share": 0.02,
+      "tokens_per_1k": {
+        "prompt": 137000,
+        "output": 9300
+      },
+      "status": "frequency-unknown",
+      "confirm": "The p95 duration of a whole question (all tool rounds) in production, compared with maxDuration = 60 seconds. Vercel's function logs show runs that hit the limit.",
+      "problem": "A whole question, up to 8 model calls at high effort with adaptive thinking and a 16,000-token output limit each, must finish inside one 60-second function. If it does not, the function is stopped: the visitor gets a cut-off answer, the tokens already generated are paid for, and the budget meter never records them because the done event is never sent.",
+      "change": "Measure first. If questions come near 60 seconds, either raise maxDuration (the plan allows it) or lower the output and effort settings for later rounds; and record usage after every model call rather than only on done.",
+      "why": "Tokens generated before the function is stopped are billed and thrown away, and a visitor who gets no answer usually asks again, paying for the whole question twice.",
+      "estimate": "about 137k prompt and 9k output tokens per 1,000 calls (estimate, if 2% of questions hit the limit)",
+      "assumptions": "2% of questions exceed 60 seconds (unknown; the comment at lib/model/client.ts:7-10 shows the author watches p95 latency); a cut-off question has cost 20.5k prompt and 1.4k output tokens and is asked again.",
+      "verify": "Count function runs that end at 60 seconds over a week before and after; each should end with a done event and a usage record."
+    }
+  ],
+  "notes": [
+    {
+      "title": "The daily budget meter undercounts spend",
+      "file": "lib/budget/pricing.ts",
+      "line": 9,
+      "problem": "costCents is fed message.usage.input_tokens and output_tokens only (lib/chat/run.ts:98). On Anthropic input_tokens counts only the tokens after the last cache breakpoint, so cache writes (billed at 1.25x) and cache reads (0.1x) never reach the meter, and the daily cap can be overspent by about a third.",
+      "change": "Pass cache_creation_input_tokens and cache_read_input_tokens to the meter and price each at its own rate.",
+      "why": "The cap is what keeps the public demo inside its budget. Adding cache marks to the agent loop moves more tokens into the cache fields and widens the gap.",
+      "verify": "For one question, the meter's cents match the sum of the three input fields and the output at the prices in lib/budget/pricing.ts."
+    },
+    {
+      "title": "Questions that end without done are not metered",
+      "file": "lib/chat/handle-chat-request.ts",
+      "line": 156,
+      "problem": "recordUsage runs only on a done event. A question that hits the 8-round limit, errors, is refused after partial output or is aborted has been billed but is never counted.",
+      "change": "Record usage after every model call (or in a finally block), not only on done.",
+      "verify": "Abort a question after the first tool round: the budget store shows that round's tokens."
+    }
+  ]
+}

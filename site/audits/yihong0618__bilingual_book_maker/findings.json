@@ -1,0 +1,60 @@
+{
+  "v": 1,
+  "average_call": {
+    "prompt_tokens": 1700,
+    "output_tokens": 1800
+  },
+  "findings": [
+    {
+      "rule": "LP-GE-05",
+      "file": "book_maker/translator/chatgptapi_translator.py",
+      "line": 1811,
+      "saves": "both",
+      "severity": "high",
+      "share": 0.023,
+      "tokens_per_1k": {
+        "prompt": 17000,
+        "output": 41000
+      },
+      "problem": "When a grouped structured translation is cut off at the output limit, the OpenAI SDK's parse() raises LengthFinishReasonError. The retry decorator on _execute_structured_batch_translate retries every exception except three, and this one is not among them, so the same cut-off request is sent twice more unchanged, each time paying the full prompt and a full output limit, before the code falls back to translating the paragraphs one by one.",
+      "change": "Fixed after this audit by pull request #590, merged 2026-11-27: a truncated batch is treated as a mismatch, not a transport failure. LengthFinishReasonError and ContentFilterFinishReasonError are caught around the parse call, e.completion is metered as on the single-paragraph path, and BatchMismatch is raised, which the retry skips and the plan-mode ladder answers by halving the chunk.",
+      "why": "A request cut off at the output limit will be cut off again: the prompt, the model and the limit are the same. The two identical retries add cost without a usable answer, and they are the most expensive calls of the run, because each one generates up to the output limit.",
+      "estimate": "about 41k output and 17k prompt tokens per 1,000 calls (estimate)",
+      "assumptions": "1 in 200 grouped requests truncates (endpoints with a low default output limit, or reasoning models whose thinking counts toward it); each repeated retry costs about 1.7k prompt tokens and about 4.1k output tokens (a 4,096-token limit); 2 repeated retries per truncation; grouped requests of 1,200-1,600 source tokens (SESSION_BUDGET_FLOOR/CEILING) with about 1.8k output on average. The first truncated call is not counted: it is how the truncation is found.",
+      "verify": "In tests/test_chatgptapi_translator.py, a fake client whose parse() raises LengthFinishReasonError on a batch: before, parse is called 3 times; after, once, and BatchMismatch reaches the caller (plan mode then sends two half-size requests).",
+      "status": "frequency-unknown",
+      "confirm": "how often a grouped request stops with finish_reason length, from a run log of one book",
+      "fixed": true
+    },
+    {
+      "rule": "LP-GE-04",
+      "file": "book_maker/translator/chatgptapi_translator.py",
+      "line": 341,
+      "saves": "both",
+      "severity": "high",
+      "share": 0.01,
+      "tokens_per_1k": {
+        "prompt": 17000,
+        "output": 18000
+      },
+      "status": "needs-facts",
+      "confirm": "Whether any grouped request on the endpoints people use (reasoning models at high effort, slow local servers, gateways) takes longer than 300 seconds, and whether the endpoint keeps generating and billing after the client gives up. A run log with request durations, or the provider's usage page against the run's own meter, shows it.",
+      "problem": "The 300-second timeout with one SDK retry (line 341) is wrapped by a 3-attempt tenacity retry on the batch path (line 1807) and, after the batch gives up, by a per-paragraph sweep in which each paragraph has its own 3-attempt retry (line 1513). A batch that times out is therefore attempted up to 6 times, about 30 minutes, which is the stall the comment above REQUEST_LIMITS set out to prevent, and each abandoned attempt may still be generated and billed.",
+      "change": "Keep one retry layer for timeouts: either set max_retries to 0 on this client and let tenacity own retries, or exclude APITimeoutError from the tenacity retry on the batch path and let the existing one-by-one fallback (or the ladder) handle it. Non-streaming requests can also use streaming so a slow but working answer is not mistaken for a dead one.",
+      "why": "A client timeout stops the client waiting; it does not stop the server generating. Each retry after a timeout pays the prompt again while the abandoned answer may still be billed, and the same request times out the same way.",
+      "estimate": "about 18k output and 17k prompt tokens per 1,000 calls (estimate, if timeouts happen at all)",
+      "assumptions": "0.2% of grouped requests exceed 300 seconds; each produces 5 extra attempts of about 1.7k prompt and 1.8k output tokens, billed although abandoned. If the timeouts come from a gateway that never answers, no tokens are lost and the cost is only wall time.",
+      "verify": "With a fake client that raises APITimeoutError on a batch, count calls to it: before 3 (the tenacity layer), after 1. In production the SDK's max_retries=1 doubles each attempt, so before is 6 HTTP attempts and after 2."
+    }
+  ],
+  "notes": [
+    {
+      "title": "A cut-off plain translation is accepted silently",
+      "file": "book_maker/translator/chatgptapi_translator.py",
+      "line": 1366,
+      "problem": "_plain_translation returns message.content without looking at finish_reason. After a structured single-paragraph truncation the code retranslates on the plain path (line 1529) with the same output limit, so a paragraph that did not fit can be written into the book half translated, with no warning.",
+      "change": "Check finish_reason == \"length\" in _plain_translation and print a warning or mark the paragraph, or retry it once with a larger limit.",
+      "verify": "Translate one paragraph with a deliberately small output limit: the run prints a warning instead of writing a truncated paragraph."
+    }
+  ]
+}

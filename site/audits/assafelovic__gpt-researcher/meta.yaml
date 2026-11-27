@@ -1,0 +1,14 @@
+# Audited with leanprompt 0.1.0-dev.11; findings converted to the 0.1.0-dev.13 format
+# (planned, frequency-unknown, notes) and re-scored with 0.1.0-dev.13. The commit is the one audited.
+# Left out on purpose: retrying a timed-out call up to 10 times, which the project documents as
+# deliberate (docs/docs/gpt-researcher/gptr/config.md, "LLM Timeouts").
+repo: https://github.com/assafelovic/gpt-researcher
+visibility: public
+commit: 9d39a2f86d55e264f69dfeff2365f27fad3c1144
+leanprompt: 0.1.0-dev.13
+date: 2026-11-26
+status: notified
+summary: >-
+  A research agent that already meters every attempt and tracks its costs closely; a standard report is three calls. The largest finding, a cut-off empty answer resent unchanged, continues the project's own issue #2251; pull request #2381, opened with this audit, proposes the fix. Audited with leanprompt 0.1.0-dev.11, re-scored with 0.1.0-dev.13.
+maintainer:
+  pr: https://github.com/assafelovic/gpt-researcher/pull/2381

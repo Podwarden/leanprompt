@@ -41,6 +41,14 @@ The first release.
 - `npm run check:numbers`: every number with a unit in the README, the public docs and the skills cites an evidence row or a measured result.
 - Apache-2.0 for code, CC BY 4.0 for the skills and docs; README, CONTRIBUTING, GOVERNANCE and SECURITY (the last three under `.github/`).
 
+## Unreleased
+
+### Fixed
+
+- `report`: on Windows the project name fell back to the folder name instead of the git remote's repository, because Windows short paths (`RUNNER~1`) did not match the path git prints.
+- Site: an audit page's findings.json link used the lower-cased page key, so for a folder with capitals (`Mintplex-Labs__anything-llm`) it pointed at a path GitHub does not have.
+- Site: the demonstration audit named a commit that is not in the public repository, so its code links did not open; it names v0.1.0-dev.13 (`67e1586`), where the audited example is the same.
+
 ## 0.1.0-dev.13 – 2026-11-26
 
 Fixes for what real users hit, from feedback from four real audits, including one run independently by an app's own team.

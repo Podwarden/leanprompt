@@ -1,8 +1,9 @@
 # A demonstration: leanprompt audits its own example app, examples/dated-chat/before.
+# commit is a public commit (v0.1.0-dev.13): the page links the code there.
 # The template for a real audit, with every key explained, is site/audits/_template/meta.yaml.
 repo: https://github.com/Podwarden/leanprompt
 visibility: public
-commit: 46d385f531d0d78a1939413d659c300e3a974017
+commit: 67e1586bf656596452528744b4869bc5e74e1f27
 leanprompt: 0.1.0-dev.12
 date: 2026-11-26
 status: demo

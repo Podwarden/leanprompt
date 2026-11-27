@@ -1,0 +1,149 @@
+{
+  "v": 1,
+  "average_call": {
+    "prompt_tokens": 6900,
+    "output_tokens": 450
+  },
+  "findings": [
+    {
+      "rule": "LP-PC-02",
+      "file": "server/utils/AiProviders/openAi/index.js",
+      "line": 125,
+      "saves": "prefill",
+      "severity": "high",
+      "share": 0.176,
+      "tokens_per_1k": {
+        "uncached": 1214000
+      },
+      "problem": "Retrieved document chunks and the user's memories are appended to the system message, which comes before the chat history. The chunks change with every question, so the history after them can never be reused from the provider's prefix cache. The same layout is in 38 of the 40 chat providers. The maintainers already describe this exactly in issue #6401 (open, core-team-only).",
+      "change": "Follow the plan in #6401: keep the system message static and put retrieved context, memories and the current time into the newest user turn, assembled in one place (compressMessages) instead of in each provider.",
+      "why": "On OpenAI, Gemini, DeepSeek and local engines with prefix reuse, every turn after the first recomputes the whole chat history at the full input price.",
+      "estimate": "about 1.2M prompt tokens per 1,000 calls not served from cache (estimate)",
+      "assumptions": "1,000 app calls = 700 chat turns, 250 agent calls, 50 other; 85% of chat on providers with automatic prefix reuse; 60% of chat in workspaces with documents or memories; 85% of turns are not the first of a thread; average history 4,000 tokens; average prompt 6,900 tokens.",
+      "verify": "With the reorder applied, the second of two turns in the same thread a minute apart reports cached tokens (prompt_tokens_details.cached_tokens or input_tokens_details.cached_tokens) close to the history size instead of 0. Answer check required: the context moves away from the instructions.",
+      "planned": "Issue #6401 (open, core team): keep the system message static and move retrieved context, memories and the time into the newest user turn. https://github.com/Mintplex-Labs/anything-llm/issues/6401"
+    },
+    {
+      "rule": "LP-PC-03",
+      "file": "server/models/systemSettings.js",
+      "line": 40,
+      "saves": "prefill",
+      "severity": "high",
+      "share": 0.117,
+      "tokens_per_1k": {
+        "uncached": 809000
+      },
+      "problem": "The default system prompt contains 'The current date and time is {datetime}', which expands to the time to the minute near the start of every request. Consecutive turns rarely share a minute, so even in a workspace with no documents the whole history is recomputed each turn. Reported as #6398, moved by the maintainer into #6401; PR #6399 was closed unmerged.",
+      "change": "As planned in #6401: drop the datetime sentence from the default system prompt and send the time in the newest user turn; recognise the old default text stored in existing workspaces.",
+      "why": "The first changing token sits about 40 tokens into the prompt, so nothing after it can be reused.",
+      "estimate": "about 0.8M prompt tokens per 1,000 calls not served from cache (estimate)",
+      "assumptions": "Same call mix as the first finding; counts only the 40% of chat in workspaces without documents or memories, so it does not overlap the first finding; default prompt in use.",
+      "verify": "Build the system prompt twice across a minute boundary: the bytes must be equal. Then two turns a minute apart show cached tokens near the history size.",
+      "planned": "Reported in #6398, which the maintainers closed into #6401 (open, core team); #6401 drops the datetime from the default system prompt. https://github.com/Mintplex-Labs/anything-llm/issues/6401"
+    },
+    {
+      "rule": "LP-PD-05",
+      "file": "server/utils/chats/stream.js",
+      "line": 105,
+      "saves": "prefill",
+      "severity": "medium",
+      "share": 0.122,
+      "tokens_per_1k": {
+        "uncached": 840000
+      },
+      "problem": "History is the last 20 saved exchanges (openAiHistory, default 20). Once a thread passes 20 exchanges, every new turn drops the oldest one, so the start of the history changes on every turn. This is not covered in #6401 and would defeat its stated goal that everything before the latest user turn stays byte-identical.",
+      "change": "Drop old exchanges in steps (for example keep between 10 and 20 and cut back to 10 when 20 is reached) so the window moves only every tenth turn, or add this to the #6401 plan.",
+      "why": "A window that slides by one row each turn changes the first history message every turn, which breaks reuse of the entire history.",
+      "estimate": "about 0.84M prompt tokens per 1,000 calls (estimate), overlapping the first two findings today",
+      "assumptions": "15% of chat turns are in threads past 20 exchanges; a full window is about 8,000 tokens. Today the same tokens are already lost to the first two findings; this is the loss that remains after #6401 lands, so the shares are not additive.",
+      "verify": "In a thread with 25 exchanges, two consecutive turns after the #6401 change report cached tokens near the history size on all but one turn in ten."
+    },
+    {
+      "rule": "LP-PC-01",
+      "file": "server/utils/AiProviders/anthropic/index.js",
+      "line": 145,
+      "saves": "prefill",
+      "severity": "high",
+      "share": 0.052,
+      "tokens_per_1k": {
+        "uncached": 357000
+      },
+      "problem": "With the Anthropic 'Prompt Caching' option on, the only cache mark is on the system block, which holds the per-turn context and the per-minute datetime, and there is no mark on the history. Each turn pays the cache-write premium (1.25x, or 2x for 1 hour) on a block that is never read again, and the history is never cached. Already listed as point 4 of #6401.",
+      "change": "After the system block is made static (#6401), keep the mark there and add a second mark on the last history message, as #6401 proposes.",
+      "why": "Anthropic caches only up to a mark, so without a mark on the history it is recomputed every turn; a mark on changing content costs more than no mark.",
+      "estimate": "about 0.36M prompt tokens per 1,000 calls not served from cache (estimate)",
+      "assumptions": "15% of chat traffic on Anthropic (unknown, assumed); 85% non-first turns; history 4,000 tokens. Caching is off by default ('No caching'), a deliberate opt-in from #6035.",
+      "verify": "Two turns a minute apart: cache_read_input_tokens on the second rises from 0 to about the history size, and cache_creation_input_tokens drops to the new turn only.",
+      "planned": "Point 4 of issue #6401 (open, core team): a second cache mark on the last history message. https://github.com/Mintplex-Labs/anything-llm/issues/6401"
+    },
+    {
+      "rule": "LP-PC-01",
+      "file": "server/utils/agents/aibitat/providers/anthropic.js",
+      "line": 270,
+      "saves": "prefill",
+      "severity": "high",
+      "share": 0.033,
+      "tokens_per_1k": {
+        "uncached": 225000
+      },
+      "problem": "In the agent tool loop on Anthropic, the cache mark (when enabled) sits only on the system prompt and there is none on the messages, so each step of a multi-step tool task recomputes the preloaded history and every earlier tool result. With caching off (the default) nothing is cached at all. #6401 covers the chat path but does not name the agent loop.",
+      "change": "When ANTHROPIC_CACHE_CONTROL is set, also mark the last content block of the last message in the agent request (or use top-level automatic caching), so each step reads the previous step's prefix.",
+      "why": "An agent task makes several calls in a few seconds with a growing, append-only message list, which is the best case for caching.",
+      "estimate": "about 225k prompt tokens per 1,000 calls not served from cache (estimate)",
+      "assumptions": "250 agent calls per 1,000; 15% on Anthropic (assumed); 75% are not the first step of a task; about 8,000 tokens of history and tool results per later step.",
+      "verify": "In a two-tool task, the second and third calls report cache_read_input_tokens near the size of the previous request."
+    },
+    {
+      "rule": "LP-PD-04",
+      "file": "server/utils/agents/aibitat/plugins/web-scraping.js",
+      "line": 124,
+      "saves": "prefill",
+      "severity": "medium",
+      "share": 0.006,
+      "tokens_per_1k": {
+        "prompt": 43000
+      },
+      "problem": "The scrape tool returns the whole page text into the agent conversation whenever it is smaller than the model's entire context window, and summarises only above that. A 100k-token page on a 200k model goes in whole and is carried by every later call of the session.",
+      "change": "Summarise (or cut) above a fixed share of the window, for example a quarter, instead of the whole window.",
+      "why": "Every later step and turn of the agent session resends the page.",
+      "estimate": "about 43k prompt tokens per 1,000 calls (estimate)",
+      "assumptions": "About 62 agent tasks per 1,000 calls; 10% scrape a page; 30% of pages exceed 8,000 tokens by about 12,000 tokens; about 2 later calls carry it.",
+      "verify": "Scrape a long page and compare prompt_tokens on the next agent step before and after. Answer check required: the model sees a summary instead of the page."
+    },
+    {
+      "rule": "LP-PC-05",
+      "file": "server/utils/agents/aibitat/index.js",
+      "line": 1162,
+      "saves": "prefill",
+      "severity": "medium",
+      "share": 0.002,
+      "tokens_per_1k": {
+        "uncached": 15000
+      },
+      "problem": "When an agent task reaches the tool-call limit, the final call is sent with no tools, which removes the tool definitions from the front of the prompt and makes that call recompute everything.",
+      "change": "Keep the tool list and send tool_choice 'none' (or allowed_tools) on the final call, where the provider supports it.",
+      "why": "Tool definitions are part of the cached prefix; removing them changes the prefix from the start.",
+      "estimate": "about 15k prompt tokens per 1,000 calls not served from cache (estimate)",
+      "assumptions": "2% of agent tasks reach the limit; about 12,000 tokens of prefix on the final call.",
+      "verify": "On a task that hits the limit, the final call reports cached tokens near the previous request's size."
+    }
+  ],
+  "notes": [
+    {
+      "title": "The Anthropic chat connector looks up the model's output limit on every turn",
+      "file": "server/utils/AiProviders/anthropic/index.js",
+      "line": 58,
+      "problem": "A new AnthropicLLM is built for each chat (helpers/index.js:183-185), and its constructor starts fetchModelMaxTokens (lines 58-61); assertModelMaxTokens (lines 84-88) awaits a second models.retrieve if the first has not returned. That is one or two API round trips per turn, one before the first token. On any error, including a transient one, the lookup returns 4096 (lines 107-110), so that turn runs with max_tokens 4096 instead of the model's limit.",
+      "change": "Cache the output limit per model in a module-level map (helpers/contextWindowCache.js does this for context windows), and do not fall back silently to 4096 on a transient error.",
+      "verify": "Two chat turns on the same model make one models.retrieve call, not two or four."
+    },
+    {
+      "title": "A reply cut off at the output limit is saved as complete",
+      "file": "server/utils/AiProviders/anthropic/index.js",
+      "line": 380,
+      "problem": "handleStream resolves on message_stop whatever the stop_reason (lines 378-393), and the chat path does not call watchTokenLimit as the agent path does, so a reply that stopped at max_tokens is saved and shown as a complete answer. After a provider error mid-stream (lines 330-351) the partial text is also saved as a normal answer (chats/stream.js:357-375) and sent as history on later turns; for a user abort that is deliberate, for a provider error probably not.",
+      "change": "Surface stop_reason max_tokens to the user, as the agent path does, and mark a reply that ended in a provider error so it is not reused as a complete answer.",
+      "verify": "With a small output limit, the saved chat shows that the reply was cut off."
+    }
+  ]
+}

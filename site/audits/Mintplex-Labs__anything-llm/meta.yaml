@@ -1,0 +1,15 @@
+# Audited with leanprompt 0.1.0-dev.11; findings converted to the 0.1.0-dev.13 format
+# (planned, notes) and re-scored with 0.1.0-dev.13. The commit is the one audited.
+# Left out on purpose: the unbounded re-ask on unparseable tool arguments (the maintainers
+# declined re-prompting in #6593 and #7102) and the cache-token metering fix (in their open
+# pull request #6747).
+repo: https://github.com/Mintplex-Labs/anything-llm
+visibility: public
+commit: b01447009150507ae0cfd1304e3492fcaf2a92d8
+leanprompt: 0.1.0-dev.13
+date: 2026-11-26
+status: notified
+summary: >-
+  The three largest cache findings are already planned in the maintainers' issue #6401 and are marked so; the audit adds the sliding history window and the agent loop. Cache-token metering is in their open pull request #6747 and the tool-argument re-ask was declined in #7102, so neither is listed. Audited with leanprompt 0.1.0-dev.11, re-scored with 0.1.0-dev.13.
+maintainer:
+  issue: https://github.com/Mintplex-Labs/anything-llm/issues/6401#issuecomment-7208577332

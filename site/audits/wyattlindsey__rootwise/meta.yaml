@@ -1,0 +1,12 @@
+# Audited with leanprompt 0.1.0-dev.11; findings converted to the 0.1.0-dev.13 format
+# (notes, frequency-unknown) and re-scored with 0.1.0-dev.13. The commit is the one audited.
+repo: https://github.com/wyattlindsey/rootwise
+visibility: public
+commit: ff1860053a29c07bcac31cdfb9455ba74c0e831d
+leanprompt: 0.1.0-dev.13
+date: 2026-11-26
+status: notified
+summary: >-
+  A gardening-advice demo on Claude with a tool loop. It already marks its tools and system prompt for Anthropic's cache; the audit found the tool loop's own messages unmarked, and, outside the rules, two gaps in the daily budget meter. Audited with leanprompt 0.1.0-dev.11, re-scored with 0.1.0-dev.13.
+maintainer:
+  issue: https://github.com/wyattlindsey/rootwise/issues/1
