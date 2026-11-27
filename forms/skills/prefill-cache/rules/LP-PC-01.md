@@ -108,4 +108,4 @@ A mark does not change the text the model sees, so adding marks cannot change an
 
 ## Waste signal
 Measured: lowers E (provider-cached tokens over reusable tokens). kvsig says the prefix was equal, the provider reports no read. Missing marks count against the app: leanprompt scores what the provider could have reused, and a mark is the app's to add. Static: a finding of severity high on each Anthropic call site, direct or routed, that sends no marks. Medium for partial marking (the head is marked, the messages of a loop are not). Over-marking is reported with the break-even advice (mark, don't mark, longer lifetime, restructure).
-<!-- leanprompt:generated v0.1.0-dev.14: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.15: written by npx leanprompt install; npx leanprompt update replaces local edits -->

@@ -1,0 +1,31 @@
+# Audited with 0.1.0-dev.14, scored with 0.1.0-dev.15. Unattended, read-only, on a clone of main at
+# the commit below; the app was not run, no provider was called and no dependencies were installed
+# (the locked library versions were read from their npm tarballs). Changes to the findings file the
+# audit wrote: the Pinecone and MongoDB note now names LP-GE-13 (medium), since its embedding model
+# was removed from Together serverless. The evidence is the audit's own, unchanged; notes are never
+# scored and a rule id does not change a share, so the static score (82) and the big number are
+# unchanged. Prior art: the missing timeout is issue #27 (open), recorded as known and left out of
+# the score. One wording change, for the site's no-exclamation-mark rule: "passes embeddings!
+# (undefined)" now reads "passes that undefined value on behind a non-null assertion". The headline
+# is a note (no token cost), so the big number is the largest open finding, the context placed
+# before the chat history. No response from the maintainers yet (checked 2026-11-27).
+repo: https://github.com/Nutlope/pdftochat
+visibility: public
+commit: 94eb28178dd490774af5e3d146bb52a864dc48f9
+leanprompt: 0.1.0-dev.15
+date: 2026-11-27
+status: notified
+summary: >-
+  A Next.js demo for chatting with PDFs on Together AI, LangChain.js and Chroma Cloud. Since the move to Chroma the source page buttons get no page number, and the retrieved text sits before the chat history, so no follow-up can reuse the cached conversation. Figures are estimates from the code.
+maintainer:
+  issue: https://github.com/Nutlope/pdftochat/issues/38
+headline: "Source page links lost their page numbers when the app moved to Chroma"
+subtitle: >-
+  A compact Together AI and LangChain demo for chatting with PDFs, with hybrid dense and sparse search in Chroma Cloud.
+kind: Setting that does nothing
+figure:
+  finding: "context-first"
+  label: "recomputed because the retrieved text comes before the chat history"
+illustration:
+  scene: "a thick printed book lying open on a desk with a row of small blank paper bookmark tabs sticking out of its edge, every tab bunched at the same spot near the cover, while a brass page-turning clip hovers beside the book holding nothing"
+  alt: "A closed cream book with a row of blank paper bookmark tabs along its edge, and a brass binder clip floating beside it, holding nothing."

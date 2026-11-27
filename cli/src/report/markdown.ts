@@ -3,7 +3,7 @@ import { basename, join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { parse as parseYaml } from "yaml";
 import { profileTargets, type Profile } from "../profile.js";
-import { EXTERNAL, knownOf, type Finding, type Note } from "../score/static.js";
+import { EXTERNAL, knownOf, tokensLost, unitOf, type Finding, type Note } from "../score/static.js";
 import { costSummary, formatDollars, formatPrice, formatTokens, ownerQuestions as ownerQuestionList, type CostSummary } from "./cost.js";
 import {
   afterColon,
@@ -12,6 +12,7 @@ import {
   knownLine,
   largestQuestion,
   UNATTENDED_LINE,
+  NO_DISCOUNT_LINE,
   groups,
   shortTitle,
   handoffText,
@@ -23,6 +24,11 @@ import {
   splitLead,
   tokenKind,
   tokensOf,
+  tokensPhrase,
+  runText,
+  scopeCounts,
+  scopeLine,
+  SCOPE_LABEL,
   whereText,
   type ReportInput,
   type ScoreFile,
@@ -74,16 +80,22 @@ function findingBlock(f: Finding, n: number, o: ReportInput, version: string, ki
   const link = ruleLink(f, o.rules, version);
   const t = tokensOf(f);
   const out = [`${kind === "question" || kind === "server" || kind === "known" ? "####" : "###"} ${n}. ${cell(lead)} · ${where(f)}`, ""];
+  if (f.scope) out.push(`- **About:** ${SCOPE_LABEL[f.scope]}`);
   const li = (k: string, v: string | undefined) => v && out.push(`- **${k}:** ${cell(v)}`);
   li("Problem", f.problem);
   if (kind === "question" || (kind === "server" && f.status === "needs-facts")) li(kind === "server" ? "What would answer it" : "To confirm", f.confirm);
   li(kind === "question" || (kind === "server" && f.status === "needs-facts") ? "Change, if confirmed" : "What to change", f.change);
   li("Why it matters", f.why);
-  const est = f.estimate ?? (t !== undefined ? `about ${formatTokens(t)} tokens per 1,000 calls` : undefined);
-  const estKind = f.tokens_per_1k?.measured_calls ? `measured, ${f.tokens_per_1k.measured_calls} calls` : "estimate";
-  if (est) li("Estimate", /\((?:[^)]*\b)?(estimate|measured)\b/i.test(est) ? est : `${est} (${estKind})`);
+  const est = f.estimate ?? (t !== undefined ? tokensPhrase(f) : undefined);
+  const tl = tokensLost(f);
+  const counted = f.evidence === "counted";
+  const estKind = tl?.measured_calls ? `measured, ${tl.measured_calls} calls` : counted ? "counted" : "estimate";
+  if (est) li(counted ? "Counted" : "Estimate", /\((?:[^)]*\b)?(estimate|measured|counted)\b/i.test(est) ? est : `${est} (${estKind})`);
+  if (counted) li("Counted from", f.counted_from);
   li("Assumes", f.assumptions);
-  if (f.tokens_per_1k?.cache_write) li("Cache writes", `the fix writes about ${formatTokens(f.tokens_per_1k.cache_write)} tokens per 1,000 calls to the cache at the write price; the money estimate subtracts that premium`);
+  li("Who reaches this", f.reach);
+  if (f.cached_discount === "none") li("Money", NO_DISCOUNT_LINE);
+  if (tl?.cache_write) li("Cache writes", `the fix writes about ${formatTokens(tl.cache_write)} tokens ${unitOf(f) === "run" ? "per run" : "per 1,000 calls"} to the cache at the write price; the money estimate subtracts that premium`);
   li("Share", shareLine(f));
   if (f.status === "frequency-unknown") li("How often", `the code shows the problem; how often it happens is assumed. To measure it: ${f.confirm ?? ""}`);
   if (f.status === "size-unknown") li("How big", `the code shows the problem and how often it happens; how many tokens it costs each time is assumed. To measure it: ${f.confirm ?? ""}`);
@@ -97,6 +109,12 @@ function findingBlock(f: Finding, n: number, o: ReportInput, version: string, ki
   out.push("");
   return out;
 }
+
+/** "Tokens per 1,000 calls", "Tokens per run", or both, for the line under the cost heading. */
+const units0 = (rows: { unit: string }[]): string => {
+  const u = new Set(rows.map((r) => r.unit));
+  return u.size > 1 ? "Tokens per 1,000 calls and per run" : u.has("run") ? "Tokens per run" : "Tokens per 1,000 calls";
+};
 
 function costLines(cost: CostSummary): string[] {
   const rows = cost.rows.filter((r) => !r.finding.fixed);
@@ -119,7 +137,7 @@ function costLines(cost: CostSummary): string[] {
     }
     out.push(`Inputs: ${inputs.join("; ")}. Every figure is ${tokenKind(cost)}.`, "");
   } else {
-    out.push(`Tokens per 1,000 calls only. Every figure is ${tokenKind(cost)}.`);
+    out.push(`${units0(rows)} only. Every figure is ${tokenKind(cost)}.`);
     if (cost.missing.length > 0) {
       out.push("", "To see this in money, add to `leanprompt.yaml`:", "");
       for (const x of cost.missing) out.push(`- \`${x.split("\t")[0]}\`: ${x.split("\t")[1] ?? ""}`);
@@ -127,13 +145,21 @@ function costLines(cost: CostSummary): string[] {
     }
     out.push("");
   }
+  if (rows.some((r) => r.unit === "run")) {
+    out.push(`Per-run figures are a separate total, never added to the figures per 1,000 calls. A run is ${cost.run ?? "one run of the tool"}.${cost.dollars_per_run !== undefined ? ` About ${formatDollars(cost.dollars_per_run)} per run at the prices in leanprompt.yaml.` : ""}`, "");
+  }
   if (cost.gpu) out.push(`About ${cost.gpu.hours_per_month.toFixed(1)} hours of GPU prefill time a month at ${cost.gpu.calls_per_month.toLocaleString("en-US")} calls a month.`, "");
-  out.push(`| Finding | Where | Tokens per 1,000 calls |${m ? " A month |" : ""}`, `|---|---|---|${m ? "---|" : ""}`);
+  const units = new Set(rows.map((r) => r.unit));
+  const tokHead = units.size > 1 ? "Tokens (per 1,000 calls, or per run where marked)" : units.has("run") ? "Tokens per run" : "Tokens per 1,000 calls";
+  out.push(`| Finding | Where | ${tokHead} |${m ? " A month |" : ""}`, `|---|---|---|${m ? "---|" : ""}`);
   for (const r of rows) {
-    const t = r.finding.tokens_per_1k!;
+    const t = tokensLost(r.finding)!;
     const parts = [t.prompt ? `${formatTokens(t.prompt)} prompt` : "", t.uncached ? `${formatTokens(t.uncached)} not cached` : "", t.output ? `${formatTokens(t.output)} output` : ""].filter(Boolean).join(", ") || "0";
     const tag = r.group === "question" ? " (open question)" : r.group === "server" ? " (server)" : r.group === "known" ? ` (${KNOWN_LABEL[knownOf(r.finding)!.kind].toLowerCase()})` : "";
-    out.push(`| ${r.finding.rule}${tag} | ${cell(whereText(r.finding))} | ${parts} |${m ? ` ${r.dollars_per_month !== undefined ? formatDollars(r.dollars_per_month, m.currency) : ""} |` : ""}`);
+    const per = units.size > 1 && r.unit === "run" ? " per run" : "";
+    const cnt = r.finding.evidence === "counted" ? " (counted)" : "";
+    const scope = r.finding.scope ? ` (${SCOPE_LABEL[r.finding.scope]})` : "";
+    out.push(`| ${r.finding.rule}${tag}${scope} | ${cell(whereText(r.finding))} | ${parts}${per}${cnt} |${m ? ` ${r.dollars_per_month !== undefined ? formatDollars(r.dollars_per_month, m.currency) : r.dollars_per_run !== undefined ? `${formatDollars(r.dollars_per_run)} per run` : ""} |` : ""}`);
   }
   out.push(
     "",
@@ -188,7 +214,7 @@ function ownerQuestions(o: ReportInput, cost: CostSummary, ctx: MdContext): stri
 export function renderMarkdown(o: ReportInput, ctx: MdContext): string {
   const version = o.version ?? packageVersion();
   const g = groups(o.findings);
-  const cost = costSummary(o.findings, o.profile ?? null, o.average_call);
+  const cost = costSummary(o.findings, o.profile ?? null, o.average_call, o.run);
   const notes: Note[] = o.notes ?? [];
   const out: string[] = [
     MD_BEGIN,
@@ -209,7 +235,7 @@ export function renderMarkdown(o: ReportInput, ctx: MdContext): string {
   const qLine = (lead: string): string => {
     if (!bigQ) return "";
     const what = bigQ.problem ? splitLead(bigQ.problem)[0].replace(/[.:]$/, "") : ruleTitle(bigQ, o.rules).replace(/\.$/, "");
-    return ` ${lead}, at ${where(bigQ)}, about ${formatTokens(tokensOf(bigQ)!)} tokens per 1,000 calls if it holds: ${afterColon(what)}.`;
+    return ` ${lead}, at ${where(bigQ)}, ${tokensPhrase(bigQ)} if it holds: ${afterColon(what)}.`;
   };
   let h: string;
   if (n === 0) {
@@ -218,9 +244,13 @@ export function renderMarkdown(o: ReportInput, ctx: MdContext): string {
     const top = places[0]!;
     const t = tokensOf(top);
     const lead = top.problem ? splitLead(top.problem)[0].replace(/[.:]$/, "") : ruleTitle(top, o.rules).replace(/\.$/, "");
-    h = `**${plural(n, "place")} where this app pays for tokens it doesn't need.** The biggest, at ${where(top)}${t !== undefined ? `, about ${formatTokens(t)} tokens per 1,000 calls` : ""}: ${afterColon(lead)}.`;
+    h = `**${plural(n, "place")} where this app pays for tokens it doesn't need.** The biggest, at ${where(top)}${t !== undefined ? `, ${tokensPhrase(top)}` : ""}: ${afterColon(lead)}.`;
     h += qLine("The largest item is an open question");
-    if (cost.with_tokens > 0) h += ` Together about ${formatTokens(cost.tokens_per_1k)} tokens per 1,000 calls (${tokenKind(cost)}${cost.overlaps ? "; overlapping findings counted once" : ""}).`;
+    const totals = [
+      cost.with_tokens > 0 ? `about ${formatTokens(cost.tokens_per_1k)} tokens per 1,000 calls` : "",
+      cost.run_with_tokens > 0 ? `about ${formatTokens(cost.run_tokens)} tokens ${runText(o.run)}` : "",
+    ].filter(Boolean);
+    if (totals.length) h += ` Together ${totals.join(", and ")} (${tokenKind(cost)}${totals.length > 1 ? "; the two units are kept apart" : ""}${cost.overlaps ? "; overlapping findings counted once" : ""}).`;
   }
   if (n > 0 && g.questions.length > 0) {
     h += ` Plus ${plural(g.questions.length, "open question")} to confirm${cost.question_tokens_per_1k > 0 ? `; if ${g.questions.length === 1 ? "it holds" : "they hold"}, add about ${formatTokens(cost.question_tokens_per_1k)}` : ""}.`;
@@ -229,6 +259,8 @@ export function renderMarkdown(o: ReportInput, ctx: MdContext): string {
   if (g.server.length > 0) h += ` Plus ${plural(g.server.length, "question")} for the server's administrator, not in this app's score.`;
   if (g.known.length > 0) h += ` Plus ${plural(g.known.length, "finding")} the project already knows about, not in the totals or the score.`;
   if (notes.length > 0) h += ` Plus ${plural(notes.length, "other problem")}, not scored.`;
+  const sc = scopeCounts(o.findings, notes);
+  if (o.gateway || sc) h += ` ${scopeLine(sc)}`;
   out.push(
     h,
     "",
@@ -236,7 +268,7 @@ export function renderMarkdown(o: ReportInput, ctx: MdContext): string {
     "",
   );
   out.push(...costLines(cost));
-  out.push("## What's wrong and what to change", "", "Largest first, by estimated tokens lost per 1,000 calls.", "");
+  out.push("## What's wrong and what to change", "", `Largest first, by estimated tokens lost per 1,000 calls${g.open.some((f) => unitOf(f) === "run") ? ", then per run" : ""}.`, "");
   g.open.forEach((f, i) => out.push(...findingBlock(f, i + 1, o, version, "open", num)));
   if (g.open.length === 0) out.push("No confirmed findings.", "");
   let k = g.open.length;
@@ -267,6 +299,7 @@ export function renderMarkdown(o: ReportInput, ctx: MdContext): string {
     out.push("## Other problems the audit found", "", "Checked in the code; they cost no tokens of their own and are not scored.", "");
     notes.forEach((nt, i) => {
       out.push(`### N${i + 1}. ${cell(nt.title)} · ${nt.file === EXTERNAL ? noteWhere(nt) : `\`${noteWhere(nt)}\``}`, "");
+      if (nt.scope) out.push(`- **About:** ${SCOPE_LABEL[nt.scope]}`);
       if (nt.known?.kind === "declined") {
         out.push(`- **${KNOWN_LABEL.declined}:** ${cell([nt.known.note, nt.known.url].filter(Boolean).join(" "))}`, "");
         return;

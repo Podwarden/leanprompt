@@ -79,4 +79,4 @@ In the reorder experiment, moving date lines to the end of the prompt cut correc
 
 ## Waste signal
 Measured: a value that changes on every turn lowers S, because each request shares little with the turn before; a value that changes per user or per day shows as more distinct `sys` and `head` ids than the app has prompts. Static: severity high when a per-call value (timestamp, id, query, retrieved chunks) comes before long stable text.
-<!-- leanprompt:generated v0.1.0-dev.14: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.15: written by npx leanprompt install; npx leanprompt update replaces local edits -->

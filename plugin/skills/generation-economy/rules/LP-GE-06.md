@@ -73,4 +73,4 @@ Serve a stored answer only when a fresh call would be expected to give the same 
 
 ## Waste signal
 Measured: output tokens on calls repeated identically (same exact ids, same `params`) count as generation waste. Static: severity medium for a deterministic call (temperature zero, a classification or extraction prompt) on a path that runs repeatedly for the same input with no cache in front; low for tests that call the live model.
-<!-- leanprompt:generated v0.1.0-dev.14: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.15: written by leanprompt install; leanprompt update replaces local edits -->

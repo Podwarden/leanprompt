@@ -1,6 +1,6 @@
 # Report template: `leanprompt-report.md`
 
-Write the report with `npx leanprompt@0.1.0-dev.14 report --md`. It writes `leanprompt-report.md` at the project root from `.leanprompt/findings.json` and `.leanprompt/score.json`: everything from the title to "Questions for the owner" goes inside a generated block, so the report, the page and the hand-off block cannot disagree. You write the two sections below the block, "Inventory" and "Next steps"; a later `report --md` replaces the block and keeps them. To change the generated part, change the findings file and run it again. The template below shows what each section holds, in the order the page `npx leanprompt@0.1.0-dev.14 report --html` uses, and is what you write by hand only when the CLI cannot run (then replace every `<...>` and leave no placeholder). Keep the rule text out of it: link the rule file instead. The same content is what you present in the conversation ([presenting.md](presenting.md)); the file is the record.
+Write the report with `npx leanprompt@0.1.0-dev.15 report --md`. It writes `leanprompt-report.md` at the project root from `.leanprompt/findings.json` and `.leanprompt/score.json`: everything from the title to "Questions for the owner" goes inside a generated block, so the report, the page and the hand-off block cannot disagree. You write the two sections below the block, "Inventory" and "Next steps"; a later `report --md` replaces the block and keeps them. To change the generated part, change the findings file and run it again. The template below shows what each section holds, in the order the page `npx leanprompt@0.1.0-dev.15 report --html` uses, and is what you write by hand only when the CLI cannot run (then replace every `<...>` and leave no placeholder). Keep the rule text out of it: link the rule file instead. The same content is what you present in the conversation ([presenting.md](presenting.md)); the file is the record.
 
 The plain-English lines come from each finding's fields in `.leanprompt/findings.json` (`problem`, `change`, `why`, `estimate`, `assumptions`, `verify`), so write them for a person who has not read the rule: no rule ids in the sentences, no jargon. Rule links point at the rule file on GitHub, pinned to the leanprompt version, as on the page.
 
@@ -63,7 +63,7 @@ Findings outside this repository (`"<external>"`) or waiting on a fact (`needs-f
 
 ## Questions for the server's administrator
 
-Findings whose fix is a setting of the server or engine the app calls (`fix_by: "server"`; an `LP-LW-*` finding in `"<external>"` by default). They are not in this app's score (`npx leanprompt@0.1.0-dev.14 score --with-server` counts them). For an LM Warden server, `npx leanprompt@0.1.0-dev.14 profile detect --lmwarden <url>` reads the engine's cache facts. Leave this heading out when there are none.
+Findings whose fix is a setting of the server or engine the app calls (`fix_by: "server"`; an `LP-LW-*` finding in `"<external>"` by default). They are not in this app's score (`npx leanprompt@0.1.0-dev.15 score --with-server` counts them). For an LM Warden server, `npx leanprompt@0.1.0-dev.15 profile detect --lmwarden <url>` reads the engine's cache facts. Leave this heading out when there are none.
 
 #### <n>. <the question, in a few words> · <where>
 
@@ -104,12 +104,12 @@ Paste this into Claude Code, Codex, Cursor or any coding assistant. It checks ea
 ```text
 Please check and fix the LLM-call findings from a leanprompt audit of this repository.
 
-1. If the leanprompt skills are not installed for you here, install them: npx leanprompt@0.1.0-dev.14 install
+1. If the leanprompt skills are not installed for you here, install them: npx leanprompt@0.1.0-dev.15 install
 2. Read .leanprompt/findings.json and leanprompt-report.md. If they are missing, use the list below.
 3. Check each finding against the code before you change anything. The audit can be wrong: if a finding does not hold, tell me why and leave that code alone.
 4. Fix one finding at a time. Show me the change as a small diff and apply it only after I say yes.
 5. Prove each fix with the measure-loop skill: a before and after on the same scenario. Ask me before running anything that sends real, billed requests.
-6. When a fix is proved, set "fixed": true on its finding in .leanprompt/findings.json and run npx leanprompt@0.1.0-dev.14 score.
+6. When a fix is proved, set "fixed": true on its finding in .leanprompt/findings.json and run npx leanprompt@0.1.0-dev.15 score.
 
 Findings, largest first:
 1. <rule id> at <file>:<line>: <problem>
@@ -138,7 +138,7 @@ Other problems found outside the rules (check each against the code first; not s
 
 <Measured only:> Heads: <distinct_head> distinct heads over <conversations> conversations. <One line: expected, or which finding it points to.>
 
-<Static only:> This score is an estimate from code. A trial run with `npx leanprompt@0.1.0-dev.14 calibrate` fits it to this app.
+<Static only:> This score is an estimate from code. A trial run with `npx leanprompt@0.1.0-dev.15 calibrate` fits it to this app.
 
 <Static, with server questions:> This is the app's own score: it leaves out <n> findings for the server's administrator; with them it would be <score>.
 
@@ -165,8 +165,8 @@ What the audit could not ask (an unattended run) or the user did not answer: the
 3. <Turn on the usage logger to get a measured score, if there is no log yet>
 4. <Calibrate the static score, if it is static>
 5. <Add volume and prices to `leanprompt.yaml`, if the report shows tokens only>
-6. <The page: `npx leanprompt@0.1.0-dev.14 report --html` writes `.leanprompt/report.html` with the same content and the copyable hand-off block>
+6. <The page: `npx leanprompt@0.1.0-dev.15 report --html` writes `.leanprompt/report.html` with the same content and the copyable hand-off block>
 ````
 
 Write the numbers with their kind every time: "(estimate)" next to a figure from code, "(measured, N calls)" next to a figure from the usage log. A static score is never presented as measured, and money is shown only from the user's own volume and a price with its source and checked date; never invent either.
-<!-- leanprompt:generated v0.1.0-dev.14: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.15: written by npx leanprompt install; npx leanprompt update replaces local edits -->

@@ -38,6 +38,8 @@ rg -n 'for .*range .*(tools|Tools|registry)|map\[string\].*Tool' -g '*.go'
 ```
 Shapes: `for _, t := range toolsByName { params.Tools = append(params.Tools, t) }` over a `map`; goroutines appending discovered tools to a shared slice under a mutex.
 
+The same applies to any catalog or list rendered into the prompt text, not only tools: tag, category or correspondent names, allowed labels, a list of files. Shapes: Go `range` over a `map[string]...` while building the prompt (Go randomises map iteration order, so the text changes on every call); a Python `set` joined into the prompt (`", ".join(tags)`); JS `Object.keys` of an object merged from several sources. Fix it the same way: sort the names, or keep them in a slice in a fixed order.
+
 ## Fix
 Fix the order once at session start (sorting by name is the easy way) and serialise canonically.
 

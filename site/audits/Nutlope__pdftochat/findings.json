@@ -1,0 +1,82 @@
+{
+  "v": 1,
+  "unattended": true,
+  "average_call": { "prompt_tokens": 1376, "output_tokens": 240 },
+  "findings": [
+    {
+      "id": "context-first",
+      "rule": "LP-PC-02",
+      "file": "utils/ragChain.ts",
+      "line": 28,
+      "saves": "prefill",
+      "severity": "high",
+      "share": 0.26,
+      "tokens_per_1k": { "uncached": 360000 },
+      "problem": "The answer prompt puts the four retrieved chunks inside the system message, before the chat history. The chunks change on every question, so from the second question on the provider cannot reuse any of the earlier conversation and recomputes the whole history on every answer call.",
+      "change": "Keep the system message fixed (the instructions only) and send the retrieved context with the newest question, after the history: for example a last user message 'Context: <context>...</context> Question: {input}'.",
+      "why": "Together caches the longest identical prefix automatically, and its prompt-caching page says to put retrieved snippets at the end. Here the first difference is about 90 tokens in, so every follow-up answer prefills all earlier questions and answers again.",
+      "estimate": "about 360k prompt tokens per 1,000 calls not served from cache (estimate)",
+      "assumptions": "4-question conversations, answers of about 400 tokens, 4 chunks of 1,000 characters (about 1,000 tokens); 7 calls per conversation (4 answers, 3 rephrase calls). Together's minimum cacheable prefix is not published. Qwen/Qwen3.5-9B has no cached-input price on Together (serverless models page, checked 2026-11-27), so on today's model the saving is prefill time, not money.",
+      "verify": "Ask two follow-up questions in one chat and log usage.prompt_tokens_details.cached_tokens of the answer call: before, it is about 0 on the third question; after, it covers the system message and the earlier turns. Check that answers still cite the document."
+    },
+    {
+      "id": "no-output-cap",
+      "rule": "LP-GE-03",
+      "file": "app/api/chat/route.ts",
+      "line": 42,
+      "saves": "generation",
+      "severity": "low",
+      "share": 0.048,
+      "status": "frequency-unknown",
+      "confirm": "the longest answers and rephrase outputs in Together's request logs for this key, and whether any answer ran until the function was stopped",
+      "tokens_per_1k": { "output": 11400 },
+      "problem": "One model object with no output limit serves both calls: the rephrase call, whose output is used only as a short search query, and the answer. Together's default is no limit (the model writes until it stops or hits the 262k context), so a small model that loops at temperature 0 keeps generating until the serverless function is cut off.",
+      "change": "Use two model objects: maxTokens about 64 for the rephrase call (createHistoryAwareRetriever) and about 1,500 for the answer, and show a short 'answer cut off' marker when finish_reason is length.",
+      "why": "Without a limit, a runaway answer or an answer written into the rephrase step is billed in full and thrown away.",
+      "estimate": "about 11k output tokens per 1,000 calls (estimate)",
+      "assumptions": "0.5% of the 571 answer calls per 1,000 calls run about 4,000 tokens past a useful answer; rephrase outputs are not counted.",
+      "verify": "Log finish_reason and usage.completion_tokens per call for a day: no rephrase output above 64 tokens and no answer above the limit; answers that hit it show the marker."
+    },
+    {
+      "id": "timeout",
+      "rule": "LP-GE-04",
+      "file": "app/api/chat/route.ts",
+      "line": 42,
+      "saves": "both",
+      "severity": "medium",
+      "share_prefill": 0.005,
+      "share_output": 0.01,
+      "status": "frequency-unknown",
+      "confirm": "how many /api/chat invocations end with FUNCTION_INVOCATION_TIMEOUT in the Vercel logs",
+      "tokens_per_1k": { "prompt": 7000, "output": 2400 },
+      "known": { "kind": "reported", "url": "https://github.com/Nutlope/pdftochat/issues/27", "note": "open since 2024-10: 504 FUNCTION_INVOCATION_TIMEOUT on every chat, several +1s, no maintainer reply; reported on the Mixtral/Pinecone version." },
+      "problem": "The chat route sets no timeout and no maxRetries, so each model call gets the OpenAI client's 10-minute timeout and LangChain's 6 retries with backoff, and the route exports no maxDuration. The platform's function limit is shorter, so a slow or rate-limited call ends as a 504 after tokens were already billed.",
+      "change": "Set timeout (for example 30 s to first byte) and maxRetries 1 or 2 on ChatTogetherAI, and export maxDuration for the route to match.",
+      "why": "Retries and generation that the platform kills are billed and give the user nothing.",
+      "estimate": "about 9k tokens per 1,000 calls (estimate)",
+      "assumptions": "1% of conversations hit a timeout after the rephrase call and part of an answer.",
+      "verify": "With a Together key that is rate limited, the route answers with an error within the timeout instead of a 504."
+    }
+  ],
+  "notes": [
+    {
+      "title": "Source page buttons get no page number with Chroma, the default store",
+      "file": "app/api/utils/vector_store/chroma.ts",
+      "line": 44,
+      "problem": "sanitizeMetadata turns every nested object into a JSON string, so the chunk's loc ({pageNumber, lines}) is stored as the string '{\"pageNumber\":3,...}'. The chat client reads metadata['loc.pageNumber'] ?? metadata.loc?.pageNumber (app/document/[id]/document-client.tsx:92); on a string both are undefined, so all four sources collapse into one button reading 'p. ' and clicking it jumps to page NaN.",
+      "change": "Flatten loc at ingest (store loc.pageNumber as its own number key, as the Pinecone and Mongo stores did) or JSON.parse metadata.loc when it is a string in extractSourcePageNumber.",
+      "why": "The page links are how users check an answer against the PDF; since the move to Chroma (PR #30) they do not work.",
+      "verify": "Upload a multi-page PDF, ask a question whose answer is on page 3: the buttons show the real page numbers and jump to them."
+    },
+    {
+      "title": "Pinecone and MongoDB chats cannot retrieve: no embeddings passed, and the embedding model is gone",
+      "rule": "LP-GE-13",
+      "severity": "medium",
+      "file": "app/api/utils/vector_store/index.ts",
+      "line": 46,
+      "problem": "The chat route calls loadRetriever without embeddings (app/api/chat/route.ts:55), and index.ts:46 passes that undefined value on behind a non-null assertion, so retrieval on Pinecone or MongoDB throws on embedQuery. Ingest for those stores uses togethercomputer/m2-bert-80M-8k-retrieval (embeddings/index.ts:6), removed from Together serverless on 2025-06-13; Together's models page says no embedding models are offered via serverless. index.ts:14 and :36 still default to 'pinecone' when NEXT_PUBLIC_VECTORSTORE is unset, and .env.example still offers both.",
+      "change": "Either remove the Pinecone and MongoDB options (and make chroma the default when the variable is unset), or pass an embeddings model that exists from the chat route and switch ingest to it.",
+      "verify": "With NEXT_PUBLIC_VECTORSTORE unset, a fresh deploy uploads and chats without an error, or fails at start with a message naming the variable."
+    }
+  ]
+}

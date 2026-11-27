@@ -26,4 +26,5 @@ Back to the [README](../README.md).
 ## Project
 
 - [CONTRIBUTING.md](../.github/CONTRIBUTING.md), [GOVERNANCE.md](../.github/GOVERNANCE.md) and [SECURITY.md](../.github/SECURITY.md).
+- [site.md](site.md): the website at lmwarden.com/leanprompt/, and publishing it (`npm run publish:site`).
 - [DESIGN.md](DESIGN.md) and [RESEARCH-similar-projects.md](RESEARCH-similar-projects.md): the design notes and background research the project was planned from. They are working records, not user documentation.

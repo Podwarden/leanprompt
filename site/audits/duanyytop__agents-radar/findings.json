@@ -92,6 +92,8 @@
     },
     {
       "title": "A reply cut off at the output limit is published as complete",
+      "rule": "LP-GE-12",
+      "severity": "high",
       "file": "src/providers/openai-compatible.ts",
       "line": 29,
       "problem": "The provider returns message.content and drops finish_reason, so a summary, comparison or translation that stopped at max_completion_tokens is published as if whole, with no line in llmStats or the step summary. A scan of the 1,444 report files committed since 2026-09-01 found no cut-off endings, so this is currently rare.",

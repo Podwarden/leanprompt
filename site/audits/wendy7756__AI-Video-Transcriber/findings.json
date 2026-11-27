@@ -64,6 +64,8 @@
   "notes": [
     {
       "title": "A cut-off answer is accepted as complete",
+      "rule": "LP-GE-12",
+      "severity": "medium",
       "file": "backend/llm_client.py",
       "line": 39,
       "problem": "complete_text returns any non-empty content at line 39 without looking at finish_reason. Only an empty answer is checked for length (line 48). A transcript chunk, translation chunk or summary that stopped at max_tokens is stored and shown as if whole, and nothing is logged.",

@@ -6,10 +6,13 @@
 # Left out on purpose: tagging people in cross-referenced upstream issues, which issue #203 had
 # already fixed before the audit (published issue bodies carry no github.com links); `known` has no
 # kind for work already done, so it is not listed. The commit is the one audited.
+# Re-scored with 0.1.0-dev.15 (2026-11-27): the cut-off note now names LP-GE-12 (high: published
+# unattended). The evidence is the audit's own, unchanged; notes are never scored and a rule id does
+# not change a share, so the static score and the big number are unchanged.
 repo: https://github.com/duanyytop/agents-radar
 visibility: public
 commit: 7c5355e1bbea9c99ba251b2874ed8106329a4432
-leanprompt: 0.1.0-dev.14
+leanprompt: 0.1.0-dev.15
 date: 2026-11-27
 status: notified
 summary: >-

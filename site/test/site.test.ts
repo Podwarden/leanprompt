@@ -394,6 +394,26 @@ describe("audit pages", () => {
     expect(() => loadAudits(root, loadRuleIds(ROOT))).toThrow(/figure.finding nope names no finding/);
   });
 
+  it("refuse a findings.json with private items, and accept it once they are stripped (0.1.0-dev.15)", () => {
+    const root = mkdtempSync(join(tmpdir(), "lp-site-"));
+    const dir = join(root, "site", "audits", "acme__widget");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "meta.yaml"), good);
+    const priv = { title: "The default base URL sends users' keys to a third-party relay", file: "start.py", line: 3, problem: "A relay receives the key.", change: "Default to the provider.", private: true };
+    writeFileSync(join(dir, "findings.json"), JSON.stringify({ v: 1, findings: [], notes: [priv] }));
+    expect(() => loadAudits(root, loadRuleIds(ROOT))).toThrow(/1 private item \(private: true\); remove it from the published file/);
+    writeFileSync(join(dir, "findings.json"), JSON.stringify({ v: 1, findings: [{ rule: "LP-PC-03", file: "a.ts", line: 1, saves: "prefill", severity: "high", private: true }] }));
+    expect(() => loadAudits(root, loadRuleIds(ROOT))).toThrow(/private item/);
+  });
+
+  it("no published audit holds a private item, and AI-Video-Transcriber's relay note stays out", () => {
+    const vt = readFileSync(join(ROOT, "site", "audits", "wendy7756__AI-Video-Transcriber", "findings.json"), "utf8");
+    expect(vt).not.toMatch(/relay|private/i);
+    for (const a of loadAudits(ROOT, loadRuleIds(ROOT))) {
+      expect([...a.findings, ...(a.notes ?? [])].some((x) => (x as { private?: boolean }).private), a.slug).toBe(false);
+    }
+  });
+
   it("refuse a folder that does not match the repository", () => {
     expect(validateMeta(good, "acme__other").errors.join("\n")).toMatch(/must be named acme__widget/);
   });

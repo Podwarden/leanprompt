@@ -7,10 +7,14 @@
 # and only the README's description of it is a note; the Claude Agent usage gap is a note under the
 # spend-meter rule. Both known items are left out of the score. No response from the maintainers
 # yet (checked 2026-11-27). The commit is the one audited.
+# Re-scored with 0.1.0-dev.15 (2026-11-27): the cut-off note now names LP-GE-12 (medium) and the
+# README timeout note LP-GE-15 (high). The evidence is the audit's own, unchanged; notes are never
+# scored and a rule id does not change a share, so the static score and the big number are
+# unchanged.
 repo: https://github.com/Nutlope/aicommits
 visibility: public
 commit: 98e9c4e4ea025053d4ede2ed4ee08aed9b7e0419
-leanprompt: 0.1.0-dev.14
+leanprompt: 0.1.0-dev.15
 date: 2026-11-27
 status: notified
 summary: >-

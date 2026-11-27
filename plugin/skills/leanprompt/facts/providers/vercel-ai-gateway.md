@@ -37,4 +37,4 @@ AI Gateway holds no prompt cache of its own: the routed provider caches. The fro
 ## Not stated in the docs
 
 - Whether `providerOptions.anthropic` cache marks are forwarded to, or translated for, non-Anthropic explicit-cache providers (checked 2026-11-26).
-<!-- leanprompt:generated v0.1.0-dev.14: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.15: written by leanprompt install; leanprompt update replaces local edits -->

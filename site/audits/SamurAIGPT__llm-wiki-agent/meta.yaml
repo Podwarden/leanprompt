@@ -9,10 +9,15 @@
 # compaction), #12/#13 (graph cache, fixed), #41/#42 (litellm pin), #54/#56 (heal path traversal,
 # fixed; the underscore join came in with #56). No response from the maintainers yet (checked
 # 2026-11-27). The commit is the one audited.
+# Re-scored with 0.1.0-dev.15 (2026-11-27): the retired-model note names LP-GE-13 (high), the cut-
+# off note LP-GE-12 (medium); the heal.py and refresh.py findings move from LP-GE-06 to LP-GE-14
+# (keys that never hit), with the same shares and estimates. The evidence is the audit's own,
+# unchanged; notes are never scored and a rule id does not change a share, so the static score and
+# the big number are unchanged.
 repo: https://github.com/SamurAIGPT/llm-wiki-agent
 visibility: public
 commit: 86ab47d7cfe3b41e604df6bf19afbd9a911b9068
-leanprompt: 0.1.0-dev.14
+leanprompt: 0.1.0-dev.15
 date: 2026-11-27
 status: notified
 summary: >-

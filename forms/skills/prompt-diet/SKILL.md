@@ -66,4 +66,4 @@ The score does not count prompt size: its prefill side measures reuse, so a smal
 ## What this skill does not do
 
 It does not compress prompts by rewriting them on the wire, it does not make the prompt cache better (that is `prefill-cache`), it does not change how much the model generates or how output is formatted (that is `generation-economy`), and it does not promise a saving for an app it has not measured.
-<!-- leanprompt:generated v0.1.0-dev.14: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.15: written by npx leanprompt install; npx leanprompt update replaces local edits -->

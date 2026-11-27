@@ -1,6 +1,7 @@
 {
   "v": 1,
   "unattended": true,
+  "gateway": true,
   "average_call": {
     "prompt_tokens": 12000,
     "output_tokens": 600
@@ -28,7 +29,8 @@
       "why": "An agent leg resends everything the previous leg sent plus one tool result. Without a mark the provider recomputes all of it at the full input price instead of about a tenth of it.",
       "estimate": "about 1.2M prompt tokens per 1,000 calls billed uncached that the cache could serve (estimate)",
       "assumptions": "40% of calls are Studio agent legs, 30% of those on Claude (12% of all calls); average prompt 12k tokens, 85% of it repeated from the previous leg or turn; legs return within seconds, well inside the 5-minute lifetime, so marks pay back (break-even (1.25-1)/(1-0.1) = 0.28 reads per write). Cache writes of the new tail (~1.8k per call) at 1.25x are listed as cache_write.",
-      "verify": "Run one Studio chat turn with a tool call on a Claude channel and read the upstream usage of its second leg: cache_read_input_tokens rises from 0 to about the size of the first leg's prompt."
+      "verify": "Run one Studio chat turn with a tool call on a Claude channel and read the upstream usage of its second leg: cache_read_input_tokens rises from 0 to about the size of the first leg's prompt.",
+      "scope": "own"
     },
     {
       "id": "chat-claude-no-marks",
@@ -49,7 +51,8 @@
       "why": "A chat or agent client resends its whole history each turn; on Claude only a marked prefix is read from the cache at a tenth of the price.",
       "estimate": "about 1.1M prompt tokens per 1,000 calls billed uncached that the cache could serve (estimate)",
       "assumptions": "15% of all calls are Chat Completions requests bridged to Claude; average prompt 12k tokens, 60% of it repeated from the client's previous request within 5 minutes; new tail ~1.8k per call written at 1.25x (cache_write).",
-      "verify": "Send the same 5k-token Chat Completions request twice to a Claude channel a few seconds apart: the second response's prompt_tokens_details.cached_tokens is 0 today and close to 5k after the change."
+      "verify": "Send the same 5k-token Chat Completions request twice to a Claude channel a few seconds apart: the second response's prompt_tokens_details.cached_tokens is 0 today and close to 5k after the change.",
+      "scope": "proxied"
     },
     {
       "id": "compaction-every-turn",
@@ -73,7 +76,8 @@
       "why": "The summariser re-reads tens of thousands of tokens of history on every turn and writes up to 1,536 output tokens that the next turn throws away and recomputes.",
       "estimate": "about 1.2M prompt tokens and 30k output tokens per 1,000 calls (estimate)",
       "assumptions": "Studio chat turns are 20% of calls (two legs per turn on average); 15% of those turns are in sessions past the 32k budget, so 3% of calls trigger a summariser call; each re-reads about 40k tokens of older transcript (messages cut at 4,000 characters) and writes about 1,000 tokens.",
-      "verify": "In a session past the budget, send three turns: today the run events show a context_compacted event on each turn; after the fix, one, and the next compaction only when the tail grows past the budget again."
+      "verify": "In a session past the budget, send three turns: today the run events show a context_compacted event on each turn; after the fix, one, and the next compaction only when the tail grows past the budget again.",
+      "scope": "own"
     },
     {
       "id": "compaction-window-slides",
@@ -96,7 +100,8 @@
       "why": "A prefix cache reuses only an unchanged start; moving the start of the history each turn forfeits the reuse of up to 12,800 tokens of history per turn.",
       "estimate": "about 300k prompt tokens per 1,000 calls not served from cache (estimate)",
       "assumptions": "3% of calls are first legs of turns in sessions past the budget; about 10k tokens of kept history per such leg would otherwise be read from an automatic cache (OpenAI, Gemini). On Claude nothing is cached today anyway (finding responses-claude-no-marks).",
-      "verify": "On an OpenAI channel, send two turns in a session past the budget: after the fix the second turn's first leg reports cached_tokens covering the history before the new message."
+      "verify": "On an OpenAI channel, send two turns in a session past the budget: after the fix the second turn's first leg reports cached_tokens covering the history before the new message.",
+      "scope": "own"
     },
     {
       "id": "skill-guidance-moves",
@@ -116,7 +121,8 @@
       "why": "Content that moves is never part of the unchanged prefix, so the skill text is billed uncached on every leg after it loads.",
       "estimate": "about 120k prompt tokens per 1,000 calls not served from cache (estimate)",
       "assumptions": "10% of Studio legs (4% of calls) run after a Skill was loaded; about 3k tokens of instructions per leg would otherwise be cached by an automatic-cache provider.",
-      "verify": "On an OpenAI channel, a turn that loads a Skill and then calls two tools: the third leg's cached_tokens covers the skill text after the fix, not before."
+      "verify": "On an OpenAI channel, a turn that loads a Skill and then calls two tools: the third leg's cached_tokens covers the skill text after the fix, not before.",
+      "scope": "own"
     },
     {
       "id": "random-channel-per-request",
@@ -136,7 +142,8 @@
       "why": "Anthropic and OpenAI never share a cache between organisations (Anthropic also not between workspaces), so splitting one conversation over N accounts leaves about (N-1)/N of its requests without a cache hit.",
       "estimate": "about 600k prompt tokens per 1,000 calls not served from cache (estimate)",
       "assumptions": "30% of calls are for models served by two equal-priority channels on different accounts, so half of their continuing requests miss; about 4k reusable tokens per such request. Zero on a deployment with one account per model.",
-      "verify": "With two channels on different keys for one model, send a 10-turn conversation: today the upstream cached tokens drop to 0 on roughly half the turns; after the fix every turn after the first reports a hit."
+      "verify": "With two channels on different keys for one model, send a 10-turn conversation: today the upstream cached tokens drop to 0 on roughly half the turns; after the fix every turn after the first reports a hit.",
+      "scope": "proxied"
     }
   ],
   "notes": [
@@ -149,7 +156,8 @@
       "problem": "The quota charged is (Input + Output x completion ratio) x model ratio x group ratio, and Input includes cache reads and cache writes (relay/native/usage.go:78). The price book has only an input price and an output ratio per model (relay/billing/ratio/model.go:24-29), and the OpenRouter price sync reads only prompt and completion (controller/channel_models.go:343-346). So the code bills cache reads, which providers price at a fraction of input, at the full input price, and Anthropic cache writes (1.25x or 2x) at 1x.",
       "change": "Add cached-input and cache-write prices per model (sync them from OpenRouter's input_cache_read and input_cache_write), and charge Input minus CacheRead minus CacheCreation at the input price, CacheRead and CacheCreation at their own prices.",
       "why": "Worked example (estimate; assumes the operator's ratios equal Anthropic's list prices): a coding-agent request of 100k input tokens (95k cache reads, 3k 5-minute writes, 2k uncached) and 1k output priced at 5x input. The provider's bill is 9.5k + 3.75k + 2k + 5k = 20.25k input-token equivalents; the code charges 100k + 5k = 105k, about 5x. List prices, checked 2026-11-26: Anthropic reads 0.1x input by default, writes 1.25x (5 minutes) or 2x (1 hour) (platform.claude.com, prompt caching); OpenAI reads 0.25x or 0.5x by model (OpenRouter's provider notes).",
-      "verify": "For one Claude request with a cached prefix, the consume log's quota equals the provider's bill for the same usage fields priced by hand."
+      "verify": "For one Claude request with a cached prefix, the consume log's quota equals the provider's bill for the same usage fields priced by hand.",
+      "scope": "proxied"
     },
     {
       "title": "The compaction summary never reaches the model",
@@ -158,7 +166,8 @@
       "finding": "compaction-every-turn",
       "problem": "compactIfNeeded stores a summary in session.Summary and drops the older messages from the working history, but the leg input is built from the reference files and the kept messages only (agent/engine.go:207-221); session.Summary is read only by the token estimate and by the next summariser call (agent/context.go:265, 328-331). Past the budget the model sees only the last ~12,800 tokens of the chat, though a summary call was made for it. A design note the project later removed (commit 31df916a) lists history plus summary as the context builder's job and repeated summary billing as forbidden.",
       "change": "Put the summary in the input as the first message after the instructions (not in the instructions, so the head stays cached), and load only messages after CompactedThrough.",
-      "verify": "In a session past the budget, ask about a fact from the first turn: the leg's request input contains the summary and the model can answer."
+      "verify": "In a session past the budget, ask about a fact from the first turn: the leg's request input contains the summary and the model can answer.",
+      "scope": "own"
     },
     {
       "title": "OpenAI-format requests to Claude are capped at 1,024 output tokens when no limit is sent",
@@ -166,10 +175,14 @@
       "line": 24,
       "problem": "Anthropic requires max_tokens, so when a Chat Completions or Responses client omits its limit the converters set 1024 (relay/bridge/chat_anthropic.go:24, relay/bridge/responses_anthropic.go:41; reservation at controller/native.go:126-128). On OpenAI the omitted limit means the model's maximum, so the same client gets answers cut at 1,024 tokens on Claude channels. The cut is reported faithfully as finish_reason length.",
       "change": "Default to the model's maximum output (or an operator setting per channel) instead of 1024, and document the default.",
-      "verify": "A Chat Completions request without max_tokens asking for a 2,000-word essay on a Claude channel ends with finish_reason stop, not length."
+      "verify": "A Chat Completions request without max_tokens asking for a 2,000-word essay on a Claude channel ends with finish_reason stop, not length.",
+      "scope": "proxied"
     },
     {
       "title": "Some successful Claude replies become a 502 and are charged at the reservation",
+      "rule": "LP-GE-12",
+      "severity": "high",
+      "scope": "proxied",
       "file": "relay/bridge/chat_anthropic.go",
       "line": 248,
       "problem": "The non-streaming Chat converter rejects stop_reason refusal (the streaming one maps it, relay/bridge/stream.go:170), and all four Anthropic-to-OpenAI converters reject model_context_window_exceeded (chat_anthropic.go:248, stream.go:176, stream_responses_anthropic.go:346, responses_anthropic.go:447). The upstream reply was generated and billed, but the client gets a 502 and the gateway settles with no usage, which keeps the reservation (relay/lifecycle/forward.go:410-414, relay/billing/native.go:147-150), not the provider's figures.",
@@ -182,7 +195,8 @@
       "line": 25,
       "problem": "Converters reject unknown fields instead of dropping them. That is safe for semantics, but it also rejects cache hints whose loss is harmless: Anthropic requests with cache_control on a block or tool fail when routed to an OpenAI-chat, Responses or Gemini upstream (relay/bridge/anthropic_chat.go:77 and 186, anthropic_responses.go:154, messages_gemini.go:121), and Chat requests to Claude or Gemini channels fail on stream_options, user or parallel_tool_calls (chat_common.go:25; only the Responses converter accepts stream_options, chat_responses.go:29).",
       "change": "Accept and drop cache_control when the upstream caches automatically, accept stream_options.include_usage on every Chat converter (the stream already reports usage), and list the rejected fields in the docs.",
-      "verify": "An Anthropic Messages request with cache_control on a block routed to an OpenAI channel, and a streaming Chat request with stream_options.include_usage routed to a Claude channel, both succeed."
+      "verify": "An Anthropic Messages request with cache_control on a block routed to an OpenAI channel, and a streaming Chat request with stream_options.include_usage routed to a Claude channel, both succeed.",
+      "scope": "proxied"
     }
   ]
 }

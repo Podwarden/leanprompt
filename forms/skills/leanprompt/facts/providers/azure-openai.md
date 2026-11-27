@@ -48,4 +48,4 @@ Status: documented, not yet measured here. Facts from Microsoft Learn: the promp
 
 - The default reasoning effort of `gpt-5.4` and `gpt-5.4-mini` deployments on Azure (checked 2026-11-26): the reasoning page says defaults vary by model and does not list them.
 - Cached-input prices: on the Azure OpenAI pricing page, not read for this table.
-<!-- leanprompt:generated v0.1.0-dev.14: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.15: written by npx leanprompt install; npx leanprompt update replaces local edits -->

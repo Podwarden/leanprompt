@@ -7,7 +7,7 @@
   },
   "findings": [
     {
-      "rule": "LP-GE-06",
+      "rule": "LP-GE-14",
       "file": "tools/heal.py",
       "line": 35,
       "saves": "both",
@@ -29,7 +29,7 @@
       "id": "heal-rename"
     },
     {
-      "rule": "LP-GE-06",
+      "rule": "LP-GE-14",
       "file": "tools/refresh.py",
       "line": 147,
       "saves": "both",
@@ -191,6 +191,8 @@
     },
     {
       "title": "The default models are retired, so every tool fails unless LLM_MODEL is set",
+      "rule": "LP-GE-13",
+      "severity": "high",
       "file": "tools/_utils.py",
       "line": 50,
       "problem": "call_llm defaults to claude-3-5-sonnet-latest and heal, query and build_graph default to claude-3-5-haiku-latest (heal.py:89, query.py:100, build_graph.py:272). Anthropic retired Sonnet 3.5 on 2025-10-28 and Haiku 3.5 on 2026-02-19; requests to retired models return 404. README.md:296 says the scripts need only ANTHROPIC_API_KEY.",
@@ -231,6 +233,8 @@
     },
     {
       "title": "Cut-off answers are printed and saved as complete",
+      "rule": "LP-GE-12",
+      "severity": "medium",
       "file": "tools/query.py",
       "line": 135,
       "problem": "query answers (4,096 cap) and the lint report (lint.py:298, 3,000 cap) are used without checking the finish reason; with --save a cut-off answer is written to wiki/syntheses and indexed as if whole.",

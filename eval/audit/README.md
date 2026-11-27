@@ -15,7 +15,7 @@ eval/audit/
 
 `expected/<case>.json` is a list of `{"rule", "file", "line"}`. The file path is relative to the case directory, and the rule is a rule id such as `LP-PC-01`. Together the cases place every rule in `prefill-cache` and `generation-economy` at least once.
 
-Cases: `python/support-bot`, `python/agent-loop`, `python/batch-jobs`, `python/doc-edits`, `ts/review-service`, `ts/triage-fetch` (a raw `fetch` to a URL built from a base that ends in `/v1`), `go/summary-worker`.
+Cases: `python/support-bot`, `python/agent-loop`, `python/batch-jobs`, `python/doc-edits`, `python/page-refresh` (a change check whose stored and compared hashes differ in length), `ts/review-service`, `ts/triage-fetch` (a raw `fetch` to a URL built from a base that ends in `/v1`), `go/summary-worker`.
 
 ## Run one
 

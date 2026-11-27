@@ -50,6 +50,8 @@
   "notes": [
     {
       "title": "A cut-off plain translation is accepted silently",
+      "rule": "LP-GE-12",
+      "severity": "high",
       "file": "book_maker/translator/chatgptapi_translator.py",
       "line": 1366,
       "problem": "_plain_translation returns message.content without looking at finish_reason. After a structured single-paragraph truncation the code retranslates on the plain path (line 1529) with the same output limit, so a paragraph that did not fit can be written into the book half translated, with no warning.",

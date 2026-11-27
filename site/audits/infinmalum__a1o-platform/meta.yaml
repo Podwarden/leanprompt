@@ -6,10 +6,14 @@
 # checked: issues and discussions are turned off; the README, docs/, all commit subjects, the 17
 # closed pull requests and the design notes removed in 31df916a mention no prompt caching, cache
 # marks or cache pricing. The token figures rest on an assumed call mix, stated on each finding.
+# Re-scored with 0.1.0-dev.15 (2026-11-27): the file is marked as a gateway, each item says whether
+# it is about the gateway's own calls or its clients' calls, and the 502 note names LP-GE-12 (high,
+# proxied). The evidence is the audit's own, unchanged; notes are never scored and a rule id does
+# not change a share, so the static score and the big number are unchanged.
 repo: https://github.com/infinmalum/a1o-platform
 visibility: public
 commit: 1e446018383c993632341312b0019e39859cfd7c
-leanprompt: 0.1.0-dev.14
+leanprompt: 0.1.0-dev.15
 date: 2026-11-27
 status: published
 no_channel: >-

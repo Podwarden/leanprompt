@@ -9,10 +9,13 @@
 # LP-GE-11, the new correctness rule. The run was unattended, now recorded as such.
 # Left out on purpose: retrying a timed-out call up to 10 times, which the project documents as
 # deliberate (docs/docs/gpt-researcher/gptr/config.md, "LLM Timeouts").
+# Re-scored with 0.1.0-dev.15 (2026-11-27): the cut-off report note now names LP-GE-12 (medium). The
+# evidence is the audit's own, unchanged; notes are never scored and a rule id does not change a
+# share, so the static score and the big number are unchanged.
 repo: https://github.com/assafelovic/gpt-researcher
 visibility: public
 commit: 9d39a2f86d55e264f69dfeff2365f27fad3c1144
-leanprompt: 0.1.0-dev.14
+leanprompt: 0.1.0-dev.15
 date: 2026-11-26
 status: notified
 summary: >-

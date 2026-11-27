@@ -1,0 +1,105 @@
+{
+  "v": 1,
+  "unattended": true,
+  "average_call": { "prompt_tokens": 2000, "output_tokens": 400 },
+  "findings": [
+    {
+      "id": "budget",
+      "rule": "LP-GE-03", "file": "app/openai_constants.py", "line": 1, "saves": "generation", "severity": "medium",
+      "share": 0.10, "status": "frequency-unknown",
+      "confirm": "how many chat, summary, proofreading and from-scratch replies end with finish_reason length, from the OpenAI usage logs or by logging finish_reason in consume_openai_stream_to_write_reply",
+      "tokens_per_1k": { "output": 41000 },
+      "problem": "Every chat reply, thread summary, proofreading result and from-scratch answer is capped at a fixed 1,024 completion tokens (MAX_TOKENS, used at openai_ops.py:188). It cannot be changed without editing the code. On the reasoning models in the Home-tab picker that get no reasoning_effort (GPT-5.6 Sol and Terra, GPT-6 Sol and Astra, GPT-6.1 Sol, GPT-5.5, GPT-5, o3), the reasoning tokens come out of the same 1,024, and OpenAI states their default effort is medium.",
+      "change": "Make the budget configurable (an OPENAI_MAX_COMPLETION_TOKENS setting, default for example 4,096 for non-reasoning models and 16,000 or more for reasoning models) and size the context window check from it; or send reasoning_effort low for the reasoning models that accept it.",
+      "why": "A reply that hits the cap is cut off mid-sentence or comes back empty. The user asks again, and the bot pays for the cut-off output and resends the whole thread for a second try.",
+      "estimate": "about 41k output tokens per 1,000 calls in cut-off replies (estimate, frequency unknown)",
+      "assumptions": "4% of replies stop at 1,024 tokens (long code answers and proofreading of long Japanese or Chinese text on the default model; more on medium-effort reasoning models); OpenAI's reasoning guide recommends reserving at least 25,000 tokens for reasoning and output when starting out. The re-asked prompt is not counted. The empty-output hint added in PR #122 covers only the fully empty case.",
+      "verify": "Pick GPT-6 Sol in the Home tab and ask for a 1,500-word answer: before, the reply stops mid-sentence (or shows the empty-output hint) with finish_reason length; after, it completes."
+    },
+    {
+      "id": "translate-budget",
+      "rule": "LP-GE-03", "file": "app/i18n.py", "line": 42, "saves": "generation", "severity": "low",
+      "share": 0.002, "status": "frequency-unknown",
+      "confirm": "how often a Translate shortcut result ends with finish_reason length",
+      "tokens_per_1k": { "output": 1000 },
+      "problem": "The Translate shortcut sends the whole Slack message to translate() with a fixed 1,024-token budget (TRANSLATION_TOKEN_BUDGET) and never reads finish_reason (i18n.py:98). A long message translated into Japanese, Chinese or Korean can need more than 1,024 tokens, and the cut-off translation is also stored in the in-process cache (i18n.py:99), so asking again returns the same cut-off text.",
+      "change": "Size the budget from the input (for example 3x the input tokens, at least 1,024), check finish_reason, and do not cache a result that stopped at length.",
+      "why": "The cut-off output is paid for and unusable, and the cache keeps serving it until the process restarts.",
+      "estimate": "about 1k output tokens per 1,000 calls (estimate)",
+      "assumptions": "Translate is a small share of calls; one in a hundred translations is a long message into a CJK language.",
+      "verify": "Translate a 2,500-character English message into Japanese: before, the result can end mid-sentence; after, it is complete and a second request does not return a cached partial."
+    },
+    {
+      "id": "sync-timeout",
+      "rule": "LP-GE-04", "file": "app/openai_ops.py", "line": 213, "saves": "both", "severity": "high",
+      "share_prefill": 0.045, "share_output": 0.045, "status": "frequency-unknown",
+      "confirm": "how many summary, proofreading and from-scratch requests raise APITimeoutError, and how many attempts the OpenAI SDK made for each (debug logging of openai shows the retries)",
+      "tokens_per_1k": { "prompt": 90000, "output": 18000 },
+      "problem": "Summaries, proofreading and from-scratch answers are non-streaming calls with timeout=OPENAI_TIMEOUT_SECONDS (30 s, 25 s on Lambda) and the OpenAI client is built without max_retries (openai_api_utils.py:127), so the SDK's default of two retries on a timeout applies. A summary of a long thread on a medium-effort reasoning model that needs 35 s is sent three times before the user sees the timeout, and on Lambda the 29-second function limit (serverless.yml:48) ends the run during the second attempt.",
+      "change": "Pass max_retries=0 for these calls (or build the client with it), and either stream them like the chat path or give them a longer timeout than the chat reply; on Lambda keep the timeout plus retries below the function limit.",
+      "why": "Each timed-out attempt prefills the whole thread again and, if the server finishes it, bills the output that nobody receives.",
+      "estimate": "about 90k prompt and 18k output tokens per 1,000 calls (estimate, frequency unknown)",
+      "assumptions": "15% of calls are summaries, proofreading or from-scratch; 5% of those pass the timeout; a thread summary prompt is about 6,000 tokens; each timeout costs two extra attempts and about 800 output tokens per attempt. OpenAI's Python SDK retries timed-out requests twice by default (its README).",
+      "verify": "Set OPENAI_TIMEOUT_SECONDS=2 and summarize a long thread with openai debug logging on: before, three POST /chat/completions requests are logged; after, one."
+    },
+    {
+      "id": "stream-timeout",
+      "rule": "LP-GE-04", "file": "app/openai_ops.py", "line": 275, "saves": "both", "severity": "medium",
+      "share_prefill": 0.01, "share_output": 0.02, "status": "frequency-unknown",
+      "confirm": "how many chat replies end with the timeout message after part of the answer was shown",
+      "tokens_per_1k": { "prompt": 20000, "output": 8000 },
+      "problem": "The streaming chat request is created with no timeout (timeout_seconds=None), so the SDK default of 600 s applies until the first chunk. The 30-second limit is checked only when a chunk arrives (openai_ops.py:305), and it covers the whole reply including reasoning time and, after a function call, the follow-up request (line 388). A medium-effort reasoning model that thinks for 25 s gets its answer cut off a few seconds after it starts, and a stalled request is not stopped at 30 s at all.",
+      "change": "Pass a connect and first-byte timeout on the streaming request (for example timeout=httpx.Timeout(OPENAI_TIMEOUT_SECONDS, read=OPENAI_TIMEOUT_SECONDS)), and measure the reply deadline from the first content chunk, or raise the default for reasoning models.",
+      "why": "A reply stopped at the deadline was generated and billed up to that point, and the user asks again, resending the thread.",
+      "estimate": "about 20k prompt and 8k output tokens per 1,000 calls (estimate, frequency unknown)",
+      "assumptions": "1% of chat replies pass the deadline mid-stream and are asked again with a 2,000-token thread and about 800 output tokens lost.",
+      "verify": "Pick GPT-6 Sol and ask a question that needs long reasoning: before, the reply ends with the timeout message shortly after text starts; after, it completes or times out only when no bytes arrive."
+    }
+  ],
+  "notes": [
+    {
+      "title": "A reply cut off at the token limit is shown as if it were complete",
+      "rule": "LP-GE-12",
+      "severity": "high",
+      "file": "app/openai_ops.py", "line": 397, "finding": "budget",
+      "problem": "consume_openai_stream_to_write_reply records finish_reason (line 315) but uses it only when the text is empty (lines 397-402). A reply that stopped at length with some text is posted as final with no sign it was cut off. The sync paths do the same (lines 644, 705, 752), and the empty-output hint (slack_constants.py:19-22) tells users to increase a completion budget that is a code constant.",
+      "change": "When finish_reason is length and there is text, append a short notice (for example ':warning: The answer was cut off at the token limit.') and, for the hint, name the setting once the budget is configurable.",
+      "verify": "With MAX_TOKENS set to 50 in a test, a fake stream ending with finish_reason length and text produces a final Slack message that carries the notice."
+    },
+    {
+      "title": "The default image model and the variations model were shut down on 2026-05-12",
+      "rule": "LP-GE-13",
+      "severity": "high",
+      "file": "app/env.py", "line": 20,
+      "problem": "DEFAULT_OPENAI_IMAGE_GENERATION_MODEL is dall-e-3, and image variations are hard-coded to dall-e-2 (openai_image_ops.py:96, bolt_listeners.py:918). OpenAI's deprecations page lists both dall-e-2 and dall-e-3 as shut down on 2026-05-12 (notice 2025-11-14), replaced by gpt-image-2, gpt-image-1 or gpt-image-1-mini. With the default settings the Home-tab image generation and image variations templates now fail on every request.",
+      "change": "Default to gpt-image-1 (or gpt-image-2), drop the style parameter and map quality to low, medium or high, and read b64_json instead of url (the gpt-image models return base64). The variations endpoint was DALL-E 2 only, so remove that template or rebuild it on images.edit.",
+      "verify": "Run tests/openai_image_ops_test.py with the new default and a fake client that returns b64_json; in a workspace, the image template returns a picture instead of a model_not_found error."
+    },
+    {
+      "title": "The Home-tab model picker offers models that are already shut down or shut down on 2026-12-11",
+      "rule": "LP-GE-13",
+      "severity": "medium",
+      "file": "app/slack_ui.py", "line": 530,
+      "problem": "build_configure_modal lists gpt-5-chat-latest and gpt-5.1-chat-latest (shut down 2026-07-23), gpt-5.2-chat-latest and gpt-5.3-chat-latest (2026-08-10), and o4-mini (2026-10-23) at lines 510-566, so a workspace that picks one gets an error on every message. gpt-5, gpt-5-mini, gpt-5-nano and o3 shut down on 2026-12-11. Dates from OpenAI's deprecations page, read 2026-11-27.",
+      "change": "Remove the shut-down entries, mark or remove the 2026-12-11 ones, and map saved selections of a retired model to its replacement (gpt-5.6-sol, gpt-5.6-terra, gpt-6.1-sol, gpt-6-luna per the deprecations page).",
+      "verify": "tests/model_constants_test.py asserts that no picker option is on a list of shut-down ids.",
+      "known": { "kind": "reported", "url": "https://github.com/seratch/ChatGPT-in-Slack/issues/155", "note": "open, outside report: MODEL_FALLBACKS maps gpt-5, o3, gpt-4.1 and gpt-4o to dated snapshots that shut down. It does not mention the picker entries already shut down (chat-latest variants, o4-mini). Note: the app sends the alias, and the fallback map is used only for local token counting and context length." }
+    },
+    {
+      "title": "A superseded reply's stream is started and then abandoned unread",
+      "file": "app/bolt_listeners.py", "line": 458,
+      "problem": "respond_to_new_message starts the streaming request (line 458) and only then checks whether a newer message arrived (lines 471-480). If one did, it deletes the placeholder and returns (line 486) without reading or closing the stream, so the request is billed for its prompt and whatever the server generates before the connection is dropped.",
+      "change": "Run the conversations_replies check before start_receiving_openai_response, or call stream.close() before returning.",
+      "verify": "In a unit test with a fake client whose latest reply differs from the placeholder, assert that chat.completions.create is not called (or that close() is called)."
+    },
+    {
+      "title": "The timeout handler makes an LLM call with no timeout",
+      "rule": "LP-GE-15",
+      "severity": "low",
+      "file": "app/bolt_listeners.py", "line": 249,
+      "problem": "After an APITimeoutError or TimeoutError, the handlers translate TIMEOUT_ERROR_MESSAGE for non-English users (lines 249 and 509). translate() calls chat.completions.create with no timeout (i18n.py:95), so when OpenAI is slow the error message itself can wait up to the SDK's 600-second default, and on Lambda it is cut at 29 s, leaving the placeholder.",
+      "change": "Translate the fixed messages once at startup or keep a static per-locale table, or pass a short timeout and fall back to the English text.",
+      "verify": "With a fake client that sleeps, a timed-out reply for a ja-JP user shows the timeout message within a few seconds."
+    }
+  ]
+}

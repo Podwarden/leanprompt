@@ -123,7 +123,7 @@ describe("effectiveFacts", () => {
     expect(() => effectiveFacts(null, facts, "llama.cpp")).toThrow("no cache facts for llama.cpp yet");
   });
   it("a provider with no table falls back to the profile's target", () => {
-    for (const host of ["groq", "together", "azure", "deepseek"]) {
+    for (const host of ["fireworks", "cerebras", "azure", "mistral"]) {
       expect(effectiveFacts(prof("target: {provider: openai}"), facts, host)).toEqual(facts.get("openai"));
       expect(effectiveFacts(prof("target: {engine: lm-warden}\nengine: {block_tokens: 800}"), facts, host)).toMatchObject({ mode: "block", block_tokens: 800 });
       expect(() => effectiveFacts(null, facts, host)).toThrow(`unknown provider: ${host}`);
@@ -160,13 +160,13 @@ describe("effectiveFacts", () => {
 });
 
 describe("targets: several backends (issue #4)", () => {
-  const TWO = "targets:\n  - engine: vllm\n    model_family: qwen\n    files: [src/llm/selfhosted.ts]\n  - provider: deepseek\n    context_tokens: 65536\n";
+  const TWO = "targets:\n  - engine: vllm\n    model_family: qwen\n    files: [src/llm/selfhosted.ts]\n  - provider: mistral\n    context_tokens: 65536\n";
   it("parses a list of targets, each with one provider or engine and optional files", () => {
     const r = parseProfile(TWO);
     expect(r.errors).toEqual([]);
     expect(r.profile?.targets).toEqual([
       { engine: "vllm", model_family: "qwen", files: ["src/llm/selfhosted.ts"] },
-      { provider: "deepseek", context_tokens: 65536 },
+      { provider: "mistral", context_tokens: 65536 },
     ]);
     expect(r.profile?.target).toEqual({});
   });
@@ -196,7 +196,7 @@ describe("targets: several backends (issue #4)", () => {
     expect(parseProfile("targets: [{engine: vllm, engine_facts: {gpu: 1}}]").errors).toEqual(["unknown key: targets[0].engine_facts.gpu"]);
   });
   it("keeps the top-level engine: for the single-engine case", () => {
-    const p = prof2("targets: [{engine: lm-warden}, {provider: deepseek}]\nengine: {block_tokens: 800}\n");
+    const p = prof2("targets: [{engine: lm-warden}, {provider: mistral}]\nengine: {block_tokens: 800}\n");
     expect(effectiveFacts(p, facts, "lm-warden")).toMatchObject({ mode: "block", block_tokens: 800 });
   });
   it("scores a record on its own provider's table first, whatever the targets", () => {
@@ -211,26 +211,26 @@ describe("targets: several backends (issue #4)", () => {
   });
   it("a provider with no table falls back to the matching entry, never to a guess", () => {
     const p = prof2(TWO);
-    // deepseek matches its own entry, which has no table either: unknown provider, not ambiguous.
-    expect(() => effectiveFacts(p, facts, "deepseek")).toThrow("unknown provider: deepseek");
-    // groq matches no entry and there are two: ambiguous.
+    // mistral matches its own entry, which has no table either: unknown provider, not ambiguous.
+    expect(() => effectiveFacts(p, facts, "mistral")).toThrow("unknown provider: mistral");
+    // cerebras matches no entry and there are two: ambiguous.
     let err: unknown;
     try {
-      effectiveFacts(p, facts, "groq");
+      effectiveFacts(p, facts, "cerebras");
     } catch (e) {
       err = e;
     }
     expect(err).toBeInstanceOf(AmbiguousTargetError);
-    expect(String(err)).toMatch(/ambiguous_target.*groq/);
+    expect(String(err)).toMatch(/ambiguous_target.*cerebras/);
     // a single targets entry is the fallback, as target: is
-    expect(effectiveFacts(prof2("targets: [{provider: openai}]"), facts, "groq")).toEqual(facts.get("openai"));
+    expect(effectiveFacts(prof2("targets: [{provider: openai}]"), facts, "cerebras")).toEqual(facts.get("openai"));
   });
   it("without a record's provider, several targets are ambiguous", () => {
     expect(() => effectiveFacts(prof2(TWO), facts)).toThrow(AmbiguousTargetError);
   });
   it("profileTargets lists the targets of either form", () => {
     expect(profileTargets(prof2("target: {provider: openai}"))).toEqual([{ provider: "openai" }]);
-    expect(profileTargets(prof2(TWO)).map((t) => t.engine ?? t.provider)).toEqual(["vllm", "deepseek"]);
+    expect(profileTargets(prof2(TWO)).map((t) => t.engine ?? t.provider)).toEqual(["vllm", "mistral"]);
     expect(profileTargets(prof2("priority: cost"))).toEqual([]);
   });
 });
@@ -267,10 +267,10 @@ describe("parseProfile volume and prices (cost estimates)", () => {
     expect(parseProfile("volume: {calls_per_month: 100, source: \"usage log, 30 days\"}").profile?.volume).toEqual({ calls_per_month: 100, source: "usage log, 30 days" });
   });
   it("with targets, the volume goes on each entry, not at the top", () => {
-    const ok = parseProfile("targets:\n  - {engine: lm-warden, volume: {calls_per_month: 100}}\n  - {provider: deepseek, volume: {calls_per_month: 50}}\n");
+    const ok = parseProfile("targets:\n  - {engine: lm-warden, volume: {calls_per_month: 100}}\n  - {provider: mistral, volume: {calls_per_month: 50}}\n");
     expect(ok.errors).toEqual([]);
     expect(ok.profile?.targets?.map((t) => t.volume?.calls_per_month)).toEqual([100, 50]);
-    expect(parseProfile("volume: {calls_per_month: 10}\ntargets:\n  - {provider: deepseek}\n").errors.join()).toMatch(/volume/);
+    expect(parseProfile("volume: {calls_per_month: 10}\ntargets:\n  - {provider: mistral}\n").errors.join()).toMatch(/volume/);
   });
   it("reads prefill_tokens_per_second for a self-hosted engine", () => {
     expect(parseProfile("engine: {prefill_tokens_per_second: 8000}").profile?.engine).toEqual({ prefill_tokens_per_second: 8000 });

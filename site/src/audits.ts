@@ -21,7 +21,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { parse } from "yaml";
 import { loadNoteRuleIds } from "../../cli/src/lint/rules.js";
-import { isKnownFinding, isServerFinding, knownOf, parseFindings, type AverageCall, type Finding, type KvsigUse, type Note } from "../../cli/src/score/static.js";
+import { isKnownFinding, isServerFinding, knownOf, parseFindings, tokensLost, unitOf, type AverageCall, type Finding, type KvsigUse, type Note } from "../../cli/src/score/static.js";
 
 export const AUDITS_DIR = "site/audits";
 
@@ -131,6 +131,10 @@ export interface Audit {
   kvsig?: KvsigUse;
   /** Verified problems outside the rules: shown after the findings, never scored. */
   notes?: Note[];
+  /** The project is a gateway or proxy (findings.json `gateway: true`). */
+  gateway?: boolean;
+  /** What one run is, for per-run findings. */
+  run?: string;
   /** The audit ran unattended (findings.json `unattended: true`); the page says so. */
   unattended?: boolean;
   /** The illustration files, read from the folder (absent only for an entry in ILLUSTRATIONS_PENDING). */
@@ -364,8 +368,15 @@ export function loadAudits(root: string, ruleIds: ReadonlySet<string>, noteRuleI
       problems.push(...parsed.errors.map((x) => `${at}/findings.json: ${x}`));
       continue;
     }
+    // Private items (security, privacy, legal) never go on the site, and findings.json is published beside the page:
+    // the file must have them removed, not just hidden.
+    if (parsed.private) {
+      const n = parsed.private.findings.length + parsed.private.notes.length;
+      problems.push(`${at}/findings.json: ${n} private item${n === 1 ? "" : "s"} (private: true); remove ${n === 1 ? "it" : "them"} from the published file before building the site, they are never published`);
+      continue;
+    }
     for (const [i, f] of parsed.findings.entries()) {
-      if (f.tokens_per_1k?.measured_calls !== undefined)
+      if (tokensLost(f)?.measured_calls !== undefined)
         problems.push(`${at}/findings.json: findings[${i}] has measured_calls; a published audit states estimates from the code only`);
     }
     let images: Audit["images"];
@@ -389,8 +400,10 @@ export function loadAudits(root: string, ruleIds: ReadonlySet<string>, noteRuleI
       if (card.b && og.b) images = { card: card.b, og: og.b };
     }
     const fig = meta.figure?.finding;
-    if (fig !== undefined && !parsed.findings.some((f) => f.id === fig || `${f.file}:${f.line}` === fig))
-      problems.push(`${at}/meta.yaml: figure.finding ${fig} names no finding in findings.json (use its id or file:line)`);
+    const figF = fig !== undefined ? parsed.findings.find((f) => f.id === fig || `${f.file}:${f.line}` === fig) : undefined;
+    if (fig !== undefined && !figF) problems.push(`${at}/meta.yaml: figure.finding ${fig} names no finding in findings.json (use its id or file:line)`);
+    if (figF && meta.figure && (unitOf(figF) === "run") !== (meta.figure.unit === "runs"))
+      problems.push(`${at}/meta.yaml: figure.unit ${meta.figure.unit} does not match finding ${fig}, whose figure is ${unitOf(figF) === "run" ? "per run" : "per 1,000 calls"}`);
     out.push({
       slug: slug.toLowerCase(),
       folder: slug,
@@ -400,6 +413,8 @@ export function loadAudits(root: string, ruleIds: ReadonlySet<string>, noteRuleI
       ...(parsed.kvsig ? { kvsig: parsed.kvsig } : {}),
       ...(parsed.notes?.length ? { notes: parsed.notes } : {}),
       ...(parsed.unattended ? { unattended: true } : {}),
+      ...(parsed.gateway ? { gateway: true } : {}),
+      ...(parsed.run !== undefined ? { run: parsed.run } : {}),
       ...(images ? { images } : {}),
     });
   }
@@ -407,9 +422,9 @@ export function loadAudits(root: string, ruleIds: ReadonlySet<string>, noteRuleI
   return out.sort((a, b) => (a.meta.date === b.meta.date ? a.slug.localeCompare(b.slug) : b.meta.date.localeCompare(a.meta.date)));
 }
 
-/** A finding's tokens per 1,000 calls, the three billed sides the page sums. */
+/** A finding's tokens per 1,000 calls (or per run, for a per-run finding), the three billed sides the page sums. */
 export function findingTokens(f: Finding): number {
-  const t = f.tokens_per_1k ?? {};
+  const t = tokensLost(f) ?? {};
   return (t.uncached ?? 0) + (t.prompt ?? 0) + (t.output ?? 0);
 }
 

@@ -17,7 +17,7 @@ Status: documented, not yet measured here. Used by LP-GE-04: a call that sets no
 | Python `requests` | No timeout unless one is set | `timeout=` sets the connect and read timeouts (one value for both, or a tuple); the read timeout is the wait between bytes from the server, not a wall-clock limit | https://requests.readthedocs.io/en/latest/user/advanced/#timeouts |
 | Go `net/http` (`http.Client`, `http.DefaultClient`) | No timeout: a zero `Timeout` means none, and `DefaultClient` (used by `http.Get`, `http.Head`, `http.Post`) is `&Client{}` | `Client.Timeout` covers connection time, redirects and reading the response body | https://pkg.go.dev/net/http#Client |
 
-SDKs set their own defaults on top of these: the OpenAI Python SDK's default timeout and retries are in [providers/openai.md](../providers/openai.md).
+SDKs set their own defaults on top of these, retries included, and a per-request timeout counts again on every retry: the OpenAI SDKs' default timeout and retries are in [providers/openai.md](../providers/openai.md), the Anthropic SDK's in [providers/anthropic.md](../providers/anthropic.md), the AI SDK's in [runtimes/llm-sdks.md](llm-sdks.md), and LangChain's in [runtimes/langchain.md](langchain.md).
 
 ## Platform time limits for a whole function
 
@@ -28,4 +28,4 @@ A serverless platform ends a function that runs past its time limit, however its
 | Vercel Functions | `maxDuration`: a named export in a Next.js App Router route file (`export const maxDuration = 60`), or the `functions` object in `vercel.json` (`{"functions": {"api/*.js": {"maxDuration": 15}}}`); the page also documents a team-wide default and longer limits on some plans | The maximum time the function can run, in seconds | https://vercel.com/docs/functions/configuring-functions/duration |
 
 Other platforms (AWS Lambda, Cloudflare Workers, Netlify Functions) have their own limits; they were not read for this table (checked 2026-11-26), so look the limit up in the platform's documentation.
-<!-- leanprompt:generated v0.1.0-dev.14: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.15: written by leanprompt install; leanprompt update replaces local edits -->

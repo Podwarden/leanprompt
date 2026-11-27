@@ -1,12 +1,14 @@
 ---
 name: generation-economy
-description: Use when writing, reviewing or debugging code that calls an LLM and controls how much it generates or how often it calls (sample loops, per-question calls over one document, max_tokens and thinking or effort settings, timeouts, retries, response caching, bulk or nightly jobs, model choice for small calls, file edits, JSON parsing), for Anthropic, OpenAI, Gemini, OpenRouter, DeepInfra or a self-hosted vLLM or SGLang server, or when usage shows truncated answers (finish_reason length, stop_reason max_tokens), retries, repeated identical calls or parse failures. Stops paying to generate, or to prefill again, what one call could have produced.
+description: Use when writing, reviewing or debugging code that calls an LLM and controls how much it generates or how often it calls (sample loops, per-question calls over one document, max_tokens and thinking or effort settings, timeouts, retries, fallbacks to another model, response caching and change checks, bulk or nightly jobs, model choice for small calls, default model ids, file edits, JSON parsing, finish reasons), for Anthropic, OpenAI, Gemini, OpenRouter, DeepInfra or a self-hosted vLLM or SGLang server, or when usage shows truncated answers (finish_reason length, stop_reason max_tokens), retries, repeated identical calls or parse failures. Stops paying to generate, or to prefill again, what one call could have produced.
 license: CC-BY-4.0
 ---
 
 # generation-economy
 
-Stops paying to generate, or to prefill again, what one call could have produced. Eleven rules, `LP-GE-01` to `LP-GE-11`, each in its own file under `rules/`, each with a way to detect it in code, the smallest fix, what the fix must not break, and how to verify it. LP-GE-11 is a correctness rule: an app that meters its own spend from the usage fields must count every billed token. It wastes no tokens, so it has no token share, and the audit records it as a note.
+Stops paying to generate, or to prefill again, what one call could have produced. Seventeen rules, `LP-GE-01` to `LP-GE-17`, each in its own file under `rules/`, each with a way to detect it in code, the smallest fix, what the fix must not break, and how to verify it.
+
+Six of them are correctness rules (`saves: none`): LP-GE-11 (meter every billed token), LP-GE-12 (read the finish reason before using an answer), LP-GE-13 (default to a model the provider still serves), LP-GE-15 (give each timeout one meaning), LP-GE-16 (fall back only on errors another model can fix) and LP-GE-17 (send the output cap the owner set). They waste no tokens of their own, so they have no token share; the audit records a match as a note that names the rule and its severity. Each says which waste rule takes the token side when there is one (a cut-off answer resent unchanged is also LP-GE-05; a timeout that cuts off generation is also LP-GE-04). LP-GE-14 (both sides of a cache or change key built the same way) is a waste rule: a key that never hits repeats every call.
 
 The `prefill-cache` skill makes each prompt cheaper to read. This skill is about the calls themselves: how many there are, how much each one generates, and how many of them are thrown away (repeated, retried after a truncation or a timeout, or discarded after a parse failure).
 
@@ -43,6 +45,9 @@ What each provider supports, with prices, limits and windows, lives only in the 
 - **Gemini.** `candidateCount`; `thinkingBudget` and `thinkingLevel`; truncation is `MAX_TOKENS`. Batch API with context caching. Structured output with values to validate in the app. [providers/gemini.md](../leanprompt/facts/providers/gemini.md)
 - **OpenRouter.** A router: features depend on the upstream provider. No `n` listed. Batch endpoint for models with a batch variant. Aborting a stream stops billing only on the providers it lists. [providers/openrouter.md](../leanprompt/facts/providers/openrouter.md)
 - **DeepInfra.** `n` with a small maximum; `service_tier` including `flex`; a batch API with a smaller discount; structured output. [providers/deepinfra.md](../leanprompt/facts/providers/deepinfra.md)
+- **DeepSeek, Groq, xAI, Together.** OpenAI-compatible hosts with their own cache rules, usage fields, reasoning defaults, error codes and model retirements: [providers/deepseek.md](../leanprompt/facts/providers/deepseek.md), [providers/groq.md](../leanprompt/facts/providers/groq.md), [providers/xai.md](../leanprompt/facts/providers/xai.md), [providers/together.md](../leanprompt/facts/providers/together.md). On xAI the output limit covers visible output only; on most others it includes reasoning.
+- **SDKs.** The Claude Agent SDK, the Codex SDK and the Vercel AI SDK: finish reasons, default retries and timeouts, usage fields: [runtimes/llm-sdks.md](../leanprompt/facts/runtimes/llm-sdks.md). LangChain.js and langchaingo defaults: [runtimes/langchain.md](../leanprompt/facts/runtimes/langchain.md). Ollama: [providers/ollama.md](../leanprompt/facts/providers/ollama.md).
+- **Model retirements.** Shutdown dates and replacements from the OpenAI, Anthropic and Gemini pages: [models/retirements.md](../leanprompt/facts/models/retirements.md). Tokens per character by language, measured on a sample: [models/tokens-per-character.md](../leanprompt/facts/models/tokens-per-character.md).
 - **vLLM and SGLang (self-hosted).** `n`, structured output by constrained decoding; vLLM has a batch endpoint and n-gram speculative decoding set on the server. Savings are throughput and GPU time, not price. [providers/vllm.md](../leanprompt/facts/providers/vllm.md), [providers/sglang.md](../leanprompt/facts/providers/sglang.md), [models/qwen.md](../leanprompt/facts/models/qwen.md)
 
 Evidence rows (E1 to E12) are in [docs/evidence.md](../leanprompt/facts/docs/evidence.md). A rule whose only source is provider documentation says "documented, not yet measured here".
@@ -73,6 +78,12 @@ Prices change: the tables record what each provider documents and when it was ch
 | [LP-GE-09](rules/LP-GE-09.md) | Predicted outputs for mostly unchanged text | low | provider docs |
 | [LP-GE-10](rules/LP-GE-10.md) | Structured output instead of parse-and-re-ask | high | provider docs |
 | [LP-GE-11](rules/LP-GE-11.md) | Meter every billed token, cached and unfinished ones too | medium (a note, not scored) | provider docs |
+| [LP-GE-12](rules/LP-GE-12.md) | Read the finish reason before using an answer | high (a note, not scored) | provider docs |
+| [LP-GE-13](rules/LP-GE-13.md) | Default to a model the provider still serves | high (a note, not scored) | provider docs, [models/retirements.md](../leanprompt/facts/models/retirements.md) |
+| [LP-GE-14](rules/LP-GE-14.md) | Build both sides of a cache or change key the same way | high | provider docs |
+| [LP-GE-15](rules/LP-GE-15.md) | Give each timeout one meaning, and set one | medium (a note, not scored) | provider docs |
+| [LP-GE-16](rules/LP-GE-16.md) | Fall back to another model only on errors it can fix | medium (a note, not scored) | provider docs |
+| [LP-GE-17](rules/LP-GE-17.md) | Send the output cap the owner set, on every path | medium (a note, not scored) | provider docs |
 
 ## Reading the usage record
 
@@ -87,4 +98,4 @@ Batch discounts (LP-GE-07) and model choice (LP-GE-08) change money, not tokens,
 ## What this skill does not do
 
 It does not make prompts cache better (that is `prefill-cache`), it does not cut dead weight from the prompt (that is `prompt-diet`), it does not tune engine settings or replica routing on a self-hosted server (that is `lmwarden`), and it does not promise a saving for an app it has not measured.
-<!-- leanprompt:generated v0.1.0-dev.14: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.15: written by leanprompt install; leanprompt update replaces local edits -->

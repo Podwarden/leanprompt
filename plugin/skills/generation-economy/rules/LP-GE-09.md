@@ -76,4 +76,4 @@ The page presents predicted outputs as a latency feature; whether the output is 
 
 ## Waste signal
 Not in the score directly (the full-text output is not a repeat). It shows as fewer output tokens per edit in a before/after run (the `measure-loop` skill). Static: severity low for a whole-file rewrite prompt on edit tasks; with the provider's prediction support noted from the tables.
-<!-- leanprompt:generated v0.1.0-dev.14: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.15: written by leanprompt install; leanprompt update replaces local edits -->

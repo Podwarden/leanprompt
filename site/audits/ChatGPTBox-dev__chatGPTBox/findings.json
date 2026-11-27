@@ -1,0 +1,125 @@
+{
+  "v": 1,
+  "unattended": true,
+  "average_call": {
+    "prompt_tokens": 4000,
+    "output_tokens": 700
+  },
+  "findings": [
+    {
+      "id": "cutoff",
+      "rule": "LP-GE-03",
+      "file": "src/services/apis/openai-compatible-core.mjs",
+      "line": 99,
+      "saves": "generation",
+      "severity": "medium",
+      "share": 0.14,
+      "status": "frequency-unknown",
+      "confirm": "how many OpenAI-compatible answers end with finish_reason \"length\" on the default-enabled GPT-6.1 Sol, GPT-6.1 Terra, GPT-6 Luna, GPT-6 Astra and Gemini 3.x modes, from the provider's request logs",
+      "tokens_per_1k": {
+        "output": 100000
+      },
+      "problem": "Every OpenAI-compatible request is capped at Max Response Token Length, 2,000 by default (src/config/index.mjs:861), and the default-enabled OpenAI modes are reasoning models whose default effort is medium. On Chat Completions the cap covers the hidden reasoning as well as the visible answer, so a page summary can stop part-way or before any visible text, and the app then shows it as a finished answer (see the note on line 148).",
+      "change": "Treat finish_reason \"length\" as a cut-off (the note below), and raise the default limit for reasoning models, for example 16,000 for GPT-5.x/GPT-6.x and Gemini 3.x, or send a lower reasoning_effort for short tasks.",
+      "why": "A cut-off answer is paid for in full (reasoning and visible tokens), and the user asks again with the same 2,000-token limit, which tends to stop at the same place.",
+      "estimate": "about 100k output tokens per 1,000 calls (estimate, frequency unknown)",
+      "assumptions": "5% of all calls are OpenAI-compatible reasoning-model calls that hit the 2,000-token limit and are asked again; each loses the full 2,000 output tokens; 700 output tokens per average call. OpenAI's reasoning guide recommends reserving at least 25,000 tokens for reasoning and output when starting out (read 2026-11-27); GPT-6.1 Terra and GPT-6.1 Sol default to medium effort. Related, not the same: open issue #1133 / PR #1134 are about the parameter's name, not its size.",
+      "verify": "On GPT-6.1 Sol with defaults, summarise a long article: the provider log shows completion_tokens 2000 and finish_reason length before the change; after it, finish_reason stop."
+    },
+    {
+      "id": "claude-marks",
+      "rule": "LP-PC-01",
+      "file": "src/services/apis/claude-api.mjs",
+      "line": 31,
+      "saves": "prefill",
+      "severity": "high",
+      "share": 0.11,
+      "tokens_per_1k": {
+        "uncached": 450000,
+        "cache_write": 450000
+      },
+      "problem": "The Claude API request body has no cache_control anywhere, so Anthropic caches nothing. Every follow-up question about a summarised page or video resends the whole earlier conversation, including the page text, at the full input price.",
+      "change": "Add top-level automatic caching to the body: cache_control: { type: 'ephemeral' }. Anthropic then places the breakpoint on the last cacheable block and moves it forward each turn.",
+      "why": "A Summarize Page or video prompt is up to about 5,900 tokens after cropText; with marks, each follow-up within 5 minutes reads it at 0.1x (0.05x on Opus 5.5 and Sonnet 5.5) instead of 1x.",
+      "estimate": "about 450k prompt tokens per 1,000 calls not served from cache (estimate)",
+      "assumptions": "15% of calls go to the Claude API, half of them are follow-ups within 5 minutes carrying about 6,000 tokens of earlier conversation; default-enabled Claude models (Fable 5.1, Opus 5.5, Sonnet 5.5, Haiku 5.5) have a 512-token minimum; the first call of each conversation pays the 1.25x write on about 6,000 tokens. Searched issues and PRs for cache_control and prompt caching: nothing.",
+      "verify": "Ask a follow-up within a minute of a page summary on Claude Sonnet 5.5: usage.cache_read_input_tokens goes from 0 to about the size of the first turn."
+    },
+    {
+      "id": "window",
+      "rule": "LP-PC-06",
+      "file": "src/services/apis/openai-compatible-core.mjs",
+      "line": 95,
+      "saves": "prefill",
+      "severity": "high",
+      "share": 0.06,
+      "tokens_per_1k": {
+        "uncached": 240000
+      },
+      "problem": "History is cut to the last maxConversationContextLength question/answer pairs (9 by default) on every request (also claude-api.mjs:26 and azure-openai-api.mjs:21). From the tenth turn on, each request starts with a different pair, so the provider's cache cannot reuse any of the history, and the first turn, which holds the page or video text of a summary, is dropped from the conversation.",
+      "change": "Drop old turns in larger steps (for example keep the first pair and cut back to 5 pairs when 9 is reached), so the prefix stays the same for several turns, and keep the first pair of a summary conversation.",
+      "why": "Each turn past the window recomputes the whole history at full price.",
+      "estimate": "about 240k prompt tokens per 1,000 calls not served from cache (estimate)",
+      "assumptions": "3% of calls are turn 10 or later of a conversation with about 8,000 tokens of history; automatic caching on OpenAI and Gemini, marks on Claude (finding claude-marks).",
+      "verify": "On turn 11 of a conversation, prompt_tokens_details.cached_tokens is near 0 before the change and near the history size after it."
+    },
+    {
+      "rule": "LP-GE-04",
+      "file": "src/utils/fetch-sse.mjs",
+      "line": 71,
+      "saves": "both",
+      "severity": "medium",
+      "share": 0,
+      "problem": "No request has a timeout: fetchSSE passes only the Stop button's AbortController, so a provider that accepts the connection and never sends a byte leaves the answer spinning until the user presses Stop.",
+      "change": "Add a first-byte timeout (for example 60 seconds, longer for reasoning models) with AbortSignal.any([controller.signal, AbortSignal.timeout(ms)]), cleared when the first chunk arrives, and report it as a timeout rather than a stop.",
+      "why": "Costs no tokens by itself; it turns a silent hang into an error the user can act on.",
+      "estimate": "no tokens (reliability)",
+      "assumptions": "streaming requests; the user can always press Stop.",
+      "verify": "Point a custom provider at a server that accepts and never answers: the card shows a timeout error after the limit."
+    }
+  ],
+  "notes": [
+    {
+      "title": "OpenAI-compatible answers cut off at the token limit are shown and saved as complete",
+      "rule": "LP-GE-12",
+      "severity": "high",
+      "file": "src/services/apis/openai-compatible-core.mjs",
+      "line": 148,
+      "finding": "cutoff",
+      "problem": "hasFinished (lines 31-33) is true for any finish_reason, and line 148 then calls finish(), which saves the answer to history and marks it done, whether the reason was stop or length. An answer cut off at Max Response Token Length, or an empty one when a reasoning model spent the whole budget thinking, looks like a normal reply. The Claude path already handles this (claude-api.mjs:78-82 raises 'Claude reached the response token limit'). Azure has the same gap (azure-openai-api.mjs:66). This path serves OpenAI, OpenRouter, Gemini, xAI, DeepSeek, Ollama and every other OpenAI-compatible provider.",
+      "change": "Read the reason: when finish_reason is 'length', do not save the record as complete; post the partial text and throw an error like the Claude one ('The answer reached Max Response Token Length (N). Increase it in Advanced settings and try again.'). Treat 'content_filter' the same way with its own message.",
+      "verify": "In tests/unit/services/apis/openai-api-compat.test.mjs, a mock stream ending with finish_reason 'length' should produce an error message and no done record; the existing 'stop' tests stay green."
+    },
+    {
+      "title": "The Ollama keep-alive request after every answer probably evicts the conversation's cached prefix",
+      "file": "src/services/apis/openai-api.mjs",
+      "line": 209,
+      "problem": "After each answer, touchOllamaKeepAlive (lines 193-224, called at 336-346) sends a second generation to /api/generate with prompt 't' and num_predict 1. Ollama defaults to one parallel slot (OLLAMA_NUM_PARALLEL, FAQ read 2026-11-27), and its prompt cache keeps only the prefix shared with the newest request, so the next turn of the conversation has to prefill the whole history again. With the default ollamaKeepAliveTime '5m' (src/config/index.mjs:852), which equals Ollama's own default residency, the request also changes nothing.",
+      "change": "Send the documented preload request instead: { model, keep_alive } with no prompt and no options (Ollama FAQ, 'preload a model by sending the Ollama server an empty request'), and skip it entirely when the setting is the default '5m'.",
+      "verify": "On a local Ollama with default settings, ask two follow-ups: before the change usage.prompt_tokens on the second follow-up is about the whole history; after it, about the new message only (Ollama reports only evaluated tokens)."
+    },
+    {
+      "title": "Pages and transcripts are cut to about 5,900 tokens for every current model, and less when the output limit is raised",
+      "file": "src/utils/crop-text.mjs",
+      "line": 48,
+      "known": {
+        "kind": "reported",
+        "url": "https://github.com/ChatGPTBox-dev/chatGPTBox/issues/800",
+        "note": "open since 2024-10: cropping by decimation produces garbled text; PR #809 (crop the middle) closed unmerged 2025-08; #679 asked for full transcripts and was told to pick a longer-context mode"
+      },
+      "problem": "cropText reads the context size from a 'NNk' in the model's label (lines 41-45). Only GPT-4o 128k and the Kimi API and web modes have one, so every default-enabled model, including 1M-context GPT-6.1 and Gemini 3.x, gets the 8,000-token default minus 100 minus the output limit: about 5,900 tokens. The rest of a page or transcript is decimated, keeping roughly every Nth clause. Raising Max Response Token Length, which is what a cut-off answer needs, makes it worse: at 6,000 or more only 1,900 tokens of the page are sent (line 48). The count uses the GPT-2/3 tokenizer.",
+      "change": "Give each model (or provider) a context-window value and use it instead of parsing the label, keep the output limit out of the input budget for 100k+ models, and when cropping is still needed, cut the middle once with a marker (as #809 proposed) instead of decimating.",
+      "verify": "Summarise a 2-hour YouTube video on GPT-6.1 Sol: the console's 'input maxLength' log line shows 5900 before the change and the model's window after it."
+    },
+    {
+      "title": "The model list still offers OpenAI models that have been shut down",
+      "rule": "LP-GE-13",
+      "severity": "low",
+      "file": "src/config/index.mjs",
+      "line": 328,
+      "problem": "OpenAI's deprecations page (read 2026-11-27) lists gpt-5-chat-latest and gpt-5.1-chat-latest as shut down on 2026-07-23, gpt-5.2-chat-latest and gpt-5.3-chat-latest on 2026-08-10, gpt-3.5-turbo-instruct on 2026-09-28 and gpt-4.1-nano on 2026-10-23; gpt-5 and o3 shut down on 2026-12-11, gpt-4o, gpt-4o-mini, gpt-4.1 and gpt-4.1-mini on 2027-01-14. The modes remain selectable (lines 325-351, 439) and saved selections are preserved, so a user who picked one gets a provider error.",
+      "change": "Remove the shut-down ids or migrate saved selections to OpenAI's named replacements (gpt-5.6-sol for the chat-latest ids, gpt-6-luna for gpt-4o/4.1, gpt-6.1-sol for gpt-5 and o3).",
+      "verify": "After the migration, a profile with chatgptApi5_2Latest saved opens with the replacement selected."
+    }
+  ]
+}

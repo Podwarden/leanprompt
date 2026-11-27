@@ -44,4 +44,4 @@ Used by the `generation-economy` rules.
 | Batch API | "billed at 20% less than the corresponding real-time price"; within 24 hours; `/v1/chat/completions`, `/v1/completions`, `/v1/embeddings` (`/v1/responses` rejected); 50,000 requests and 200 MB per file; one model per file; does not count against real-time rate limits | https://docs.deepinfra.com/batch/introduction.md |
 | Structured outputs | `response_format` `json_object` (valid JSON, shape not controlled) or `json_schema` with `strict` ("The model is constrained to produce only values that match your schema"); on "many of our models". The page warns that a `max_tokens` or `length` stop can leave the JSON incomplete | https://docs.deepinfra.com/chat/structured-outputs.md |
 | Client disconnect | Not stated in DeepInfra's docs read. OpenRouter lists DeepInfra among providers whose streams stop on abort (`providers/openrouter.md`) | OpenRouter streaming docs |
-<!-- leanprompt:generated v0.1.0-dev.14: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.15: written by npx leanprompt install; npx leanprompt update replaces local edits -->

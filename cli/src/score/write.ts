@@ -9,6 +9,7 @@ import { parseUsageLog } from "../log/record.js";
 import { effectiveFacts, loadProfile, type Profile } from "../profile.js";
 import { measuredScore, MIN_CALLS, type MeasuredScore, type UnmeasuredReason } from "./measured.js";
 import { isServerFinding, knownOf, parseFindings, staticScore, type Finding, type Weights } from "./static.js";
+import { writePrivateList } from "../report/private.js";
 
 export type Kind = "measured" | "static";
 
@@ -192,6 +193,9 @@ export async function scoreCommand(args: string[]): Promise<number> {
     if (!existsSync(file)) throw new Error(`${file}: no such file`);
     const parsed = parseFindings(readFileSync(file, "utf8"), loadRuleIds(PACKAGE_ROOT), loadNoteRuleIds(PACKAGE_ROOT));
     if (parsed.errors.length > 0) throw new Error(`${file}: ${parsed.errors.join("; ")}`);
+    // Private items (security, privacy, legal) are left out of the score and listed only in .leanprompt/private.md.
+    const priv = writePrivateList(dir, parsed);
+    if (priv) process.stdout.write(`  private: listed in ${priv}, left out of the score and every public output; do not publish\n`);
     const findings = filterIgnored(parsed.findings, profile);
     const w = loadWeights(join(dir, WEIGHTS_FILE));
     const withServer = values["with-server"] === true;

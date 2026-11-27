@@ -39,4 +39,4 @@ Used by the `generation-economy` rules.
 - Eviction policy of the radix tree and of HiCache's memory tiers: not stated in the docs (checked 2026-11-26).
 - Flag to disable the radix cache: not stated on the pages read (checked 2026-11-26).
 - Treatment of hybrid or Mamba models: not read.
-<!-- leanprompt:generated v0.1.0-dev.14: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.15: written by leanprompt install; leanprompt update replaces local edits -->

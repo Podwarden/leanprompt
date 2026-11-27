@@ -20,6 +20,27 @@ export interface Known {
 }
 export type FixBy = "app" | "server";
 
+/**
+ * In a gateway or proxy audit: `own`, a call the gateway makes for itself (its own agent, a summariser);
+ * `proxied`, what the gateway does to its clients' calls (conversion, passthrough, billing). Optional elsewhere.
+ */
+export type Scope = "own" | "proxied";
+export const SCOPES: readonly Scope[] = ["own", "proxied"];
+
+/**
+ * The unit of a finding's token figure: `calls` (the default), tokens per 1,000 calls of the whole app, in
+ * `tokens_per_1k`; or `run`, tokens per run of a CLI or batch tool (one invocation, one nightly job, one translated
+ * book), in `tokens_per_run`. Totals are kept per unit and never added across units.
+ */
+export type Unit = "calls" | "run";
+
+/**
+ * How a finding's figure was obtained: `estimate` (the default), from reading the code with stated assumptions;
+ * `counted`, counted from the app's own committed or published output (its reports, logs or generated files),
+ * with `counted_from` saying what was counted where.
+ */
+export type FigureEvidence = "estimate" | "counted";
+
 /** `file` of a finding that lives outside the repository (an engine's launch flags, a gateway's config). */
 export const EXTERNAL = "<external>";
 
@@ -79,6 +100,28 @@ export interface Finding {
   model?: string;
   /** Tokens this finding loses per 1,000 calls of the whole app, by how they are billed (see TokensLost). */
   tokens_per_1k?: TokensLost;
+  /** `unit: "run"` only: the tokens it loses per run (see Unit), in place of `tokens_per_1k`. */
+  tokens_per_run?: TokensLost;
+  /** The unit of the token figure; absent means `calls` (per 1,000 calls). */
+  unit?: Unit;
+  /** How the figure was obtained; absent means an estimate from the code. */
+  evidence?: FigureEvidence;
+  /** With `evidence: "counted"`: what was counted, and where (at most 600 characters). */
+  counted_from?: string;
+  /** Gateway or proxy audits: the gateway's own call, or what it does to its clients' calls. */
+  scope?: Scope;
+  /**
+   * `none`: the model has no cached-input price, so the prompt tokens the cache could have served are real tokens but
+   * cost the same either way; the saving is latency, not money. The money estimate prices them at 0.
+   */
+  cached_discount?: "none";
+  /** Who reaches the affected path, when not every user does ("only users who turn on API mode"; at most 120 characters). */
+  reach?: string;
+  /**
+   * A security, privacy or legal finding that must not be published. Left out of the score, the page, the Markdown
+   * report, the hand-off block, GitHub annotations and the site; listed only in `.leanprompt/private.md`.
+   */
+  private?: boolean;
 }
 
 /**
@@ -121,9 +164,13 @@ export interface Note {
   change: string;
   why?: string;
   verify?: string;
+  /** Gateway or proxy audits: the gateway's own call, or what it does to its clients' calls. */
+  scope?: Scope;
+  /** Must not be published (security, privacy, legal): listed only in `.leanprompt/private.md`. */
+  private?: boolean;
 }
 
-export const NOTE_KEYS = ["title", "rule", "severity", "finding", "known", "file", "line", "problem", "change", "why", "verify"] as const;
+export const NOTE_KEYS = ["title", "rule", "severity", "finding", "known", "file", "line", "problem", "change", "why", "verify", "scope", "private"] as const;
 export const ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/;
 export const NOTE_TITLE_MAX = 120;
 
@@ -144,7 +191,7 @@ export interface KvsigUse {
 }
 
 /** The plain-English text fields of a finding, and their length limit. */
-export const TEXT_FIELDS = ["problem", "change", "why", "estimate", "assumptions", "verify"] as const;
+export const TEXT_FIELDS = ["problem", "change", "why", "estimate", "assumptions", "verify", "counted_from"] as const;
 export const TEXT_MAX = 600;
 
 /**
@@ -156,6 +203,15 @@ export const isServerFinding = (f: Finding): boolean => (f.fix_by ?? (f.file ===
 /** What the project already knows about a finding: `known`, or the older `planned` text as a planned entry. Fixed findings are not "known". */
 export const knownOf = (f: Finding): Known | undefined =>
   f.known ?? (f.planned !== undefined ? { kind: "planned", note: f.planned } : undefined);
+
+/** The finding's token figure, in its own unit (`unitOf`): `tokens_per_run` for a per-run finding, else `tokens_per_1k`. */
+export const tokensLost = (f: Finding): TokensLost | undefined => (f.unit === "run" ? f.tokens_per_run : f.tokens_per_1k);
+
+/** The unit of a finding's token figure. */
+export const unitOf = (f: Finding): Unit => f.unit ?? "calls";
+
+/** "per 1,000 calls" or "per run": how a figure in this unit reads after its number. */
+export const unitText = (u: Unit): string => (u === "run" ? "per run" : "per 1,000 calls");
 
 /** A finding the project already knows about (prior art): left out of the headline estimate and the static score. */
 export const isKnownFinding = (f: Finding): boolean => !f.fixed && knownOf(f) !== undefined;
@@ -223,6 +279,29 @@ export function scoreFrom({ E, S, G }: { E: number; S: number; G: number }): num
   return Math.floor(100 * (0.6 * E * S + 0.4 * (1 - G)) + 1e-9);
 }
 
+/** What `parseFindings` returns. `findings` and `notes` are the public items only; private ones are in `private`. */
+export interface ParsedFindings {
+  findings: Finding[];
+  errors: string[];
+  average_call?: AverageCall;
+  kvsig?: KvsigUse;
+  notes?: Note[];
+  unattended?: boolean;
+  /** The audited project is an LLM gateway or proxy (declared by the auditor): the page separates own and proxied items. */
+  gateway?: boolean;
+  /** What one run is, for findings with `unit: "run"` (for example "one aicommits invocation, 1 to 42 calls"). */
+  run?: string;
+  /**
+   * Items marked `private: true` (security, privacy, legal). Never shown by any public output: the score, the page,
+   * the Markdown report, the hand-off block, GitHub annotations and the site all read `findings` and `notes` only.
+   * Present (possibly empty arrays) only when the file has private items.
+   */
+  private?: { findings: Finding[]; notes: Note[] };
+}
+
+/** The line every private list starts with. */
+export const PRIVATE_HEADER = "Do not publish";
+
 /**
  * Parse `.leanprompt/findings.json`. Invalid entries are dropped and reported in `errors`;
  * `ruleIds` is the set of known rule ids (see `loadRuleIds`).
@@ -232,7 +311,7 @@ export function parseFindings(
   ruleIds: ReadonlySet<string>,
   /** Ids of the correctness rules (`saves: none`): a note may name one; a finding may not. See `loadNoteRuleIds`. */
   noteRuleIds: ReadonlySet<string> = new Set(),
-): { findings: Finding[]; errors: string[]; average_call?: AverageCall; kvsig?: KvsigUse; notes?: Note[]; unattended?: boolean } {
+): ParsedFindings {
   const findings: Finding[] = [];
   const errors: string[] = [];
   let doc: unknown;
@@ -279,7 +358,24 @@ export function parseFindings(
     if (typeof d.unattended !== "boolean") errors.push("unattended must be true or false");
     else unattended = d.unattended;
   }
-  const extra = { ...(average_call ? { average_call } : {}), ...(kvsig ? { kvsig } : {}), ...(notes ? { notes } : {}), ...(unattended !== undefined ? { unattended } : {}) };
+  let gateway: boolean | undefined;
+  if (d.gateway !== undefined) {
+    if (typeof d.gateway !== "boolean") errors.push("gateway must be true or false");
+    else gateway = d.gateway;
+  }
+  let run: string | undefined;
+  if (d.run !== undefined) {
+    if (typeof d.run !== "string" || d.run.trim() === "" || d.run.length > NOTE_TITLE_MAX) errors.push(`run must be a non-empty string of at most ${NOTE_TITLE_MAX} characters: what one run is`);
+    else run = d.run;
+  }
+  const extra = {
+    ...(average_call ? { average_call } : {}),
+    ...(kvsig ? { kvsig } : {}),
+    ...(notes ? { notes } : {}),
+    ...(unattended !== undefined ? { unattended } : {}),
+    ...(gateway !== undefined ? { gateway } : {}),
+    ...(run !== undefined ? { run } : {}),
+  };
   if (!Array.isArray(d.findings)) {
     errors.push("findings must be an array");
     return { findings, errors, ...extra };
@@ -336,30 +432,24 @@ export function parseFindings(
       if (v !== undefined && (!text(v) || v.length > TEXT_MAX)) return bad(`${k} must be a non-empty string of at most ${TEXT_MAX} characters`);
     }
     if (r.model !== undefined && !text(r.model)) return bad("model must be a non-empty string");
+    if (r.unit !== undefined && r.unit !== "calls" && r.unit !== "run") return bad(`unit must be calls or run, not ${String(r.unit)}`);
+    const perRun = r.unit === "run";
+    if (perRun && r.tokens_per_1k !== undefined) return bad("a finding with unit run gives tokens_per_run, not tokens_per_1k");
+    if (!perRun && r.tokens_per_run !== undefined) return bad("tokens_per_run needs \"unit\": \"run\"");
+    const tokenKey = perRun ? "tokens_per_run" : "tokens_per_1k";
     let tokens: TokensLost | undefined;
-    if (r.tokens_per_1k !== undefined) {
-      const t = r.tokens_per_1k as Record<string, unknown> | null;
-      if (!t || typeof t !== "object" || Array.isArray(t)) return bad("tokens_per_1k must be an object");
-      const keys = Object.keys(t);
-      // An empty object means "nothing to estimate", the same as leaving the field out.
-      if (keys.length > 0) {
-        const tl: TokensLost = {};
-        for (const k of keys) {
-          const v = t[k];
-          if (k === "measured_calls") {
-            if (typeof v !== "number" || !Number.isInteger(v) || v < 1) return bad("tokens_per_1k.measured_calls must be a positive integer");
-            tl.measured_calls = v;
-          } else if (k === "prompt" || k === "uncached" || k === "output" || k === "cache_write") {
-            if (typeof v !== "number" || !Number.isFinite(v) || v < 0) return bad(`tokens_per_1k.${k} must be a number >= 0`);
-            tl[k] = v;
-          } else return bad(`tokens_per_1k: unknown key ${k}`);
-        }
-        if (tl.prompt === undefined && tl.uncached === undefined && tl.output === undefined) {
-          return bad("tokens_per_1k needs prompt, uncached or output (or leave it out, or {}, when nothing can be estimated)");
-        }
-        tokens = tl;
-      }
+    if (r[tokenKey] !== undefined) {
+      const t = parseTokens(r[tokenKey], tokenKey);
+      if (typeof t === "string") return bad(t);
+      tokens = t;
     }
+    if (r.evidence !== undefined && r.evidence !== "estimate" && r.evidence !== "counted") return bad(`evidence must be estimate or counted, not ${String(r.evidence)}`);
+    if (r.evidence === "counted" && r.counted_from === undefined) return bad("a counted figure needs counted_from: what was counted, and where (the app's committed output)");
+    if (r.counted_from !== undefined && r.evidence !== "counted") return bad("counted_from goes with \"evidence\": \"counted\"");
+    if (r.scope !== undefined && !(SCOPES as readonly unknown[]).includes(r.scope)) return bad(`scope must be own or proxied, not ${String(r.scope)}`);
+    if (r.private !== undefined && typeof r.private !== "boolean") return bad("private must be true or false");
+    if (r.cached_discount !== undefined && r.cached_discount !== "none") return bad('cached_discount must be "none" (the model has no cached-input price), or left out');
+    if (r.reach !== undefined && (!text(r.reach) || r.reach.length > NOTE_TITLE_MAX)) return bad(`reach must be a non-empty string of at most ${NOTE_TITLE_MAX} characters: who reaches this path`);
     const out: Finding = { rule: r.rule, file: r.file, line: (r.line as number | undefined) ?? 0, saves: r.saves as Saves, severity: r.severity as Severity };
     if (r.id !== undefined) out.id = r.id as string;
     if (r.share !== undefined) out.share = r.share as number;
@@ -375,7 +465,16 @@ export function parseFindings(
     if (r.confirm !== undefined) out.confirm = r.confirm as string;
     for (const k of TEXT_FIELDS) if (r[k] !== undefined) out[k] = r[k] as string;
     if (r.model !== undefined) out.model = r.model as string;
-    if (tokens) out.tokens_per_1k = tokens;
+    if (tokens) {
+      if (perRun) out.tokens_per_run = tokens;
+      else out.tokens_per_1k = tokens;
+    }
+    if (perRun) out.unit = "run";
+    if (r.evidence !== undefined) out.evidence = r.evidence as FigureEvidence;
+    if (r.scope !== undefined) out.scope = r.scope as Scope;
+    if (r.private === true) out.private = true;
+    if (r.cached_discount !== undefined) out.cached_discount = "none";
+    if (r.reach !== undefined) out.reach = r.reach as string;
     findings.push(out);
   });
   // Ids are unique, and overlaps and notes name findings that exist.
@@ -391,7 +490,47 @@ export function parseFindings(
   for (const [i, n] of (notes ?? []).entries()) {
     if (n.finding !== undefined && !ids.has(n.finding)) errors.push(`notes[${i}]: finding ${n.finding} is not the id of any finding`);
   }
-  return { findings, errors, ...extra };
+  // Per-run findings need the run described once, at the top.
+  if (findings.some((f) => f.unit === "run") && extra.run === undefined) errors.push("run is required when a finding has unit run: say what one run is (for example \"one CLI invocation\")");
+  // A public item never names a private one: the name alone would point at what must not be published.
+  const privateIds = new Set(findings.filter((f) => f.private && f.id !== undefined).map((f) => f.id!));
+  for (const f of findings) {
+    if (f.private) continue;
+    for (const o of f.overlaps ?? []) if (privateIds.has(o)) errors.push(`finding ${f.id}: overlaps names ${o}, a private finding; a public finding cannot refer to a private one`);
+  }
+  for (const [i, n] of (notes ?? []).entries()) {
+    if (!n.private && n.finding !== undefined && privateIds.has(n.finding)) errors.push(`notes[${i}]: finding ${n.finding} is private; a public note cannot refer to a private finding`);
+  }
+  const privFindings = findings.filter((f) => f.private);
+  const privNotes = (notes ?? []).filter((n) => n.private);
+  if (privFindings.length === 0 && privNotes.length === 0) return { findings, errors, ...extra };
+  const out: ParsedFindings = { findings: findings.filter((f) => !f.private), errors, ...extra, private: { findings: privFindings, notes: privNotes } };
+  if (notes) out.notes = notes.filter((n) => !n.private);
+  return out;
+}
+
+/** A `tokens_per_1k` or `tokens_per_run` object, validated; undefined for `{}` (nothing to estimate); the error text when malformed. */
+function parseTokens(raw: unknown, key: string): TokensLost | undefined | string {
+  const t = raw as Record<string, unknown> | null;
+  if (!t || typeof t !== "object" || Array.isArray(t)) return `${key} must be an object`;
+  const keys = Object.keys(t);
+  // An empty object means "nothing to estimate", the same as leaving the field out.
+  if (keys.length === 0) return undefined;
+  const tl: TokensLost = {};
+  for (const k of keys) {
+    const v = t[k];
+    if (k === "measured_calls") {
+      if (typeof v !== "number" || !Number.isInteger(v) || v < 1) return `${key}.measured_calls must be a positive integer`;
+      tl.measured_calls = v;
+    } else if (k === "prompt" || k === "uncached" || k === "output" || k === "cache_write") {
+      if (typeof v !== "number" || !Number.isFinite(v) || v < 0) return `${key}.${k} must be a number >= 0`;
+      tl[k] = v;
+    } else return `${key}: unknown key ${k}`;
+  }
+  if (tl.prompt === undefined && tl.uncached === undefined && tl.output === undefined) {
+    return `${key} needs prompt, uncached or output (or leave it out, or {}, when nothing can be estimated)`;
+  }
+  return tl;
 }
 
 /** A `known` entry, validated; the error text when it is malformed. */
@@ -423,6 +562,8 @@ function parseNote(raw: unknown, at: string, errors: string[], noteRuleIds: Read
     return bad(r.rule === undefined ? "severity is not allowed on a note without a rule: a note is never scored" : "severity must be high, medium or low");
   }
   if (r.finding !== undefined && (typeof r.finding !== "string" || !ID_RE.test(r.finding))) return bad("finding must be the id of a finding");
+  if (r.scope !== undefined && !(SCOPES as readonly unknown[]).includes(r.scope)) return bad(`scope must be own or proxied, not ${String(r.scope)}`);
+  if (r.private !== undefined && typeof r.private !== "boolean") return bad("private must be true or false");
   let known: Known | undefined;
   if (r.known !== undefined) {
     const k = parseKnown(r.known);
@@ -446,6 +587,8 @@ function parseNote(raw: unknown, at: string, errors: string[], noteRuleIds: Read
   if (known) n.known = known;
   if (r.why !== undefined) n.why = r.why as string;
   if (r.verify !== undefined) n.verify = r.verify as string;
+  if (r.scope !== undefined) n.scope = r.scope as Scope;
+  if (r.private === true) n.private = true;
   return n;
 }
 

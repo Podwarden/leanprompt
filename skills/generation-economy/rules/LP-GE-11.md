@@ -32,6 +32,8 @@ How the usage fields add up differs by provider, and a formula written for one i
 - **Alibaba Model Studio:** OpenAI-compatible fields, with cache writes reported separately in `prompt_tokens_details.cache_creation_input_tokens` and hits in `prompt_tokens_details.cached_tokens`, billed at different shares of the input price for explicit and implicit caching ([providers/alibaba-model-studio.md](../../../providers/alibaba-model-studio.md)).
 - **Routers and gateways** return the routed provider's fields, or their own normalised ones ([providers/openrouter.md](../../../providers/openrouter.md), [providers/vercel-ai-gateway.md](../../../providers/vercel-ai-gateway.md)); read which.
 
+**Gateways and proxies that bill their clients.** A gateway that charges each client from the upstream usage has a price book of its own. When that book has only an input and an output rate, every cached token is charged at the input rate: cache reads (a small fraction of the input price on Anthropic, [providers/anthropic.md](../../../providers/anthropic.md)) are overcharged several times over on a cache-heavy client, and cache writes (above the input price on Anthropic) are undercharged. The same happens when a price sync from an upstream catalogue keeps the input and output prices and drops the cached ones. A gateway that reserves quota before the call and settles after it must settle from the provider's usage on every path that has it (a cut-off answer, a converted stop reason, an aborted stream), not keep the reservation as the charge. Record these with `"scope": "proxied"`.
+
 **Unfinished calls are billed too.** A reply cut off at the output limit is billed in full (on reasoning models it can be billed for reasoning with no visible answer: Azure's reasoning guide says "You pay for input and reasoning tokens but receive no answer"). A stream the client aborts, a call that times out on the client, or one that fails after the provider began generating may be billed for what was generated, depending on the provider ([providers/openrouter.md](../../../providers/openrouter.md) lists which upstream providers stop billing on abort). A meter that records usage only on a successful, complete reply misses all of these.
 
 ## Detect in code
@@ -55,7 +57,7 @@ Go:
 ```
 rg -n 'InputTokens|PromptTokens|CachedTokens|CacheReadInputTokens|CacheCreationInputTokens' -g '*.go'
 ```
-Shapes: `cost := float64(resp.Usage.InputTokens) * inPrice` on Anthropic; usage added to a counter only in the `err == nil` branch.
+Shapes: `cost := float64(resp.Usage.InputTokens) * inPrice` on Anthropic; usage added to a counter only in the `err == nil` branch; a gateway's charge `(input + output*completionRatio) * modelRatio` where `input` includes cache reads and writes and the ratio table has no cache entries.
 
 ## Fix
 ```ts
@@ -87,4 +89,4 @@ The fix changes no prompt and no answer. It can change what users see: a cap tha
 (b) leanprompt usage record: with the logger in place, the meter's daily total and the sum over `.leanprompt/usage.jsonl` of `prompt_tokens`, `cached_tokens` and `output_tokens`, priced the same way, agree; records with `finish: "length"` appear in both.
 
 ## Waste signal
-No token share: a meter that undercounts wastes no tokens, so it never enters the score. The audit records a match as a note with `"rule": "LP-GE-11"` and a severity. High: a spend cap or per-user budget that enforces a limit and undercounts (Anthropic `input_tokens` alone with cache marks set; failures never metered on a path that retries). Medium: a cost log or dashboard that misreports without enforcing anything, or a cap that overcounts (cached tokens added twice). Low: cached reads priced at the full input rate in a report only.
+No token share: a meter that undercounts wastes no tokens, so it never enters the score. The audit records a match as a note with `"rule": "LP-GE-11"` and a severity. High: a spend cap or per-user budget that enforces a limit and undercounts (Anthropic `input_tokens` alone with cache marks set; failures never metered on a path that retries). Medium: a cost log or dashboard that misreports without enforcing anything, or a cap that overcounts (cached tokens added twice). High: a gateway or proxy that charges its clients from a price book with no cache-read or cache-write rate (cached tokens billed at the input rate), or that keeps a reservation as the charge when the provider returned usage. Low: cached reads priced at the full input rate in a report only.

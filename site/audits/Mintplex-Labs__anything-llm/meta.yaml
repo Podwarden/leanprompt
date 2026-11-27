@@ -9,10 +9,13 @@
 # Left out on purpose: the unbounded re-ask on unparseable tool arguments (the maintainers
 # declined re-prompting in #6593 and #7102) and the cache-token metering fix (in their open
 # pull request #6747).
+# Re-scored with 0.1.0-dev.15 (2026-11-27): the cut-off note now names LP-GE-12 (medium). The
+# evidence is the audit's own, unchanged; notes are never scored and a rule id does not change a
+# share, so the static score and the big number are unchanged.
 repo: https://github.com/Mintplex-Labs/anything-llm
 visibility: public
 commit: b01447009150507ae0cfd1304e3492fcaf2a92d8
-leanprompt: 0.1.0-dev.14
+leanprompt: 0.1.0-dev.15
 date: 2026-11-26
 status: notified
 summary: >-

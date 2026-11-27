@@ -36,4 +36,4 @@ Status: documented, not yet measured here. Cache facts are in `providers/anthrop
 
 - Temperature restrictions with thinking, and tool-calling or JSON-output quirks: not stated on the page read (checked 2026-11-26).
 - Only the Extended thinking page was read; the Thinking, Effort and Steering pages it links to were not.
-<!-- leanprompt:generated v0.1.0-dev.14: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.15: written by leanprompt install; leanprompt update replaces local edits -->

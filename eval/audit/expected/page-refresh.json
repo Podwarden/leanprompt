@@ -1,0 +1,7 @@
+[
+  {
+    "rule": "LP-GE-14",
+    "file": "before/refresh.py",
+    "line": 32
+  }
+]

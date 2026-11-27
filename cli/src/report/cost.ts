@@ -1,5 +1,5 @@
 import { profileTargets, type Price, type Profile } from "../profile.js";
-import { isKnownFinding, isOpenQuestion, isServerFinding, overlapGroups, type AverageCall, type Finding } from "../score/static.js";
+import { isKnownFinding, isOpenQuestion, isServerFinding, overlapGroups, tokensLost, unitOf, type AverageCall, type Finding, type Unit } from "../score/static.js";
 
 /**
  * Which part of the page a finding belongs to: the app's findings, its open questions, the server's administrator,
@@ -17,7 +17,7 @@ const GROUP_ORDER: Record<Group, number> = { open: 0, question: 1, server: 2, kn
 export function costsNothing(f: Finding): boolean {
   const shares = [f.share, f.share_prefill, f.share_output].filter((v): v is number => v !== undefined);
   if (shares.length === 0 || shares.some((v) => v > 0)) return false;
-  const t = f.tokens_per_1k;
+  const t = tokensLost(f);
   return !t || (t.prompt ?? 0) + (t.uncached ?? 0) + (t.output ?? 0) === 0;
 }
 
@@ -38,9 +38,13 @@ export function sumOverlapping<T extends { finding: Finding }>(rows: readonly T[
 export interface CostRow {
   finding: Finding;
   group: Group;
-  /** prompt + uncached + output tokens per 1,000 calls. */
+  /** The unit of `tokens`: per 1,000 calls, or per run (see `Unit`). Rows of different units are never added together. */
+  unit: Unit;
+  /** prompt + uncached + output tokens, per 1,000 calls or per run (`unit`). */
   tokens: number;
   dollars_per_month?: number;
+  /** A per-run finding: money per run at its model's price (no volume needed). */
+  dollars_per_run?: number;
   /** Average seconds this finding adds to a call's first-token time on a self-hosted engine. */
   ttft_seconds?: number;
   gpu_hours_per_month?: number;
@@ -49,8 +53,22 @@ export interface CostRow {
 
 export interface CostSummary {
   rows: CostRow[];
-  /** Open app findings that are not open questions, with tokens. */
+  /** Open app findings that are not open questions, with tokens per 1,000 calls. */
   tokens_per_1k: number;
+  /** The same for per-run findings, in tokens per run; never added to `tokens_per_1k`. */
+  run_tokens: number;
+  /** What the open questions with per-run figures add, per run. */
+  run_question_tokens: number;
+  /** Open per-run findings with tokens. */
+  run_with_tokens: number;
+  /** Money per run of the open per-run findings, when every one of them has a price (one currency). */
+  dollars_per_run?: number;
+  /** Of the open rows in the totals (both units), how many give a figure counted from the app's own output. */
+  counted: number;
+  /** Open rows in the totals (both units). */
+  total_rows: number;
+  /** What one run is (findings.json `run`), for per-run figures. */
+  run?: string;
   question_tokens_per_1k: number;
   /** Open findings for the server's administrator, with tokens: never in the app's totals. */
   server_tokens_per_1k: number;
@@ -83,7 +101,10 @@ export interface CostSummary {
 }
 
 /** Tokens lost: prompt + uncached + output. `cache_write` is a cost of the fix, priced in money only. */
-const tokensOf = (f: Finding): number => (f.tokens_per_1k?.prompt ?? 0) + (f.tokens_per_1k?.uncached ?? 0) + (f.tokens_per_1k?.output ?? 0);
+const tokensOf = (f: Finding): number => {
+  const t = tokensLost(f);
+  return (t?.prompt ?? 0) + (t?.uncached ?? 0) + (t?.output ?? 0);
+};
 
 function volumeOf(p: Profile | null): { calls_per_month: number; source?: string } | undefined {
   if (!p) return undefined;
@@ -108,16 +129,18 @@ function throughput(p: Profile | null): number | undefined {
 
 /** Money per 1,000 calls for one finding at one price (in the price's currency), or a reason it cannot be priced. */
 function dollarsPer1k(f: Finding, price: Price): number | string {
-  const t = f.tokens_per_1k ?? {};
-  if ((t.uncached ?? 0) > 0 && price.cached_input === undefined) return "cached_input";
+  const t = tokensLost(f) ?? {};
+  // No cached-input discount on this model: the uncached tokens cost the same either way.
+  const noDiscount = f.cached_discount === "none";
+  if (!noDiscount && (t.uncached ?? 0) > 0 && price.cached_input === undefined) return "cached_input";
   if ((t.cache_write ?? 0) > 0 && price.cache_write === undefined) return "cache_write";
   // A fix that adds cache marks writes these tokens at the cache-write price instead of the input price.
   const premium = (t.cache_write ?? 0) * ((price.cache_write ?? price.input) - price.input);
-  const perM = (t.prompt ?? 0) * price.input + (t.uncached ?? 0) * (price.input - (price.cached_input ?? 0)) + (t.output ?? 0) * price.output - premium;
+  const perM = (t.prompt ?? 0) * price.input + (noDiscount ? 0 : (t.uncached ?? 0) * (price.input - (price.cached_input ?? 0))) + (t.output ?? 0) * price.output - premium;
   return perM / 1e6;
 }
 
-export function costSummary(findings: readonly Finding[], profile: Profile | null, average_call?: AverageCall): CostSummary {
+export function costSummary(findings: readonly Finding[], profile: Profile | null, average_call?: AverageCall, run?: string): CostSummary {
   const prices = profile?.prices ?? {};
   const models = Object.keys(prices);
   const volume = volumeOf(profile);
@@ -129,9 +152,23 @@ export function costSummary(findings: readonly Finding[], profile: Profile | nul
   const priceFor = (f: Finding): string | undefined => (f.model ? (prices[f.model] ? f.model : undefined) : models.length === 1 ? models[0] : undefined);
 
   for (const f of findings) {
-    if (!f.tokens_per_1k) continue;
-    const row: CostRow = { finding: f, group: groupOf(f), tokens: tokensOf(f) };
+    if (!tokensLost(f)) continue;
+    const unit = unitOf(f);
+    const row: CostRow = { finding: f, group: groupOf(f), unit, tokens: tokensOf(f) };
     const model = priceFor(f);
+    if (unit === "run") {
+      // Money per run needs only the price: the tokens are already per run.
+      if (model) {
+        const d = dollarsPer1k(f, prices[model]!);
+        if (typeof d === "number") {
+          row.dollars_per_run = d;
+          row.model = model;
+          usedPrices.set(model, prices[model]!);
+        }
+      }
+      rows.push(row);
+      continue;
+    }
     if (model && volume) {
       const d = dollarsPer1k(f, prices[model]!);
       if (typeof d === "number") {
@@ -147,7 +184,7 @@ export function costSummary(findings: readonly Finding[], profile: Profile | nul
       if (!model && models.length > 1) missing.add(`"model" on each finding\twhich of the models in prices: its calls use`);
       if (!model && models.length > 0 && f.model) missing.add(`prices.${f.model}\tthe price of the model this finding names`);
     }
-    if (tps) {
+    if (tps && f.tokens_per_1k) {
       const prefill = (f.tokens_per_1k.uncached ?? 0) + (f.tokens_per_1k.prompt ?? 0);
       if ((f.tokens_per_1k.uncached ?? 0) > 0) row.ttft_seconds = (f.tokens_per_1k.uncached! / 1000) / tps;
       if (volume && prefill > 0) row.gpu_hours_per_month = ((prefill / 1000) * volume.calls_per_month) / tps / 3600;
@@ -157,22 +194,32 @@ export function costSummary(findings: readonly Finding[], profile: Profile | nul
   // The table's order: the app's findings, then its open questions, then the server's, then the known ones, each largest first.
   rows.sort((a, b) => GROUP_ORDER[a.group] - GROUP_ORDER[b.group] || b.tokens - a.tokens);
 
-  const open = rows.filter((r) => r.group === "open");
-  const questions = rows.filter((r) => r.group === "question");
-  const server = rows.filter((r) => r.group === "server");
-  const known = rows.filter((r) => r.group === "known");
-  const fixed = rows.filter((r) => r.group === "fixed");
+  // Per 1,000 calls and per run are kept apart: every total below is over one unit.
+  const calls = rows.filter((r) => r.unit === "calls");
+  const runs = rows.filter((r) => r.unit === "run");
+  const open = calls.filter((r) => r.group === "open");
+  const questions = calls.filter((r) => r.group === "question");
+  const server = calls.filter((r) => r.group === "server");
+  const known = calls.filter((r) => r.group === "known");
+  const fixed = calls.filter((r) => r.group === "fixed");
+  const runOpen = runs.filter((r) => r.group === "open");
+  const runQuestions = runs.filter((r) => r.group === "question");
   // Overlapping findings count once per group, the largest (0.1.0-dev.14).
   const sum = (rs: CostRow[], k: "tokens" | "dollars_per_month" | "gpu_hours_per_month") => sumOverlapping(rs, (r) => r[k]);
   // What the open questions add on top of the findings, overlaps counted once across both.
   const added = (k: "tokens" | "dollars_per_month") => sum([...open, ...questions], k) - sum(open, k);
   const scored = rows.filter((r) => !r.finding.fixed);
-  const measuredCalls = scored.map((r) => r.finding.tokens_per_1k!.measured_calls);
+  const measuredCalls = scored.map((r) => tokensLost(r.finding)!.measured_calls);
   const measured = scored.length > 0 && measuredCalls.every((n) => n !== undefined);
 
   const out: CostSummary = {
     rows,
     tokens_per_1k: sum(open, "tokens"),
+    run_tokens: sumOverlapping(runOpen, (r) => r.tokens),
+    run_question_tokens: sumOverlapping([...runOpen, ...runQuestions], (r) => r.tokens) - sumOverlapping(runOpen, (r) => r.tokens),
+    run_with_tokens: runOpen.length,
+    counted: [...open, ...runOpen].filter((r) => r.finding.evidence === "counted").length,
+    total_rows: open.length + runOpen.length,
     question_tokens_per_1k: added("tokens"),
     server_tokens_per_1k: sum(server, "tokens"),
     known_tokens_per_1k: sum(known, "tokens"),
@@ -182,9 +229,12 @@ export function costSummary(findings: readonly Finding[], profile: Profile | nul
     missing: [],
   };
   if (measured) out.measured_calls = Math.min(...(measuredCalls as number[]));
+  const runCurrencies = new Set(runOpen.filter((r) => r.model).map((r) => prices[r.model!]!.currency ?? "USD"));
+  if (runOpen.length > 0 && runOpen.every((r) => r.dollars_per_run !== undefined) && runCurrencies.size === 1) out.dollars_per_run = sumOverlapping(runOpen, (r) => r.dollars_per_run);
   if (average_call) out.average_call = average_call;
+  if (run !== undefined) out.run = run;
 
-  if (!volume) missing.add("volume: {calls_per_month: N}\thow many calls the app makes a month (with targets:, on each entry)");
+  if (!volume && calls.some((r) => !r.finding.fixed)) missing.add("volume: {calls_per_month: N}\thow many calls the app makes a month (with targets:, on each entry)");
   if (models.length === 0 && !tps) {
     missing.add("prices\tper model: input, cached_input and output per 1M tokens (US dollars, or set currency), with source and checked date (or, self-hosted, engine: {prefill_tokens_per_second: N})");
   }

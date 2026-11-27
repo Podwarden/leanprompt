@@ -21,6 +21,12 @@ const TITLES: Record<string, string> = {
   "LP-GE-09": "Predicted outputs for mostly unchanged text",
   "LP-GE-10": "Structured output instead of parse-and-re-ask",
   "LP-GE-11": "Meter every billed token, cached and unfinished ones too",
+  "LP-GE-12": "Read the finish reason before using an answer",
+  "LP-GE-13": "Default to a model the provider still serves",
+  "LP-GE-14": "Build both sides of a cache or change key the same way",
+  "LP-GE-15": "Give each timeout one meaning, and set one",
+  "LP-GE-16": "Fall back to another model only on errors it can fix",
+  "LP-GE-17": "Send the output cap the owner set, on every path",
 };
 
 function ruleFiles(): string[] {
@@ -42,7 +48,7 @@ describe("generation-economy skill content", () => {
     expect(issues).toEqual([]);
   });
 
-  it("has exactly LP-GE-01..11 with the planned titles, one per file", () => {
+  it("has exactly LP-GE-01..17 with the planned titles, one per file", () => {
     const files = ruleFiles();
     expect(files).toEqual(Object.keys(TITLES).map((id) => `${id}.md`));
     const got = Object.fromEntries(
@@ -56,7 +62,7 @@ describe("generation-economy skill content", () => {
 
   it("every Verify section names a provider usage field and a leanprompt usage-record signal", () => {
     const files = ruleFiles();
-    expect(files.length).toBe(11);
+    expect(files.length).toBe(17);
     const provider = /output_tokens|completion_tokens|finish_reason|stop_reason|finishReason|candidatesTokenCount|cached_tokens/;
     const record = /flags\.retry_of|flags\.parse_failed|finish: "length"|`output_tokens`|`finish`/;
     for (const f of files) {

@@ -50,7 +50,7 @@ If another command already has that name, the full name is `/leanprompt:leanprom
 ## More
 
 Source, documentation and other assistants (Codex, Cursor, OpenCode): https://github.com/Podwarden/leanprompt. This folder is generated
-from that repository for version 0.1.0-dev.14.
+from that repository for version 0.1.0-dev.15.
 
 ## Licence
 

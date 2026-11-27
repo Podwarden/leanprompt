@@ -34,4 +34,4 @@ Observed 2026-09-04 in the model's chat_template.jinja: default reasoning level 
 ## Not stated in the docs
 
 - JSON-output quirks for these models: not stated on the page read (checked 2026-11-26).
-<!-- leanprompt:generated v0.1.0-dev.14: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.15: written by npx leanprompt install; npx leanprompt update replaces local edits -->

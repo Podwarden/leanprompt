@@ -143,6 +143,8 @@
     },
     {
       "title": "A report cut off at the output limit is accepted as complete",
+      "rule": "LP-GE-12",
+      "severity": "medium",
       "file": "gpt_researcher/actions/report_generation.py",
       "line": 292,
       "problem": "generate_report streams the report with max_tokens set to SMART_TOKEN_LIMIT, which on reasoning models also covers the reasoning. No code reads finish_reason or stop_reason, so a report that hits the limit stops mid-sentence and is saved and shown as complete. Only the empty case is detected (utils/llm.py:151).",

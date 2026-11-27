@@ -74,4 +74,4 @@ The model still needs the value. Keep it labelled ("Working directory: ..."), an
 
 ## Waste signal
 Measured: the score's S counts only requests that continue an earlier one, so this cross-session loss shows mostly as many distinct `head` ids among the first requests of an app whose head should be one, and as a short shared prefix on each first request. Static: severity high for a per-session or per-call value in the first lines of the system prompt or in a tool definition.
-<!-- leanprompt:generated v0.1.0-dev.14: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.15: written by leanprompt install; leanprompt update replaces local edits -->

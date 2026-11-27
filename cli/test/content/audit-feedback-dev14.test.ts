@@ -54,7 +54,7 @@ describe("LP-GE-11, the metering rule", () => {
   it("is a correctness rule: saves none, a severity, recorded as a note", () => {
     expect(meta.saves).toBe("none");
     expect(meta.severity).toBe("medium");
-    expect(loadNoteRuleIds(ROOT)).toEqual(new Set(["LP-GE-11"]));
+    expect(loadNoteRuleIds(ROOT)).toContain("LP-GE-11");
     expect(section(t, "Waste signal")).toMatch(/No token share[\s\S]*note with `"rule": "LP-GE-11"`/);
   });
 

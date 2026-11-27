@@ -1,0 +1,29 @@
+# Audited with 0.1.0-dev.14, scored with 0.1.0-dev.15. Unattended, read-only, on a clone of master at
+# the commit below; the extension was not built or run and no provider was called. The repository
+# moved from josStorer/chatGPTBox (which redirects) to ChatGPTBox-dev/chatGPTBox; the commit
+# resolves under the new name. Changes to the findings file the audit wrote: the cut-off note now
+# names LP-GE-12 (high) and the shut-down model list LP-GE-13 (low). The evidence is the audit's own,
+# unchanged; notes are never scored and a rule id does not change a share, so the static score (84)
+# and the big number are unchanged. Prior art: page cropping is issue #800 (open), recorded as known
+# on its note. No response from the maintainers yet; the only comment is the project's own bot
+# (checked 2026-11-27).
+repo: https://github.com/ChatGPTBox-dev/chatGPTBox
+visibility: public
+commit: be0d7149b899d5c849c9218504f708c6611078b7
+leanprompt: 0.1.0-dev.15
+date: 2026-11-27
+status: notified
+summary: >-
+  A browser extension that puts a chat box, selection tools and page summaries on every site, calling 15+ providers. On the OpenAI-compatible path an answer cut off at the 2,000-token default is saved and shown as finished; the Claude path already reports it. Figures are estimates from the code.
+maintainer:
+  issue: https://github.com/ChatGPTBox-dev/chatGPTBox/issues/1148
+headline: "OpenAI-compatible answers cut off at the token limit are saved as if complete"
+subtitle: >-
+  A browser extension that streams answers from 15+ providers and already flags cut-off Claude replies.
+kind: Cut-off answer
+figure:
+  finding: "cutoff"
+  label: "for answers cut off at the 2,000-token default and asked again"
+illustration:
+  scene: "a long paper receipt feeding out of a small desk printer, torn off cleanly halfway through a line of printed bars, the torn half lying neatly in a filing tray with a green check-mark stamp beside it, the rest of the paper roll still visible inside the printer"
+  alt: "A grey desk printer feeds out a receipt with printed bars, and the torn-off half, cut across its bars, lies in a tray beside a green check mark."

@@ -93,4 +93,4 @@ A longer context and more concurrent sequences take more KV-cache memory, and th
 ## What this skill does not do
 
 It does not make the model faster, change how much it generates (that is `generation-economy`), or change the prompt (that is `prefill-cache`). It does not choose hardware, and it does not promise the E9 or E10 results for another model, card count or workload.
-<!-- leanprompt:generated v0.1.0-dev.14: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.15: written by leanprompt install; leanprompt update replaces local edits -->

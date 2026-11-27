@@ -664,3 +664,32 @@ From the feedback of seven real audits of public repositories (three of them the
 - "(estimate)" appended to an `estimate` text that already says it is not estimated.
 - A `known` kind, or another record, for work the project finished before the audit.
 - The items deferred from 0.1.0-dev.13 above remain.
+
+## Owner decisions (2026-11-27, 0.1.0-dev.15)
+
+From the feedback of four audits of small apps (under about 5,300 lines), three of 1,000-star apps and one of a gateway. In every one the most useful item was outside the rules.
+
+- **Correctness rules for what the audits kept finding.** LP-GE-12 (a cut-off answer used as complete), LP-GE-13 (a retired or retiring default model), LP-GE-15 (a timeout with two meanings, or none), LP-GE-16 (a fallback on errors another model cannot fix) and LP-GE-17 (an output cap one path never sends) follow LP-GE-11: `saves: none`, a severity, recorded as a note that names the rule, never scored. Each names the waste rule that takes the token side when there is one, so a cut-off answer resent unchanged is an LP-GE-05 finding and an LP-GE-12 note, not two scored items. LP-GE-14 (both sides of a cache or change key built the same way) is a waste rule, because every miss repeats an LLM call; LP-GE-06 stays the rule for a cache that is missing.
+- **Model retirements are a fact table.** `models/retirements.md` records only what the providers' deprecation pages state, with the date read, and keeps dated snapshots and bare aliases apart; it is checked like every other table and goes stale after 90 days.
+- **Gateways.** The auditor declares `gateway: true` (or the skill detects it from the code's shape) and marks items `scope: own` or `proxied`. The billing side of a gateway (cached tokens charged at the input rate, a reservation kept as the charge) extends LP-GE-11 instead of adding a rule; the rest of the checklist maps to existing rules.
+- **The small-app fast path** is a section of the audit skill, not a separate skill. The threshold is under about 5,000 lines of the app's own code or fewer than about 10 call sites. It skips call-mix modelling: a small tool's figures are per run or left out.
+- **Per run.** A finding may give `unit: run` and `tokens_per_run`, with a top-level `run`. Totals are kept per unit and never added; the score is unchanged because a share is unitless. `evidence: counted` (with `counted_from`) marks a figure counted from the app's own committed output, shown as counted.
+- **Private items.** `private: true` on a finding or note. `parseFindings` returns private items apart from the public ones, so every public output (the score, the page, the Markdown report, the hand-off block, GitHub annotations, the site) reads only public items by construction; private findings are left out of the score, and `score.json` does not mention them. They are written to `.leanprompt/private.md` ("Do not publish"), which `.leanprompt/.gitignore` keeps out of git. A public item may not name a private one. The site refuses a findings file that still holds private items, because the file itself is published beside the page.
+- **Two finding fields from a fifth batch of audits.** `cached_discount: "none"` keeps a cache finding's tokens in the score (they are real) but prices them at 0, because the model has no cached-input price; `reach` says who reaches the path. Neither moves the score.
+- **No score change** in this release: files valid in 0.1.0-dev.14 score the same.
+
+### Next (deferred from these audits)
+
+- A top-level `call_mix`, `callers`/`also_at`, volume and prices found by the audit, `status: "information"`, a `decision` record and the G label, from the 0.1.0-dev.14 list, remain.
+- A `related:` field for "the cause is known upstream, this angle is new", and a home for "only matters if open pull request N lands".
+- `install --dir <outside path>` (or `score`/`report --dir` alone) for audits of throwaway clones that already have their own `.claude/`.
+- One disclosure wording for audits of someone else's repository (leanprompt and the AI assistant).
+- The headline for a cents-a-month finding ("below a cent per 100 calls" from a price hint), and S reading 1.00 in a static score whose only finding is about prefix stability.
+- A rule cross-reference for one defect that fits two rules (a sliding window is both LP-PC-06 and LP-PD-05; graph reorder and cache marks on Anthropic).
+- Which parameters OpenAI reasoning models accept on Chat Completions, as a fact row.
+- Reasoning-share guidance for a user-selectable model under LP-GE-03.
+- A fixed-length head slice of a structured document passed to a summariser, as a rule or a note pattern.
+- An Unknown client library section in `call-shapes.md` beyond the fast path's one line.
+- A rule for an extra request that evicts a self-hosted cache (Ollama keep-alive generations on a single slot); LP-LW covers vLLM and SGLang only.
+- A table of SDK error wording, so string-matched status codes can be checked per SDK.
+- The possible prompt-diet direction recorded under 0.1.0-dev.13, what is asked of the model, remains not planned.

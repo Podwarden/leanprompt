@@ -5,10 +5,14 @@
 # the note on answers cut off but not empty, which that fix does not cover. Issues #23 and #30
 # (making the model configurable, done) were checked and match no item here. No response from the
 # maintainers yet (checked 2026-11-27). The commit is the one audited.
+# Re-scored with 0.1.0-dev.15 (2026-11-27): the cut-off note now names LP-GE-12 (medium); the relay
+# item stays out of the published file. The evidence is the audit's own, unchanged; notes are never
+# scored and a rule id does not change a share, so the static score and the big number are
+# unchanged.
 repo: https://github.com/wendy7756/AI-Video-Transcriber
 visibility: public
 commit: 7f1c6197766937adc98596a2641109477a1a8ee4
-leanprompt: 0.1.0-dev.14
+leanprompt: 0.1.0-dev.15
 date: 2026-11-27
 status: notified
 summary: >-

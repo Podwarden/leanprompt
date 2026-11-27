@@ -1,6 +1,6 @@
 ---
 name: measure-loop
-description: Use when you need to prove that a change to an LLM-calling app made it cheaper or faster, or to keep it from regressing (logging cache usage per call in cached_tokens, cache_read_input_tokens and cache_creation_input_tokens, replaying a recorded session before and after a change, writing a CI test that fails when the system prompt or tool list stops being stable, running npx leanprompt@0.1.0-dev.14 score or leanprompt calibrate), or when someone asks "did that fix work?" for Anthropic, OpenAI, Gemini, OpenRouter, DeepInfra or a self-hosted vLLM or SGLang server. Turns each fix from a claim into a before and after number.
+description: Use when you need to prove that a change to an LLM-calling app made it cheaper or faster, or to keep it from regressing (logging cache usage per call in cached_tokens, cache_read_input_tokens and cache_creation_input_tokens, replaying a recorded session before and after a change, writing a CI test that fails when the system prompt or tool list stops being stable, running npx leanprompt@0.1.0-dev.15 score or leanprompt calibrate), or when someone asks "did that fix work?" for Anthropic, OpenAI, Gemini, OpenRouter, DeepInfra or a self-hosted vLLM or SGLang server. Turns each fix from a claim into a before and after number.
 license: CC-BY-4.0
 ---
 
@@ -12,19 +12,19 @@ Makes every change to an LLM-calling app answer to numbers: measure, change one 
 
 - You changed a prompt builder, a tool registry, a history store, a retry or a token budget, and want to know what it did to cache reuse and output tokens.
 - You want a test in CI that fails when the stable head of a request changes (a timestamp added to a system prompt, a tool reordered, old messages re-serialised).
-- You want a score for the badge or the report: `npx leanprompt@0.1.0-dev.14 score`, optionally `leanprompt calibrate`.
+- You want a score for the badge or the report: `npx leanprompt@0.1.0-dev.15 score`, optionally `leanprompt calibrate`.
 - The `prefill-cache`, `generation-economy` or `prompt-diet` skill sent you here for a rule's "Verify" step.
 
 ## Ask first
 
-Before you edit the app's code, install a package, add a file outside `.leanprompt/`, or run anything that sends requests to a provider (they are billed), show the change or the command and ask. The user may prefer to run it themselves. No ask is needed for `npx leanprompt@0.1.0-dev.14 score` and `npx leanprompt@0.1.0-dev.14 calibrate`, which only read and write files under `.leanprompt/` and make no network calls; `calibrate` still writes `.leanprompt/weights.json` only after `y` or `--yes`. Offering to share a lesson (below) needs no ask, but `npx leanprompt@0.1.0-dev.14 lesson` writes `.leanprompt/lesson.md`, so run it only after the user says yes.
+Before you edit the app's code, install a package, add a file outside `.leanprompt/`, or run anything that sends requests to a provider (they are billed), show the change or the command and ask. The user may prefer to run it themselves. No ask is needed for `npx leanprompt@0.1.0-dev.15 score` and `npx leanprompt@0.1.0-dev.15 calibrate`, which only read and write files under `.leanprompt/` and make no network calls; `calibrate` still writes `.leanprompt/weights.json` only after `y` or `--yes`. Offering to share a lesson (below) needs no ask, but `npx leanprompt@0.1.0-dev.15 lesson` writes `.leanprompt/lesson.md`, so run it only after the user says yes.
 
 ## Workflow
 
 1. **Measure.** Propose adding the usage logger (below) as a small diff, and add it only if the user says yes. Then ask the user to run a fixed scenario through the app, or ask whether you may run it (it sends real, billed requests): several sessions, with follow-up turns, not one request repeated. Keep the scenario so the next run is comparable.
 2. **Change one rule at a time.** Propose a single rule's fix from `prefill-cache`, `generation-economy` or `prompt-diet` as a diff, with its "Don't break meaning" check, and apply it only after the user says yes. If two things change together, the result cannot be credited to either.
 3. **Measure again.** Replay the same scenario against the same model, or collect real traffic. A replay sends real requests to the provider, which are billed: ask the user to run it, or ask before you run it yourself. Compare the same fields: cached tokens against prompt tokens, output tokens, number of calls, `finish: "length"`, retries.
-4. **Prove.** `npx leanprompt@0.1.0-dev.14 score` writes `.leanprompt/score.json` (the badge source) from the usage log. With no log yet, `npx leanprompt@0.1.0-dev.14 score --static` scores the audit's findings instead and labels it "static". To fit the static score to your app, run `leanprompt calibrate` ([docs/calibration.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.14/docs/calibration.md)).
+4. **Prove.** `npx leanprompt@0.1.0-dev.15 score` writes `.leanprompt/score.json` (the badge source) from the usage log. With no log yet, `npx leanprompt@0.1.0-dev.15 score --static` scores the audit's findings instead and labels it "static". To fit the static score to your app, run `leanprompt calibrate` ([docs/calibration.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.15/docs/calibration.md)).
 5. **Keep it.** Offer the stable-head test (below) as its own small diff, and add it only after the user says yes, so the change cannot quietly come undone.
 
 ## Read the provider's own usage fields first
@@ -157,7 +157,7 @@ Ids tell you the prompt was reusable; they do not tell you the provider reused i
 The score comes from the usage log, so it inherits the log's limits. Say so when you quote it.
 
 - **It needs at least 50 measured calls** (calls minus unmeasured), and states how many it used. With fewer, `score` refuses a measured number, prints how many measured calls it found, and suggests `--static`.
-- **Reusable tokens are an estimate by character share**, not a token count from the provider's tokenizer ([docs/calibration.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.14/docs/calibration.md) explains how the static weights are fitted against it).
+- **Reusable tokens are an estimate by character share**, not a token count from the provider's tokenizer ([docs/calibration.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.15/docs/calibration.md) explains how the static weights are fitted against it).
 - **A cache has a lifetime.** A prefix that returns after the provider's lifetime was not reusable; the lifetimes are in the provider tables. The lifetime changes the cache-reuse figure (E) only; the stability figure (S) ignores it, because a user's pause is not the app rewriting its prefix.
 - **Requests kvsig cannot identify** (a dialect it does not read, a body over 2 MiB, malformed JSON) are counted as "unmeasured" and left out of the reuse figures; they are not counted as zero reuse.
 - **Failed calls are unmeasured too.** A call that failed (finish `error`) never reached the cache, or its state is unknown, so it is left out of the reuse figures, not counted as zero.
@@ -168,11 +168,11 @@ The target profile ([docs/profile.md](../leanprompt/facts/docs/profile.md)) sets
 
 ## Sharing a lesson
 
-After a fix has a measured before and after, or when a rule misled the user (it did not fit their app, or the fix changed answers), offer once to share what happened as a "lesson learned". It is an offer, not a step: say what it is, and never run it unasked. Only after the user says yes, run `npx leanprompt@0.1.0-dev.14 lesson --rule <id>` (add `--before <an older score.json>` when they kept one). It writes a draft to `.leanprompt/lesson.md` on their machine from the rule id, the target and the current score; it contains no code, paths, prompts or model output, and nothing is sent anywhere.
+After a fix has a measured before and after, or when a rule misled the user (it did not fit their app, or the fix changed answers), offer once to share what happened as a "lesson learned". It is an offer, not a step: say what it is, and never run it unasked. Only after the user says yes, run `npx leanprompt@0.1.0-dev.15 lesson --rule <id>` (add `--before <an older score.json>` when they kept one). It writes a draft to `.leanprompt/lesson.md` on their machine from the rule id, the target and the current score; it contains no code, paths, prompts or model output, and nothing is sent anywhere.
 
-The user reads the exact text, edits it, and opens the issue themselves: the command prints a link to the "Lesson learned" form on GitHub, which carries no text from the draft, and the user pastes the draft into the form. A maintainer reads every submission before it informs a rule, and credit is optional ([THANKYOU.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.14/docs/THANKYOU.md)). If `lesson` reports something to remove (a key, an email, a path, a host name), help the user remove it and run it again; do not paste the removed text anywhere. Do not offer after a static score alone: there is no before and after to share.
+The user reads the exact text, edits it, and opens the issue themselves: the command prints a link to the "Lesson learned" form on GitHub, which carries no text from the draft, and the user pastes the draft into the form. A maintainer reads every submission before it informs a rule, and credit is optional ([THANKYOU.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.15/docs/THANKYOU.md)). If `lesson` reports something to remove (a key, an email, a path, a host name), help the user remove it and run it again; do not paste the removed text anywhere. Do not offer after a static score alone: there is no before and after to share.
 
 ## What this skill does not do
 
 It does not decide what to change (that is `prefill-cache`, `generation-economy` and `prompt-diet`), it does not make answers right (any change that can alter answers needs its own answer check), and it does not turn a small log into a trustworthy score.
-<!-- leanprompt:generated v0.1.0-dev.14: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.15: written by npx leanprompt install; npx leanprompt update replaces local edits -->

@@ -95,7 +95,7 @@ describe("lintFacts", () => {
     expect(m.some((x) => x.startsWith("warn runtimes/noname.md: checked 2026-08-01"))).toBe(true);
   });
   it("passes on the repo's own tables with no warnings", () => {
-    expect(lintFacts(REPO, TODAY)).toEqual([]);
+    expect(lintFacts(REPO, "2026-11-27")).toEqual([]);
   });
 });
 

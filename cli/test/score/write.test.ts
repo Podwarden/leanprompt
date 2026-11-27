@@ -83,7 +83,7 @@ describe("score --measured", () => {
   });
 
   it("an OpenAI-compatible host with no table refuses with unknown_provider, and scores once the profile names a target", async () => {
-    const groq = readFileSync(USAGE, "utf8").trim().split("\n").map((l) => JSON.stringify({ ...JSON.parse(l), provider: "groq" }));
+    const groq = readFileSync(USAGE, "utf8").trim().split("\n").map((l) => JSON.stringify({ ...JSON.parse(l), provider: "fireworks" }));
     const p = lp("usage.jsonl", groq.join("\n"));
     expect(await scoreCommand(["--measured", p, "--dir", dir])).toBe(1);
     expect(err).toContain("unknown_provider 60");
@@ -93,7 +93,7 @@ describe("score --measured", () => {
   });
 
   it("with two targets, a host matching neither is unmeasured as ambiguous_target with a hint", async () => {
-    const groq = readFileSync(USAGE, "utf8").trim().split("\n").map((l) => JSON.stringify({ ...JSON.parse(l), provider: "groq" }));
+    const groq = readFileSync(USAGE, "utf8").trim().split("\n").map((l) => JSON.stringify({ ...JSON.parse(l), provider: "fireworks" }));
     const p = lp("usage.jsonl", groq.join("\n"));
     writeFileSync(join(dir, "leanprompt.yaml"), "targets:\n  - {engine: lm-warden}\n  - {provider: openai}\n");
     expect(await scoreCommand(["--measured", p, "--dir", dir])).toBe(1);

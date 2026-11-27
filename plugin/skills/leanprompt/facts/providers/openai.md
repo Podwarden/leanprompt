@@ -83,4 +83,4 @@ Used by the `prompt-diet` rules.
 ## Not stated in the docs
 
 - Cached-token price multiplier for the current model list: the caching guide says reads cost "0.1× the ordinary input rate on most of these models" (0.05x on GPT-6.2 Astra, GPT-6.2 Sol, GPT-6.1 Sol and GPT-6.1 Terra) and writes 1.25x for the 30-minute lifetime, 2.5x for 12 hours (read 2026-11-26). The GPT-5.4 model pages list cached input at a tenth of input (above). Other models: read the model's own page.
-<!-- leanprompt:generated v0.1.0-dev.14: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.15: written by leanprompt install; leanprompt update replaces local edits -->

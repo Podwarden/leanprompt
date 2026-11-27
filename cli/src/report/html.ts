@@ -7,7 +7,8 @@ import { optionsFor } from "../help.js";
 import { REPO } from "../forms.js";
 import { loadNoteRuleIds, loadRuleIds } from "../lint/rules.js";
 import { loadProfile, type Profile } from "../profile.js";
-import { EXTERNAL, knownOf, parseFindings, type AverageCall, type Finding, type Known, type KvsigUse, type Note, type Severity } from "../score/static.js";
+import { EXTERNAL, knownOf, parseFindings, tokensLost, unitOf, unitText, type AverageCall, type Finding, type Known, type KvsigUse, type Note, type Scope, type Severity, type Unit } from "../score/static.js";
+import { writePrivateList } from "./private.js";
 import { costSummary, costsNothing, formatDollars, formatPrice, formatTokens, groupOf, ownerQuestions, type CostSummary } from "./cost.js";
 import { filterIgnored, FINDINGS_FILE, localDate, PACKAGE_ROOT } from "../score/write.js";
 import { MD_FILE, projectName, rawPriority, renderMarkdown, spliceReport } from "./markdown.js";
@@ -59,6 +60,10 @@ export interface ReportInput {
   unattended?: boolean;
   /** `priority:` as leanprompt.yaml writes it, for "Questions for the owner"; undefined when it is not set. */
   priority?: string;
+  /** The project is an LLM gateway or proxy (findings.json `gateway: true`): items say whose calls they are about. */
+  gateway?: boolean;
+  /** What one run is, for per-run findings (findings.json `run`). */
+  run?: string;
 }
 
 export const DEFAULT_OUT = join(".leanprompt", "report.html");
@@ -146,8 +151,27 @@ function location(f: Finding): string {
   return `<code>${e(whereText(f))}</code>`;
 }
 
-export const tokensOf = (f: Finding): number | undefined =>
-  f.tokens_per_1k ? (f.tokens_per_1k.prompt ?? 0) + (f.tokens_per_1k.uncached ?? 0) + (f.tokens_per_1k.output ?? 0) : undefined;
+/** The finding's tokens lost, in its own unit (`unitOf`: per 1,000 calls, or per run). */
+export const tokensOf = (f: Finding): number | undefined => {
+  const t = tokensLost(f);
+  return t ? (t.prompt ?? 0) + (t.uncached ?? 0) + (t.output ?? 0) : undefined;
+};
+
+/** "about 138k tokens per 1,000 calls" or "about 12k tokens per run". */
+export const tokensPhrase = (f: Finding): string | undefined => {
+  const t = tokensOf(f);
+  return t === undefined ? undefined : `about ${formatTokens(t)} tokens ${unitText(unitOf(f))}`;
+};
+
+/** How a scope reads on a card: whose calls the item is about, in a gateway or proxy audit. */
+export const SCOPE_LABEL: Record<Scope, string> = { own: "the gateway's own calls", proxied: "clients' calls through the gateway" };
+
+/** "own" and "proxied" counts, for the line that separates them on a gateway's page. Empty when no item has a scope. */
+export function scopeCounts(findings: Finding[], notes: Note[] = []): { own: number; proxied: number } | undefined {
+  const items = [...findings.filter((f) => !f.fixed), ...notes];
+  if (!items.some((x) => x.scope)) return undefined;
+  return { own: items.filter((x) => x.scope === "own").length, proxied: items.filter((x) => x.scope === "proxied").length };
+}
 
 /**
  * Rank: open before fixed; findings with token numbers before those without, largest first; then severity
@@ -157,6 +181,9 @@ export function rankFindings(findings: Finding[]): Finding[] {
   return [...findings].sort(
     (a, b) =>
       Number(!!a.fixed) - Number(!!b.fixed) ||
+      Number(tokensOf(b) !== undefined) - Number(tokensOf(a) !== undefined) ||
+      // Figures per 1,000 calls and per run cannot be compared: per-call findings first, each unit largest first.
+      Number(unitOf(a) === "run") - Number(unitOf(b) === "run") ||
       (tokensOf(b) ?? -1) - (tokensOf(a) ?? -1) ||
       SEV_ORDER[a.severity] - SEV_ORDER[b.severity] ||
       (b.share ?? 0) - (a.share ?? 0) ||
@@ -222,12 +249,23 @@ export function largestQuestion(g: Groups): Finding | undefined {
   if (!q || tq === undefined || tq <= 0) return undefined;
   const top = costly(g)[0];
   const t = top ? tokensOf(top) : undefined;
+  if (top && t !== undefined && unitOf(top) !== unitOf(q)) return undefined;
   return t === undefined || tq > t ? q : undefined;
 }
 
-/** "an estimate from the code, not a measurement" or "measured over N calls". */
-export const tokenKind = (c: CostSummary): string =>
-  c.measured ? `measured over ${(c.measured_calls ?? 0).toLocaleString("en-US")} calls` : "an estimate from the code, not a measurement";
+/** "an estimate from the code, not a measurement", "measured over N calls", or counted from the app's own output. */
+export const tokenKind = (c: CostSummary): string => {
+  if (c.measured) return `measured over ${(c.measured_calls ?? 0).toLocaleString("en-US")} calls`;
+  if (c.total_rows > 0 && c.counted === c.total_rows) return "counted from the app's own committed output, not an estimate";
+  if (c.counted > 0) return "an estimate from the code, not a measurement, except the figures marked counted, which come from the app's own committed output";
+  return "an estimate from the code, not a measurement";
+};
+
+/** "per run (one aicommits invocation)" or "per run". */
+export const runText = (run?: string): string => `per run${run ? ` (${run})` : ""}`;
+
+/** What a finding with `cached_discount: "none"` says about money. */
+export const NO_DISCOUNT_LINE = "The tokens are real, but this model has no cached-input price, so serving them from the cache saves time, not money.";
 
 /** The line an unattended audit carries on the page and in the Markdown report. */
 export const UNATTENDED_LINE =
@@ -243,7 +281,7 @@ function headline(o: ReportInput, g: Groups, cost: CostSummary): string {
   const questionLine = (): string => {
     if (!bigQ) return "";
     const what = bigQ.problem ? splitLead(bigQ.problem)[0] : `${ruleTitle(bigQ, o.rules).replace(/\.$/, "")}.`;
-    return `<p class="sub">${n > 0 ? "The largest item is an open question" : "The largest"}, at ${location(bigQ)}, about ${e(formatTokens(tokensOf(bigQ)!))} tokens per 1,000 calls if it holds: ${e(afterColon(what))}</p>`;
+    return `<p class="sub">${n > 0 ? "The largest item is an open question" : "The largest"}, at ${location(bigQ)}, ${e(tokensPhrase(bigQ)!)} if it holds: ${e(afterColon(what))}</p>`;
   };
   const extras = (): string => {
     let x = "";
@@ -253,6 +291,8 @@ function headline(o: ReportInput, g: Groups, cost: CostSummary): string {
     }
     if (g.known.length > 0) x += `<p class="muted">${e(`Plus ${plural(g.known.length, "finding")} the project already knows about (planned, in progress, reported or declined), listed after the findings. They are not in the totals or the score.`)}</p>`;
     if ((o.notes ?? []).length > 0) x += `<p class="muted">Plus ${e(plural(o.notes!.length, "other problem"))} the audit found, listed after the findings. Not scored.</p>`;
+    const sc = scopeCounts(o.findings, o.notes ?? []);
+    if (o.gateway || sc) x += `<p class="muted scope">${e(scopeLine(sc))}</p>`;
     return x;
   };
   if (n === 0 && g.questions.length === 0) {
@@ -267,19 +307,28 @@ function headline(o: ReportInput, g: Groups, cost: CostSummary): string {
   } else {
     h += `<h1>${e(`${plural(n, "place")} where this app pays for tokens it doesn't need`)}</h1>`;
     const top = places[0]!;
-    const t = tokensOf(top);
-    const size = t !== undefined ? `, about ${e(formatTokens(t))} tokens per 1,000 calls` : top.estimate ? `, ${e(top.estimate)}` : "";
+    const tp = tokensPhrase(top);
+    const size = tp !== undefined ? `, ${e(tp)}` : top.estimate ? `, ${e(top.estimate)}` : "";
     const what = top.problem ? splitLead(top.problem)[0] : `${ruleTitle(top, o.rules).replace(/\.$/, "")}.`;
     h += `<p class="sub">The biggest, at ${location(top)}${size}: ${e(afterColon(what))}</p>`;
     h += questionLine();
-    if (cost.with_tokens > 0) {
+    const withNumber = cost.with_tokens + cost.run_with_tokens;
+    if (withNumber > 0) {
       const kind = tokenKind(cost);
-      h += `<p class="total"><span class="lbl">Together</span> <strong>about ${e(formatTokens(cost.tokens_per_1k))} tokens per 1,000 calls</strong> `;
-      h += `${cost.with_tokens < n ? `For the ${e(cost.with_tokens)} with a number, ${e(kind)}.` : `${e(kind.charAt(0).toUpperCase() + kind.slice(1))}.`}`;
+      // Per 1,000 calls and per run are separate totals: they are never added together.
+      const totals = [
+        cost.with_tokens > 0 ? `about ${formatTokens(cost.tokens_per_1k)} tokens per 1,000 calls` : "",
+        cost.run_with_tokens > 0 ? `about ${formatTokens(cost.run_tokens)} tokens ${runText(o.run)}` : "",
+      ].filter(Boolean);
+      h += `<p class="total"><span class="lbl">Together</span> <strong>${e(totals.join(", and "))}</strong> `;
+      h += `${withNumber < n ? `For the ${e(withNumber)} with a number, ${e(kind)}.` : `${e(kind.charAt(0).toUpperCase() + kind.slice(1))}.`}`;
+      if (totals.length > 1) h += ` The two units are kept apart, never added.`;
       if (cost.overlaps) h += ` Findings that overlap are counted once.`;
-      if (cost.question_tokens_per_1k > 0) h += ` <span class="oq">If the open questions hold, add about ${e(formatTokens(cost.question_tokens_per_1k))}.</span>`;
+      if (cost.question_tokens_per_1k > 0) h += ` <span class="oq">If the open questions hold, add about ${e(formatTokens(cost.question_tokens_per_1k))} per 1,000 calls.</span>`;
+      if (cost.run_question_tokens > 0) h += ` <span class="oq">If the open questions hold, add about ${e(formatTokens(cost.run_question_tokens))} per run.</span>`;
+      if (cost.dollars_per_run !== undefined) h += ` About ${e(formatDollars(cost.dollars_per_run))} per run at the prices in <code>leanprompt.yaml</code>.`;
       h += `</p>`;
-      h += tokenBar(g.open, o.rules);
+      h += tokenBar(g.open, o.rules, "calls") + tokenBar(g.open, o.rules, "run", o.run);
     }
     if (g.questions.length > 0) h += `<p class="muted">Plus ${e(plural(g.questions.length, "open question"))} to confirm, listed after the findings.</p>`;
   }
@@ -317,24 +366,34 @@ const shortWhere = (f: Finding): string => (f.file === EXTERNAL ? whereText(f) :
  * The meter: one row per finding with a number, largest first. Each row carries the card's number, where it is,
  * a bar scaled to its share of the total, and the figures as text, so neither colour nor length carries meaning alone.
  */
-function tokenBar(open: Finding[], rules: Map<string, RuleInfo>): string {
-  const withT = open.filter((f) => (tokensOf(f) ?? 0) > 0);
+function tokenBar(open: Finding[], rules: Map<string, RuleInfo>, unit: Unit = "calls", run?: string): string {
+  const withT = open.filter((f) => unitOf(f) === unit && (tokensOf(f) ?? 0) > 0);
   const total = withT.reduce((a, f) => a + tokensOf(f)!, 0);
   if (total <= 0 || withT.length < 1) return "";
   const max = Math.max(...withT.map((f) => tokensOf(f)!));
-  let html = `<figure class="meter"><figcaption>Tokens per 1,000 calls, by finding, and each one's share of the total</figcaption><ol>`;
+  const per = unit === "run" ? runText(run) : "per 1,000 calls";
+  let html = `<figure class="meter"><figcaption>${e(`Tokens ${per}, by finding, and each one's share of the total`)}</figcaption><ol>`;
   withT.forEach((f) => {
     const t = tokensOf(f)!;
     const share = (100 * t) / total;
     const n = open.indexOf(f) + 1;
     const pct = share >= 1 ? `${Math.round(share)}%` : "under 1%";
     const title = shortTitle(f, rules);
-    html += `<li><a href="#f${n}" aria-label="${e(`Finding ${n}, ${title}, ${shortWhere(f)}: ${formatTokens(t)} tokens per 1,000 calls, ${pct} of the total`)}">`;
+    html += `<li><a href="#f${n}" aria-label="${e(`Finding ${n}, ${title}, ${shortWhere(f)}: ${formatTokens(t)} tokens ${unitText(unit)}, ${pct} of the total`)}">`;
     html += `<span class="mn" aria-hidden="true">${n}</span><span class="ml" aria-hidden="true"><span class="mtt">${e(title)}</span><code class="mw">${e(shortWhere(f))}</code></span>`;
     html += `<span class="mt" aria-hidden="true">${e(formatTokens(t))}</span><span class="mp" aria-hidden="true">${e(pct)}</span>`;
     html += `<span class="track" aria-hidden="true"><span class="fill" style="width:${((100 * t) / max).toFixed(2)}%"></span></span></a></li>`;
   });
   return `${html}</ol></figure>`;
+}
+
+/** What a run is, for the cost section: the findings file's `run`, or a plain default. */
+const o_run = (cost: CostSummary): string => cost.run ?? "one run of the tool";
+
+/** The line that separates the gateway's own calls from what it does to its clients' calls. */
+export function scopeLine(sc: { own: number; proxied: number } | undefined): string {
+  if (!sc) return "This project is a gateway or proxy: the audit did not mark which items are about its own calls and which about its clients' calls.";
+  return `This project is a gateway or proxy. ${plural(sc.own, "item")} ${sc.own === 1 ? "is" : "are"} about the gateway's own calls, ${plural(sc.proxied, "item")} about what it does to its clients' calls; each card says which.`;
 }
 
 function costSection(cost: CostSummary, version: string): string {
@@ -359,14 +418,22 @@ function costSection(cost: CostSummary, version: string): string {
   }
   html += `<p class="muted">Every figure here is ${e(tokenKind(cost))}. ${cost.overlaps ? "Findings the audit marked as overlapping are counted once in the totals, the largest of each group; other findings can still overlap." : "Findings can overlap (one failed call can show up in two), so the sum may count some tokens twice."} Money is not part of the score. ${e("The table lists this app's findings first, largest first, then its open questions, then the questions for the server's administrator, then the findings the project already knows about, which are not in the totals.")}</p>`;
   // The inputs, so every figure can be checked by hand.
-  html += `<div class="tablewrap"><table><thead><tr><th>Finding</th><th>Where</th><th class="fig">Tokens per 1,000 calls</th>${m ? `<th class="fig">A month</th>` : ""}${cost.rows.some((r) => r.ttft_seconds !== undefined) ? `<th class="fig">First-token time</th>` : ""}</tr></thead><tbody>`;
+  const live = cost.rows.filter((x) => !x.finding.fixed);
+  const units = new Set(live.map((r) => r.unit));
+  const tokHead = units.size > 1 ? "Tokens (per 1,000 calls, or per run where marked)" : units.has("run") ? "Tokens per run" : "Tokens per 1,000 calls";
+  if (units.has("run")) html += `<p class="muted">${e(`A run is ${o_run(cost)}. Per-run figures are a separate total, never added to the figures per 1,000 calls.`)}</p>`;
+  if (cost.dollars_per_run !== undefined) html += `<p class="big"><strong>${e(`About ${formatDollars(cost.dollars_per_run)} per run`)}</strong> at the prices below.</p>`;
+  html += `<div class="tablewrap"><table><thead><tr><th>Finding</th><th>Where</th><th class="fig">${e(tokHead)}</th>${m ? `<th class="fig">A month</th>` : ""}${cost.rows.some((r) => r.ttft_seconds !== undefined) ? `<th class="fig">First-token time</th>` : ""}</tr></thead><tbody>`;
   for (const r of cost.rows.filter((x) => !x.finding.fixed)) {
-    const t = r.finding.tokens_per_1k!;
+    const t = tokensLost(r.finding)!;
     const parts = [t.prompt ? `${formatTokens(t.prompt)} prompt` : "", t.uncached ? `${formatTokens(t.uncached)} not cached` : "", t.output ? `${formatTokens(t.output)} output` : ""].filter(Boolean).join(", ");
     const write = t.cache_write ? `; the fix writes ${formatTokens(t.cache_write)} to the cache at the write price` : "";
+    const per = units.size > 1 && r.unit === "run" ? " per run" : "";
+    const counted = r.finding.evidence === "counted" ? " (counted)" : "";
     const tag = r.group === "question" ? " (open question)" : r.group === "server" ? " (server)" : r.group === "known" ? ` (${KNOWN_LABEL[knownOf(r.finding)!.kind].toLowerCase()})` : "";
-    html += `<tr><td class="rule">${e(r.finding.rule)}${e(tag)}</td><td class="loc">${location(r.finding)}</td><td class="fig tok">${e((parts || "0") + write)}</td>`;
-    if (m) html += `<td class="fig mon">${r.dollars_per_month !== undefined ? e(formatDollars(r.dollars_per_month, m.currency)) : ""}</td>`;
+    const scope = r.finding.scope ? ` (${SCOPE_LABEL[r.finding.scope]})` : "";
+    html += `<tr><td class="rule">${e(r.finding.rule)}${e(tag + scope)}</td><td class="loc">${location(r.finding)}</td><td class="fig tok">${e((parts || "0") + per + counted + write)}</td>`;
+    if (m) html += `<td class="fig mon">${r.dollars_per_month !== undefined ? e(formatDollars(r.dollars_per_month, m.currency)) : r.dollars_per_run !== undefined ? e(`${formatDollars(r.dollars_per_run)} per run`) : ""}</td>`;
     if (cost.rows.some((x) => x.ttft_seconds !== undefined)) html += `<td class="fig ttft">${r.ttft_seconds !== undefined ? `+${e(r.ttft_seconds.toFixed(2))} s` : ""}</td>`;
     html += `</tr>`;
   }
@@ -409,9 +476,11 @@ function card(f: Finding, i: number, o: ReportInput, version: string, kind: "ope
   html += `<h3>${e(lead)}</h3>`;
   const freq = f.status === "frequency-unknown" ? ` <span class="flag">how often is assumed</span>` : f.status === "size-unknown" ? ` <span class="flag">size is assumed</span>` : "";
   const unconfirmed = f.status === "needs-facts" && kind !== "question" ? ` <span class="flag">unconfirmed</span>` : "";
-  html += `<p class="meta"><span class="visually-hidden">Finding ${i + 1}. </span>${location(f)} <span class="sev">${e(f.severity)}</span> <span class="rid">${e(f.rule)}</span>${f.fixed ? ` <span class="tag">fixed</span>` : ""}${freq}${unconfirmed}</p>`;
+  const scope = f.scope ? ` <span class="flag scope">${e(SCOPE_LABEL[f.scope])}</span>` : "";
+  html += `<p class="meta"><span class="visually-hidden">Finding ${i + 1}. </span>${location(f)} <span class="sev">${e(f.severity)}</span> <span class="rid">${e(f.rule)}</span>${f.fixed ? ` <span class="tag">fixed</span>` : ""}${freq}${unconfirmed}${scope}</p>`;
   if (rest) html += `<p class="rest">${e(rest)}</p>`;
-  const estimate = f.estimate ?? (tokensOf(f) !== undefined ? `about ${formatTokens(tokensOf(f)!)} tokens per 1,000 calls` : undefined);
+  const estimate = f.estimate ?? tokensPhrase(f);
+  const counted = f.evidence === "counted";
   const asks = kind === "question" || (kind === "server" && f.status === "needs-facts");
   const dl: [string, string, string | undefined][] = [
     ["act", asks ? "Change, if confirmed" : "What to change", f.change],
@@ -420,6 +489,8 @@ function card(f: Finding, i: number, o: ReportInput, version: string, kind: "ope
   if (asks) dl.unshift(["act confirm", kind === "server" ? "What would answer it" : "To confirm", f.confirm]);
   else if (f.status === "frequency-unknown") dl.push(["why freq", "How often it happens", `The code shows the problem; how often it happens is assumed. To measure it: ${f.confirm ?? ""}`]);
   else if (f.status === "size-unknown") dl.push(["why freq", "How big it is", `The code shows the problem and how often it happens; how many tokens it costs each time is assumed. To measure it: ${f.confirm ?? ""}`]);
+  if (f.reach) dl.push(["why reach", "Who reaches this", f.reach]);
+  if (f.cached_discount === "none") dl.push(["why nodiscount", "Money", NO_DISCOUNT_LINE]);
   const k = knownOf(f);
   if (k) dl.push(["why planned", KNOWN_LABEL[k.kind], knownLine(f)]);
   const others = (f.overlaps ?? []).map((id) => num.get(id)).filter((x): x is number => x !== undefined);
@@ -427,8 +498,9 @@ function card(f: Finding, i: number, o: ReportInput, version: string, kind: "ope
   const rows = dl.filter(([, , v]) => v).map(([c, k, v]) => `<div class="${c}"><dt>${e(k)}</dt><dd>${e(v)}</dd></div>`);
   if (estimate || f.assumptions) {
     let dd = estimate ? `<span class="est">${e(estimate)}</span>` : "";
-    if (f.assumptions) dd += `<details class="assume"><summary>What the estimate assumes</summary><p>${e(f.assumptions)}</p></details>`;
-    rows.push(`<div class="estimate"><dt>Estimate</dt><dd>${dd}</dd></div>`);
+    if (counted && f.counted_from) dd += ` <span class="muted">${e(`Counted from ${f.counted_from}.`)}</span>`;
+    if (f.assumptions) dd += `<details class="assume"><summary>${counted ? "What the count leaves out" : "What the estimate assumes"}</summary><p>${e(f.assumptions)}</p></details>`;
+    rows.push(`<div class="estimate"><dt>${counted ? "Counted" : "Estimate"}</dt><dd>${dd}</dd></div>`);
   }
   if (rows.length) html += `<dl class="why">${rows.join("")}</dl>`;
   else html += `<p class="muted">The audit wrote no explanation for this one; the rule page explains it.</p>`;
@@ -455,7 +527,7 @@ function findingsSection(o: ReportInput, g: Groups, version: string): string {
   const num = numbering(g);
   let html = `<section class="findings" id="s-findings"><h2>${e("What's wrong and what to change")}</h2><p class="muted">${all} open, ${g.server.length > 0 ? e(`${g.server.length} for the server's administrator, `) : ""}${g.known.length > 0 ? e(`${g.known.length} already known to the project, `) : ""}${g.fixed.length} fixed`;
   if (o.ignored) html += `, ${o.ignored} ignored by the profile`;
-  html += `. Largest first, by the audit's estimate of tokens lost per 1,000 calls.</p>`;
+  html += `. Largest first, by the audit's estimate of tokens lost per 1,000 calls${g.open.some((f) => unitOf(f) === "run") ? ", then per run" : ""}.</p>`;
   html += g.open.map((f, i) => card(f, i, o, version, "open", num)).join("");
   if (g.open.length === 0) html += `<p>No confirmed findings.</p>`;
   html += `</section>`;
@@ -523,7 +595,8 @@ function notesSection(notes: Note[], o?: ReportInput, version?: string, num: Map
     }
     html += `<article class="finding note" data-where="${e(noteWhere(n))}" id="n${i + 1}"><div class="num" aria-hidden="true">N${i + 1}</div><div class="body">`;
     const rid = n.rule ? ` <span class="rid">${e(n.rule)}</span>${n.severity ? ` <span class="sev">${e(n.severity)}</span>` : ""}` : "";
-    html += `<h3>${e(n.title)}</h3><p class="meta"><span class="visually-hidden">Note ${i + 1}. </span>${n.file === EXTERNAL ? e(noteWhere(n)) : `<code>${e(noteWhere(n))}</code>`}${rid} <span class="flag">not scored</span></p>`;
+    const nscope = n.scope ? ` <span class="flag scope">${e(SCOPE_LABEL[n.scope])}</span>` : "";
+    html += `<h3>${e(n.title)}</h3><p class="meta"><span class="visually-hidden">Note ${i + 1}. </span>${n.file === EXTERNAL ? e(noteWhere(n)) : `<code>${e(noteWhere(n))}</code>`}${rid} <span class="flag">not scored</span>${nscope}</p>`;
     html += `<p class="rest">${e(n.problem)}</p>`;
     const rows: [string, string, string | undefined][] = [["act", "What to change", n.change], ["why", "Why it matters", n.why]];
     html += `<dl class="why">${rows.filter(([, , v]) => v).map(([c, k, v]) => `<div class="${c}"><dt>${e(k)}</dt><dd>${e(v)}</dd></div>`).join("")}`;
@@ -576,7 +649,7 @@ export function handoffText(findings: Finding[], rules: Map<string, RuleInfo>, o
   ];
   if (g.open.length > 0) {
     lines.push("", "Findings, largest first:");
-    g.open.forEach((f, i) => lines.push(`${i + 1}. ${f.rule} at ${whereText(f)}: ${f.problem ?? ruleTitle(f, rules)}`));
+    g.open.forEach((f, i) => lines.push(`${i + 1}. ${f.rule} at ${whereText(f)}${f.scope ? ` [${SCOPE_LABEL[f.scope]}]` : ""}: ${f.problem ?? ruleTitle(f, rules)}`));
   }
   // Declined findings are left out: the project has said no, so they are not work to do.
   const live = g.known.filter((f) => knownOf(f)!.kind !== "declined");
@@ -595,7 +668,7 @@ export function handoffText(findings: Finding[], rules: Map<string, RuleInfo>, o
   const notes = (opts.notes ?? []).filter((n) => n.known?.kind !== "declined");
   if (notes.length > 0) {
     lines.push("", "Other problems found (check each against the code first; not scored):");
-    for (const n of notes) lines.push(`- ${n.title} (${noteWhere(n)})${n.rule ? ` [${n.rule}]` : ""}: ${n.problem} Change: ${n.change}`);
+    for (const n of notes) lines.push(`- ${n.title} (${noteWhere(n)})${n.rule ? ` [${n.rule}]` : ""}${n.scope ? ` [${SCOPE_LABEL[n.scope]}]` : ""}: ${n.problem} Change: ${n.change}`);
   }
   return lines.join("\n");
 }
@@ -613,7 +686,7 @@ function handoffSection(o: ReportInput): string {
 
 /** Whether the page has shown something worth passing on: an estimate, or a measured score. */
 function worthSharing(o: ReportInput): boolean {
-  return o.findings.some((f) => f.estimate || f.tokens_per_1k) || (o.score?.kind === "measured" && num(o.score.score) !== undefined);
+  return o.findings.some((f) => f.estimate || tokensLost(f)) || (o.score?.kind === "measured" && num(o.score.score) !== undefined);
 }
 
 /** A short, plain message a user can send a colleague. */
@@ -625,6 +698,7 @@ export function shareText(findings: Finding[], score: ScoreFile | null, profile:
   if (places.length > 0) {
     what = `leanprompt checked how our app calls LLMs and found ${plural(places.length, "place")} where it pays for tokens it doesn't need`;
     if (cost.with_tokens > 0) what += `, about ${formatTokens(cost.tokens_per_1k)} tokens per 1,000 calls, ${cost.measured ? `measured over ${cost.measured_calls} calls` : "an estimate from the code"}`;
+    else if (cost.run_with_tokens > 0) what += `, about ${formatTokens(cost.run_tokens)} tokens per run, ${cost.counted === cost.total_rows ? "counted from its own output" : "an estimate from the code"}`;
     else if (places[0]!.estimate) what += `; the largest is ${places[0]!.estimate}, an estimate from the code`;
     what += ".";
   } else if (g.fixed.length > 0) {
@@ -731,7 +805,7 @@ function navRail(o: ReportInput, g: Groups, cost: CostSummary): string {
 export function renderReport(o: ReportInput): string {
   const version = o.version ?? packageVersion();
   const g = groups(o.findings);
-  const cost = costSummary(o.findings, o.profile ?? null, o.average_call);
+  const cost = costSummary(o.findings, o.profile ?? null, o.average_call, o.run);
   const body =
     headline(o, g, cost) +
     costSection(cost, version) +
@@ -805,6 +879,8 @@ export async function reportCommand(args: string[]): Promise<number> {
   let kvsig: KvsigUse | undefined;
   let notes: Note[] | undefined;
   let unattended: boolean | undefined;
+  let gateway: boolean | undefined;
+  let run: string | undefined;
   const profile = loadProfile(dir);
   const fpath = join(dir, FINDINGS_FILE);
   if (existsSync(fpath)) {
@@ -816,6 +892,11 @@ export async function reportCommand(args: string[]): Promise<number> {
     kvsig = parsed.kvsig;
     notes = parsed.notes;
     unattended = parsed.unattended;
+    gateway = parsed.gateway;
+    run = parsed.run;
+    // Private items never reach the page or the Markdown report: only the local list.
+    const priv = writePrivateList(dir, parsed);
+    if (priv) process.stdout.write(`${priv} (private items: do not publish)\n`);
   }
   const priority = rawPriority(dir);
   const input: ReportInput = {
@@ -829,6 +910,8 @@ export async function reportCommand(args: string[]): Promise<number> {
     ...(kvsig ? { kvsig } : {}),
     ...(notes ? { notes } : {}),
     ...(unattended ? { unattended } : {}),
+    ...(gateway ? { gateway } : {}),
+    ...(run !== undefined ? { run } : {}),
     ...(priority !== undefined ? { priority } : {}),
     git: readGit(dir),
   };

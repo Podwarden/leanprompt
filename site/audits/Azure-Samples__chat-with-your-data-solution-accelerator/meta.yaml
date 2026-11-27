@@ -4,10 +4,14 @@
 # fixed reasoning-effort findings are marked size-unknown (every answer is affected; only the
 # tokens a lower effort saves are assumed), and the note on the admin max tokens setting links to
 # the finding it is the visible face of. The commit is the one audited.
+# Re-scored with 0.1.0-dev.15 (2026-11-27): the admin max-tokens note now names LP-GE-17 (high) and
+# the cut-off note LP-GE-12 (medium). The evidence is the audit's own, unchanged; notes are never
+# scored and a rule id does not change a share, so the static score and the big number are
+# unchanged.
 repo: https://github.com/Azure-Samples/chat-with-your-data-solution-accelerator
 visibility: public
 commit: f71c9c8c4a97e068f5953b8f52af4107931a8d5e
-leanprompt: 0.1.0-dev.14
+leanprompt: 0.1.0-dev.15
 date: 2026-11-27
 status: notified
 summary: >-

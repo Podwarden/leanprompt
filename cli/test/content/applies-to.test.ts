@@ -15,8 +15,8 @@ const rules = readdirSync(RULES)
   .map((f) => parseDoc(readFileSync(join(RULES, f), "utf8")).meta as { id: string; applies_to: string[] });
 
 describe("applies_to: provider-independent rules", () => {
-  it("finds all eleven generation rules", () => {
-    expect(rules.length).toBe(11);
+  it("finds all seventeen generation rules", () => {
+    expect(rules.length).toBe(17);
   });
 
   it("every LP-GE rule whose fix needs no provider feature lists `any`", () => {

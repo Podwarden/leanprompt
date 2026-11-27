@@ -151,6 +151,8 @@
     },
     {
       "title": "A reply cut off at the output limit is saved as complete",
+      "rule": "LP-GE-12",
+      "severity": "medium",
       "file": "server/utils/AiProviders/anthropic/index.js",
       "line": 380,
       "problem": "handleStream resolves on message_stop whatever the stop_reason (lines 378-393), and the chat path does not call watchTokenLimit as the agent path does, so a reply that stopped at max_tokens is saved and shown as a complete answer. After a provider error mid-stream (lines 330-351) the partial text is also saved as a normal answer (chats/stream.js:357-375) and sent as history on later turns; for a user abort that is deliberate, for a provider error probably not.",

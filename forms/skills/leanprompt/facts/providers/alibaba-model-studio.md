@@ -53,4 +53,4 @@ A model listed for explicit cache only caches nothing unless the request carries
 
 - The Responses API's session cache: the page says only that the "Responses API has separate Session cache settings" (checked 2026-11-26).
 - Prices per model: on the Model Studio pricing pages, not read for this table.
-<!-- leanprompt:generated v0.1.0-dev.14: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.15: written by npx leanprompt install; npx leanprompt update replaces local edits -->

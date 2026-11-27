@@ -103,6 +103,8 @@
   "notes": [
     {
       "title": "The admin page's max tokens and temperature do nothing on the default model",
+      "rule": "LP-GE-17",
+      "severity": "high",
       "finding": "effort-langgraph",
       "file": "src/frontend/src/pages/admin/Configuration/Configuration.tsx",
       "line": 219,
@@ -112,6 +114,8 @@
     },
     {
       "title": "A cut-off answer is stored and shown as complete",
+      "rule": "LP-GE-12",
+      "severity": "medium",
       "file": "src/backend/core/providers/llm/foundry_iq.py",
       "line": 364,
       "problem": "chat() returns only choices[0].message.content and drops finish_reason, so on a non-reasoning model an answer that hits max_tokens (1,000 by default) is persisted as whole. reason() (foundry_iq.py:519-542) ignores the response.incomplete event in the same way.",

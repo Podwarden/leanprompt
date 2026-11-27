@@ -127,4 +127,4 @@ Streaming does not change the answer, but the code that assembles it must: colle
 
 ## Waste signal
 Measured: output tokens of a call repeated after a timeout count as generation waste (a retry of an identical call). Static: severity high for a total timeout shorter than the expected generation time on a non-streaming call with a large output limit, or for stacked retry layers around one; the same when no timeout is set and the client's default ([runtimes/http-clients.md](../../leanprompt/facts/runtimes/http-clients.md)) is shorter than that generation time. Medium for a long-output call that does not stream, and for one with no timeout at all where the runtime has none (a hung worker, not a repeated generation). Medium for a serverless agent turn whose longest run can pass the function's time limit; when the code shows the limit but not how long turns take in practice, record it with `status: "frequency-unknown"`.
-<!-- leanprompt:generated v0.1.0-dev.14: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.15: written by leanprompt install; leanprompt update replaces local edits -->

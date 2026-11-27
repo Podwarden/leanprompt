@@ -22,8 +22,8 @@ import { join } from "node:path";
 import { parseDoc } from "../../cli/src/frontmatter.js";
 import { loadNoteRuleIds, loadRuleIds } from "../../cli/src/lint/rules.js";
 import { costsNothing, formatTokens } from "../../cli/src/report/cost.js";
-import { KNOWN_LABEL, loadRules, rankFindings, renderReport, UNATTENDED_LINE, type ScoreFile } from "../../cli/src/report/html.js";
-import { isKnownFinding, isServerFinding, knownOf, parseFindings, staticScore, type Finding, type Note } from "../../cli/src/score/static.js";
+import { KNOWN_LABEL, loadRules, NO_DISCOUNT_LINE, rankFindings, renderReport, SCOPE_LABEL, scopeCounts, scopeLine, UNATTENDED_LINE, type ScoreFile } from "../../cli/src/report/html.js";
+import { isKnownFinding, isServerFinding, knownOf, parseFindings, staticScore, tokensLost, unitOf, type Finding, type Note } from "../../cli/src/score/static.js";
 import { badgeColor } from "../../cli/src/score/write.js";
 import { BADGES, ILLUSTRATION_FILES, STATUS_TEXT, badgeOf, bigNumberOf, loadAudits, sortForIndex, type Audit } from "./audits.js";
 import { page, type AssetUrl, type PageSpec } from "./layout.js";
@@ -493,25 +493,29 @@ ${audits.length ? `<ul class="audit-cards">\n${auditOrder.map(auditCard).join("\
         ? e(f.where ?? "outside the repository")
         : `<a href="${m.repo}/blob/${m.commit}/${f.file.split("/").map(encodeURIComponent).join("/")}#L${f.line}" rel="noopener"><code>${e(f.file)}:${f.line}</code></a>`;
     const tokens = (f: Finding) => {
-      const t = f.tokens_per_1k;
+      const t = tokensLost(f);
       if (!t) return "";
       const parts = [
         t.uncached !== undefined ? `${formatTokens(t.uncached)} prompt tokens the cache could have served` : "",
         t.prompt !== undefined ? `${formatTokens(t.prompt)} prompt tokens that need not be sent` : "",
         t.output !== undefined ? `${formatTokens(t.output)} output tokens thrown away` : "",
       ].filter(Boolean);
-      return `<p class="estimate"><span class="est-tag">Estimate</span> ${parts.join("; ")}, per 1,000 calls.</p>`;
+      const per = unitOf(f) === "run" ? `per run${a.run ? ` (${e(a.run)})` : ""}` : "per 1,000 calls";
+      const counted = f.evidence === "counted";
+      return `<p class="estimate"><span class="est-tag">${counted ? "Counted" : "Estimate"}</span> ${parts.join("; ")}, ${per}.${counted && f.counted_from ? ` Counted from ${e(f.counted_from)}.` : ""}</p>`;
     };
     const card = (f: Finding, i: number) => `<li class="finding" id="f${i + 1}">
 <h3><a href="${ruleUrl(f.rule)}"><code>${f.rule}</code></a> ${e(rules.get(f.rule)?.title ?? "")}</h3>
-<p class="small">${where(f)} · severity ${e(f.severity)} · saves ${e((SAVES_TEXT[f.saves] ?? f.saves).toLowerCase())}${f.status === "needs-facts" ? " · needs a fact to confirm" : f.status === "frequency-unknown" ? " · how often is assumed" : f.status === "size-unknown" ? " · size is assumed" : ""}${costsNothing(f) ? " · costs no tokens today" : ""}</p>
+<p class="small">${where(f)} · severity ${e(f.severity)} · saves ${e((SAVES_TEXT[f.saves] ?? f.saves).toLowerCase())}${f.status === "needs-facts" ? " · needs a fact to confirm" : f.status === "frequency-unknown" ? " · how often is assumed" : f.status === "size-unknown" ? " · size is assumed" : ""}${costsNothing(f) ? " · costs no tokens today" : ""}${f.scope ? ` · ${e(SCOPE_LABEL[f.scope])}` : ""}</p>
 ${f.problem ? `<p><b>What happens.</b> ${e(f.problem)}</p>` : ""}
 ${f.change ? `<p><b>The change.</b> ${e(f.change)}</p>` : ""}
 ${f.why ? `<p><b>Why it helps.</b> ${e(f.why)}</p>` : ""}
 ${knownOf(f) ? `<p class="planned"><b>${e(KNOWN_LABEL[knownOf(f)!.kind])}.</b> ${linkify([knownOf(f)!.note, knownOf(f)!.url].filter(Boolean).join(" "))}</p>` : ""}
 ${(f.overlaps ?? []).filter((id) => numById.has(id)).length ? `<p class="small"><b>Overlaps.</b> Finding ${(f.overlaps ?? []).filter((id) => numById.has(id)).map((id) => `<a href="#f${numById.get(id)}">${numById.get(id)}</a>`).join(", ")} loses some of the same tokens; the totals count the larger once.</p>` : ""}
-${f.estimate ? `<p class="estimate"><span class="est-tag">Estimate</span> ${e(f.estimate)}</p>` : tokens(f)}
+${f.estimate ? `<p class="estimate"><span class="est-tag">${f.evidence === "counted" ? "Counted" : "Estimate"}</span> ${e(f.estimate)}</p>` : tokens(f)}
 ${f.assumptions ? `<p class="small"><b>Assumptions.</b> ${e(f.assumptions)}</p>` : ""}
+${f.reach ? `<p class="small"><b>Who reaches this.</b> ${e(f.reach)}</p>` : ""}
+${f.cached_discount === "none" ? `<p class="small"><b>Money.</b> ${e(NO_DISCOUNT_LINE)}</p>` : ""}
 ${f.confirm ? `<p class="small"><b>${f.status === "frequency-unknown" ? "How often." : f.status === "size-unknown" ? "How big." : "To confirm."}</b> ${e(f.confirm)}</p>` : ""}
 </li>`;
     const noteWhere = (n: Note) =>
@@ -520,7 +524,7 @@ ${f.confirm ? `<p class="small"><b>${f.status === "frequency-unknown" ? "How oft
         : `<a href="${m.repo}/blob/${m.commit}/${n.file.split("/").map(encodeURIComponent).join("/")}#L${n.line}" rel="noopener"><code>${e(n.file)}:${n.line}</code></a>`;
     const noteCard = (n: Note) => `<li class="note">
 <h3>${e(n.title)}</h3>
-<p class="small">${noteWhere(n)}${n.rule ? ` · <a href="${ruleUrl(n.rule)}"><code>${e(n.rule)}</code></a> ${e(rules.get(n.rule)?.title ?? "")}${n.severity ? ` · severity ${e(n.severity)}` : ""}` : ""}${n.finding !== undefined && numById.has(n.finding) ? ` · the same problem as <a href="#f${numById.get(n.finding)}">finding ${numById.get(n.finding)}</a>` : ""}</p>
+<p class="small">${noteWhere(n)}${n.rule ? ` · <a href="${ruleUrl(n.rule)}"><code>${e(n.rule)}</code></a> ${e(rules.get(n.rule)?.title ?? "")}${n.severity ? ` · severity ${e(n.severity)}` : ""}` : ""}${n.scope ? ` · ${e(SCOPE_LABEL[n.scope])}` : ""}${n.finding !== undefined && numById.has(n.finding) ? ` · the same problem as <a href="#f${numById.get(n.finding)}">finding ${numById.get(n.finding)}</a>` : ""}</p>
 ${n.known?.kind === "declined" ? `<p><b>${e(KNOWN_LABEL.declined)}.</b> ${linkify([n.known.note, n.known.url].filter(Boolean).join(" "))}</p>` : `<p><b>What happens.</b> ${e(n.problem)}</p>
 <p><b>The change.</b> ${e(n.change)}</p>${n.known ? `\n<p class="planned"><b>${e(KNOWN_LABEL[n.known.kind])}.</b> ${linkify([n.known.note, n.known.url].filter(Boolean).join(" "))}</p>` : ""}`}
 ${n.why ? `<p><b>Why it matters.</b> ${e(n.why)}</p>` : ""}
@@ -550,6 +554,7 @@ ${a.unattended ? `<div><dt>How it ran</dt><dd>${e(UNATTENDED_LINE)}</dd></div>` 
 </dl>
 ${m.summary ? `<p>${e(m.summary)}</p>` : ""}
 <p>leanprompt read ${scope}the code at commit <code>${short}</code> and found ${places} ${places === 1 ? "place" : "places"} where its LLM calls could use fewer tokens${zero ? `, ${zero} more that ${zero === 1 ? "costs" : "cost"} no tokens today` : ""}${known.length ? `, ${known.length} the project already knows about` : ""}${fixed.length ? `, and ${fixed.length} already fixed` : ""}${notes.length ? `, plus ${notes.length} other ${notes.length === 1 ? "problem" : "problems"}, not scored` : ""}. Static score: ${score.score} of 100 (an estimate from the findings${known.length ? ", leaving out what the project already knows about" : ""}). The code may have changed since.</p>
+${a.gateway || scopeCounts(a.findings, notes) ? `<p class="small">${e(scopeLine(scopeCounts(a.findings, notes)))}</p>` : ""}
 <h2 id="findings">Findings</h2>
 ${open.length ? `<ol class="findings">\n${open.map(card).join("\n")}\n</ol>` : "<p>No open findings.</p>"}
 ${server.length ? `<h2 id="server">Questions for the server’s administrator</h2>\n<p>Settings of the server or engine the app calls, not of the app’s code; left out of the static score.</p>\n<ol class="findings" start="${open.length + 1}">\n${server.map((f, i) => card(f, open.length + i)).join("\n")}\n</ol>` : ""}
@@ -576,7 +581,7 @@ ${corrections}`;
       },
       m.date,
     );
-    const html = renderReport({ findings: a.findings, score, rules, project: `${m.owner}/${m.name}`, version: m.leanprompt, ...(a.average_call ? { average_call: a.average_call } : {}), ...(a.kvsig ? { kvsig: a.kvsig } : {}), ...(a.notes ? { notes: a.notes } : {}), ...(a.unattended ? { unattended: true } : {}) });
+    const html = renderReport({ findings: a.findings, score, rules, project: `${m.owner}/${m.name}`, version: m.leanprompt, ...(a.average_call ? { average_call: a.average_call } : {}), ...(a.kvsig ? { kvsig: a.kvsig } : {}), ...(a.notes ? { notes: a.notes } : {}), ...(a.unattended ? { unattended: true } : {}), ...(a.gateway ? { gateway: true } : {}), ...(a.run !== undefined ? { run: a.run } : {}) });
     emitReport(`${key}/report`, html, {
       title: `${auditTitle(a)}: the full audit page`,
       description: `The page leanprompt report --html writes for ${m.owner}/${m.name} at commit ${short}. Estimates from the code, not measurements.`,

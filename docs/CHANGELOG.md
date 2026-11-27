@@ -11,11 +11,11 @@ The first release.
 - `leanprompt`: the entry point; `/leanprompt` lists the commands (init, audit, fix, measure, score, report, lesson) and routes each to the skill that does the work.
 - `llm-call-audit`: finds every LLM call in an app, checks it against the rules, ranks the findings and writes `leanprompt-report.md` and `.leanprompt/findings.json`; asks before editing code, installing a package or running billed requests.
 - `prefill-cache`: rules LP-PC-01 to LP-PC-12 for prompts a provider's prefix cache can reuse.
-- `generation-economy`: rules LP-GE-01 to LP-GE-10 for calls and output that are not wasted, and LP-GE-11, a correctness rule for apps that meter their own spend.
+- `generation-economy`: rules LP-GE-01 to LP-GE-10 and LP-GE-14 for calls and output that are not wasted, and six correctness rules recorded as notes: LP-GE-11 (spend meters), LP-GE-12 (cut-off answers), LP-GE-13 (retired default models), LP-GE-15 (timeouts), LP-GE-16 (fallbacks) and LP-GE-17 (output caps that do nothing).
 - `prompt-diet`: rules LP-PD-01 to LP-PD-06 for dead weight in what each call sends; every trim carries an answer check.
 - `measure-loop`: the usage logger, the stable-head CI test (vitest and pytest templates on kvsig ids), replay before and after, and the score.
 - `lmwarden`: rules LP-LW-01 to LP-LW-03 for self-hosted engines, and reading engine facts from LM Warden. Prompt Lens is described as planned.
-- Dated provider tables (Anthropic, OpenAI, Azure OpenAI, Gemini, OpenRouter, Vercel AI Gateway, DeepInfra, Alibaba Model Studio, vLLM, SGLang) and per-model notes (Qwen, OpenAI reasoning, Anthropic thinking), each with a `checked:` date and a source.
+- Dated provider tables (Anthropic, OpenAI, Azure OpenAI, Gemini, OpenRouter, Vercel AI Gateway, DeepInfra, Alibaba Model Studio, DeepSeek, Groq, xAI, Together, vLLM, SGLang), per-model notes (Qwen, OpenAI reasoning, Anthropic thinking, model retirements, tokens per character), and runtime notes (HTTP clients; the Claude Agent SDK, the Codex SDK and the AI SDK), each with a `checked:` date and a source.
 - The evidence table, `docs/evidence.md` (rows E1 to E12, with sources and limits).
 
 ### CLI (`npx leanprompt`)
@@ -40,6 +40,36 @@ The first release.
 - Per-assistant forms generated from one source and checked in CI; a Claude Code plugin marketplace in `.claude-plugin/` that installs the small `plugin/` folder, and a Cursor manifest in `.cursor-plugin/`.
 - `npm run check:numbers`: every number with a unit in the README, the public docs and the skills cites an evidence row or a measured result.
 - Apache-2.0 for code, CC BY 4.0 for the skills and docs; README, CONTRIBUTING, GOVERNANCE and SECURITY (the last three under `.github/`).
+
+## 0.1.0-dev.15 – 2026-11-27
+
+New checks from what the latest real audits taught us: in every recent audit the most useful item was outside the rules. Cut-off answers, retired models, caches that never hit, timeouts and fallbacks now have rules; gateways get their own checklist; small tools get a fast path.
+
+### Score change
+
+None. A findings file valid in 0.1.0-dev.14 scores the same. New fields (`unit`, `evidence`, `scope`, `gateway`) do not move the score; private items are new and are left out of it. Re-scored site audits: all twelve unchanged. Nine of them now name a new rule on a note whose evidence it matches (a cut-off answer accepted as complete is LP-GE-12, a retired default model LP-GE-13, a per-request timeout used for a whole run LP-GE-15, an admin output cap that is never sent LP-GE-17), two llm-wiki-agent findings move from LP-GE-06 to LP-GE-14 with the same shares, and a1o-platform is marked as a gateway with each item's scope.
+
+### Added
+
+- **LP-GE-12, read the finish reason before using an answer.** A correctness rule: a cut-off answer saved, committed or published as complete, with detection for Python, TS/JS and Go, the SDK helpers that raise on truncation (the OpenAI Python SDK's `LengthFinishReasonError`, the AI SDK's `NoObjectGeneratedError` with `finishReason: 'length'`), and gateway converters that drop or reject documented stop reasons. Resending the cut-off answer unchanged stays LP-GE-05.
+- **LP-GE-13, default to a model the provider still serves,** with a dated table, `models/retirements.md`, of the shutdown dates and replacements the OpenAI, Anthropic and Gemini deprecation pages state, and what each says about dated snapshots and bare aliases.
+- **LP-GE-14, build both sides of a cache or change key the same way.** A waste rule: a key normalised differently on each side, a 16-character hash compared with a 64-character one, a timestamp in the key. Every miss repeats the call.
+- **LP-GE-15, give each timeout one meaning, and set one;** **LP-GE-16, fall back to another model only on errors it can fix** (not on a bad key, no credit or a bad request); **LP-GE-17, send the output cap the owner set, on every path.** Correctness rules recorded as notes; each names the waste rule that takes the token side (LP-GE-04, LP-GE-05, LP-GE-03).
+- **LP-GE-11 covers gateways:** a price book with no cache-read or cache-write rate charges cached tokens at the input rate, and a reservation must be settled from the provider's usage.
+- **Gateway mode.** `"gateway": true` in `findings.json` and `"scope": "own" | "proxied"` on findings and notes; the audit skill has a gateway checklist (byte-faithful passthrough, cache marks across protocol conversion, the price book, finish reasons, successful replies turned into errors, reservation and settlement). The page, the Markdown report and the site say which items are about the gateway's own calls and which about its clients' calls.
+- **The small-app fast path** in the audit skill, for under about 5,000 lines of app code or fewer than about 10 call sites: read every call path in full (and the client library at its pinned version), check finish reasons, timeouts, retries, fallbacks, model ids, output caps and metering first, then only the cache rules whose preconditions hold, with no call-mix modelling.
+- **Per-run figures.** `"unit": "run"` with `tokens_per_run`, and a top-level `run` saying what one run is, for CLI and batch tools. The page and the Markdown report keep one total per unit and never add them; with a price, they show money per run.
+- **Counted figures.** `"evidence": "counted"` with `counted_from`, for a figure counted from the app's own committed output; shown as "counted", not "estimate".
+- **Private items.** `"private": true` on a finding or a note (security, privacy, legal). Private items never appear in `report --html`, `report --md`, `score --github`, the hand-off block or the site, and are left out of the score; they are listed only in `.leanprompt/private.md`, headed "Do not publish", which `.leanprompt/.gitignore` keeps out of git. The site build refuses a `findings.json` that still holds them.
+- **Provider tables** for DeepSeek, Groq, xAI and Together (caching, usage fields, output limits, reasoning defaults, errors and retries, retired ids), a runtime page for the Claude Agent SDK, the Codex SDK and the AI SDK, and `models/tokens-per-character.md`, measured with four tokenizers on one sample per language.
+- **`cached_discount: "none"`** on a finding whose model has no cached-input price: the tokens still count, and the page says the saving is time, not money (the money estimate prices them at 0). **`reach`** says who reaches the affected path when not every user does.
+- `models/retirements.md` also lists OpenAI's retired image models (`dall-e-2`, `dall-e-3`, shut down 2026-05-12). Tables for Ollama (`providers/ollama.md`) and for LangChain.js and langchaingo defaults (`runtimes/langchain.md`).
+- An audit evaluation case for LP-GE-14 (`python/page-refresh`).
+
+### Changed
+
+- From a fifth batch of audits: LP-GE-12 detects a finish reason taken as done whatever its value (`Boolean(finish_reason)`), the half-fix that checks it only when the text is empty, and a cut-off answer written to a cache; LP-GE-13 checks every model id the app sends (image, embedding, picker lists, README and compose examples) and keeps defaults apart from ids that are only selectable; LP-GE-15 and LP-GE-17 follow each setting to the client the call really uses, and LP-GE-15 detects a deadline checked only between stream chunks; LP-GE-05 detects retries decided on a status code in the error text and retries on 400, 401 and 404; LP-PC-04 covers any catalog rendered into the prompt from a map or a set, not only tool lists.
+- The audit skill's notes list points at the new rules, says a cache that never hits is a finding, not a note, and asks to check that each call site is reachable.
 
 ## 0.1.0-dev.14 – 2026-11-27
 

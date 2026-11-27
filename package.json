@@ -1,6 +1,6 @@
 {
   "name": "leanprompt",
-  "version": "0.1.0-dev.14",
+  "version": "0.1.0-dev.15",
   "description": "Get more from every LLM call your app makes: skills that make prompts cacheable, cut dead weight, stop wasted output and speed up first tokens, without changing the answers, plus a CLI to measure the result.",
   "type": "module",
   "license": "Apache-2.0 AND CC-BY-4.0",
@@ -21,7 +21,8 @@
     "build:diffs": "tsx scripts/readme-diffs.ts",
     "check:numbers": "tsx cli/src/lint/numbers.ts",
     "build:site": "tsx scripts/build-site.ts",
-    "illustrations": "node --env-file-if-exists=.env scripts/audit-illustrations.mjs"
+    "illustrations": "node --env-file-if-exists=.env scripts/audit-illustrations.mjs",
+    "publish:site": "node --env-file-if-exists=.env scripts/publish-site.mjs"
   },
   "dependencies": {
     "@kvsig/core": "0.1.0",

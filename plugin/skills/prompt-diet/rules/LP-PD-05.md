@@ -68,4 +68,4 @@ What looks stale may be what the model needs: the file it read before the edit, 
 
 ## Waste signal
 Measured: a sliding window shows as `cached_tokens` far below `prompt_tokens` on calls that continue a conversation (the score's S falls); an unbounded history shows as `prompt_tokens` that keep growing per conversation. Static: severity medium for a per-call window or per-call trimming of old turns (it breaks the cache on every call; also LP-PC-06), medium for stripping reasoning or thinking blocks from the history (E11), low for a history with no bound in an app whose conversations are long.
-<!-- leanprompt:generated v0.1.0-dev.14: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.15: written by leanprompt install; leanprompt update replaces local edits -->

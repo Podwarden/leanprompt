@@ -55,7 +55,7 @@ describe("fixtures", () => {
     // Correctness rules (LP-GE-11) are recorded as notes, which eval-audit does not score.
     const notes = loadNoteRuleIds(PACKAGE_ROOT);
     const wanted = [...loadRuleIds(PACKAGE_ROOT)].filter((id) => /^LP-(PC|GE)-/.test(id) && !notes.has(id));
-    expect(wanted.length).toBe(22);
+    expect(wanted.length).toBe(23);
     expect(wanted.filter((id) => !seeded.has(id))).toEqual([]);
   });
 

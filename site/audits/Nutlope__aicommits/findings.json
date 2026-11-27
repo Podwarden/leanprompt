@@ -145,6 +145,8 @@
   "notes": [
     {
       "title": "A cut-off answer is retried unchanged, and a cut-off body is committed as complete",
+      "rule": "LP-GE-12",
+      "severity": "medium",
       "file": "src/feature/generate-commit-message.ts",
       "line": 725,
       "finding": "cutoff-retry",
@@ -165,6 +167,8 @@
     },
     {
       "title": "The README says the timeout is per network request; it covers the whole generation",
+      "rule": "LP-GE-15",
+      "severity": "high",
       "file": "README.md",
       "line": 405,
       "problem": "README.md says timeout is 'the timeout for network requests'. Since PR #351 it is one deadline for the whole generation (generate-commit-message.ts:146-169), shared by every chunk call and the combine call of a large diff, and the hosted providers other than Together AI keep 10 seconds for all of it.",

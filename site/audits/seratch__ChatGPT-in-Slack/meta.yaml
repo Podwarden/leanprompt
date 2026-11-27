@@ -1,0 +1,28 @@
+# Audited with 0.1.0-dev.14, scored with 0.1.0-dev.15. Unattended, read-only, on a clone of main at
+# the commit below; the app was not run and no provider was called. Changes to the findings file the
+# audit wrote: the cut-off note now names LP-GE-12 (high), the two retired-model notes LP-GE-13
+# (default image models: high; picker entries: medium) and the untimed translation call LP-GE-15
+# (low). The evidence is the audit's own, unchanged; notes are never scored and a rule id does not
+# change a share, so the static score (90) and the big number are unchanged. Prior art: PR #122
+# added the empty-output hint; issue #155 (open) covers the fallback snapshots, recorded as known on
+# the picker note. No response from the maintainers yet (checked 2026-11-27).
+repo: https://github.com/seratch/ChatGPT-in-Slack
+visibility: public
+commit: 9cbbcea5a03660fb62f1b9289bc749dfa8e3ca34
+leanprompt: 0.1.0-dev.15
+date: 2026-11-27
+status: notified
+summary: >-
+  A Slack bot for OpenAI and Azure OpenAI that chats in threads, summarises, proofreads and translates. Every reply is capped at a fixed 1,024 completion tokens, reasoning included, and a reply cut off with some text is posted as final; the default image models were shut down in May 2026. Figures are estimates from the code.
+maintainer:
+  issue: https://github.com/seratch/ChatGPT-in-Slack/issues/157
+headline: "Every reply is capped at 1,024 tokens, and a cut-off answer is posted as whole"
+subtitle: >-
+  A Slack bot for OpenAI and Azure OpenAI that adds new models within days and already tells users when a reasoning reply comes back empty.
+kind: Cut-off answer
+figure:
+  finding: "budget"
+  label: "in replies cut off at the fixed 1,024-token cap"
+illustration:
+  scene: "one long blank paper letter being pushed through a narrow wooden slot whose exit has a fixed brass blade; the blade has sliced the letter off short, the long cut-off remainder curls on the desk behind the slot, and the short front piece lies folded in an open envelope closed with a red wax seal, as if finished"
+  alt: "A long blank sheet of paper runs through a narrow wooden slot lined with a brass blade, beside a folded envelope closed with a red wax seal."

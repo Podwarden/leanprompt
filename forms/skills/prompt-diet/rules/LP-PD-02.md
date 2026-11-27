@@ -72,4 +72,4 @@ A repeated instruction is sometimes there because it was needed: a format rule r
 
 ## Waste signal
 Measured: the drop in `prompt_tokens` per call times the calls; the score does not count it, the report shows it as `tokens_per_1k.prompt`. Static: severity low for copies inside the cached head (they are read from the cache); medium when the copy is in per-turn text, where it is sent uncached on every turn (that shape is also LP-PD-03).
-<!-- leanprompt:generated v0.1.0-dev.14: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.15: written by npx leanprompt install; npx leanprompt update replaces local edits -->

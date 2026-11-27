@@ -264,4 +264,4 @@ and nothing to choose by, it throws `AmbiguousTargetError` (`code:
 "ambiguous_target"`). It throws
 `unknown provider: <name>` when the name has no table and `no cache facts for
 <engine> yet` for `llama.cpp`.
-<!-- leanprompt:generated v0.1.0-dev.14: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.15: written by leanprompt install; leanprompt update replaces local edits -->

@@ -68,4 +68,4 @@ If the app rewrote history to keep the model informed (an updated plan, the curr
 
 ## Waste signal
 Measured: lowers S, the share of prompt tokens that requests continuing a conversation could reuse. Static: severity high for history rebuilt or modified on every call, medium for a one-off rewrite (a single insertion or truncation point).
-<!-- leanprompt:generated v0.1.0-dev.14: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.15: written by leanprompt install; leanprompt update replaces local edits -->

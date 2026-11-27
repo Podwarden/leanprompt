@@ -62,4 +62,4 @@ Some apps repeat a reminder on purpose, because in long conversations the model 
 
 ## Waste signal
 Measured: the drop in `prompt_tokens` across a conversation, times conversations; the score does not count it, the report shows it as `tokens_per_1k.prompt`. Static: severity medium for a fixed block wrapped around every user message in a multi-turn conversation; low for a short reminder line.
-<!-- leanprompt:generated v0.1.0-dev.14: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.15: written by npx leanprompt install; npx leanprompt update replaces local edits -->

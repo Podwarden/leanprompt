@@ -169,4 +169,4 @@ What the audit could not ask (an unattended run) or the user did not answer: the
 ````
 
 Write the numbers with their kind every time: "(estimate)" next to a figure from code, "(measured, N calls)" next to a figure from the usage log. A static score is never presented as measured, and money is shown only from the user's own volume and a price with its source and checked date; never invent either.
-<!-- leanprompt:generated v0.1.0-dev.14: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.15: written by leanprompt install; leanprompt update replaces local edits -->
