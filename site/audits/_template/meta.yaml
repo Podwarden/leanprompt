@@ -10,8 +10,17 @@
 
 # The repository audited. Must be a PUBLIC repository on github.com.
 repo: https://github.com/<owner>/<repo>
-# Required, and must say public: only audits of public repositories are published.
+# Required: public. Only audits of public repositories are published, with one exception: a
+# private repository (on any host, https://<host>/<owner>/<repo>) whose maintainers gave written
+# permission to publish the audit. Then say private, add consent below, leave maintainer.issue and
+# .pr out (they are not public), and use status published, acknowledged, fixed or disputed (fixed
+# and acknowledged need maintainer.response). The page names the project and each file:line but
+# links none of its code.
 visibility: public
+# Private only: when the maintainers gave written permission, and optionally how (one sentence).
+# consent:
+#   date: 2026-12-01
+#   note: Given by email.
 # The full 40-character SHA of the commit the audit read.
 commit: 0000000000000000000000000000000000000000
 # The leanprompt version that ran the audit (npx leanprompt --version).

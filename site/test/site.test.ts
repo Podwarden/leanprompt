@@ -221,7 +221,9 @@ describe("the audits index", () => {
       expect(b, a.slug).toBeDefined();
       if (b === "fixed") expect(a.meta.status, a.slug).toBe("fixed");
       if (b === "demo") expect(a.meta.status, a.slug).toBe("demo");
-      if (b === "reported" || b === "fixed" || b === "planned") expect(a.meta.maintainer?.issue ?? a.meta.maintainer?.pr, a.slug).toBeTruthy();
+      // A private repository (published with consent) has no public thread: the consent and the response stand in for it.
+      if (b === "reported" || b === "fixed" || b === "planned")
+        expect(a.meta.visibility === "private" ? a.meta.consent && a.meta.maintainer?.response : (a.meta.maintainer?.issue ?? a.meta.maintainer?.pr), a.slug).toBeTruthy();
       if (b === "nochannel") {
         expect(a.meta.status, a.slug).toBe("published");
         expect(a.meta.no_channel, a.slug).toBeTruthy();
@@ -310,7 +312,11 @@ describe("audit pages", () => {
       // The findings.json link names the folder as it is in the repository: GitHub paths are case-sensitive.
       expect(h, a.slug).toContain(`/blob/main/site/audits/${a.folder}/findings.json`);
       expect(existsSync(join(ROOT, "site", "audits", a.folder, "findings.json")), a.folder).toBe(true);
-      for (const f of a.findings) if (f.file !== "<external>") expect(h, `${a.slug} ${f.file}`).toContain(`${a.meta.repo}/blob/${a.meta.commit}/${f.file}#L${f.line}`);
+      const priv = a.meta.visibility === "private";
+      // A private repository's code is behind a sign-in: the page names the file and line and links nothing of it.
+      if (priv) expect(h, a.slug).not.toContain(`href="${a.meta.repo}`);
+      const codeRef = (file: string, line: number) => (priv ? `<code>${file}:${line}</code>` : `${a.meta.repo}/blob/${a.meta.commit}/${file}#L${line}`);
+      for (const f of a.findings) if (f.file !== "<external>") expect(h, `${a.slug} ${f.file}`).toContain(codeRef(f.file, f.line));
       expect(t.split("Already planned.").length - 1, a.slug).toBe(a.findings.filter((f) => !f.fixed && knownOf(f)?.kind === "planned").length);
       expect(t.split("Declined by the project").length - 1, a.slug).toBe(
         (a.findings.some((f) => !f.fixed && knownOf(f)?.kind === "declined") ? 1 : 0) + (a.notes ?? []).filter((n) => n.known?.kind === "declined").length,
@@ -323,14 +329,15 @@ describe("audit pages", () => {
       if (a.findings.some((f) => f.fixed)) expect(t, a.slug).toContain("Already fixed");
       for (const n of a.notes ?? []) {
         expect(t, a.slug).toContain(n.title.replace(/['"&<>]/g, " "));
-        if (n.file !== "<external>") expect(h).toContain(`${a.meta.repo}/blob/${a.meta.commit}/${n.file}#L${n.line}`);
+        if (n.file !== "<external>") expect(h).toContain(codeRef(n.file, n.line));
       }
       if (a.notes?.length) {
         expect(t, a.slug).toContain("Other problems the audit found");
         expect(html.get(`leanprompt/audits/${a.slug}/report/index.html`)!, a.slug).toContain('id="s-notes"');
       }
       // Every real audit links where the maintainers were told, or says why there was no channel.
-      if (a.meta.status !== "demo" && !a.meta.no_channel) expect(a.meta.maintainer?.issue ?? a.meta.maintainer?.pr, a.slug).toBeTruthy();
+      if (priv) expect(t, a.slug).toContain(`Published with the maintainers’ written permission, given ${a.meta.consent!.date}`);
+      else if (a.meta.status !== "demo" && !a.meta.no_channel) expect(a.meta.maintainer?.issue ?? a.meta.maintainer?.pr, a.slug).toBeTruthy();
       if (a.meta.no_channel) {
         expect(t, a.slug).toContain(a.meta.no_channel);
         expect(t, a.slug).not.toContain("Status Published.");
@@ -351,7 +358,12 @@ describe("audit pages", () => {
     ["an http URL", good.replace("https://github.com", "http://github.com"), /public repository URL/],
     ["a deeper URL", good.replace("acme/widget", "acme/widget/tree/main"), /public repository URL/],
     ["no visibility", good.replace("visibility: public\n", ""), /visibility: public is required/],
-    ["a private repo", good.replace("visibility: public", "visibility: private"), /visibility: public is required/],
+    ["a private repo without consent", good.replace("visibility: public", "visibility: private"), /needs consent/],
+    ["consent on a public repo", good + "consent:\n  date: 2026-12-01\n", /consent goes only with visibility: private/],
+    ["a private repo with a malformed consent date", good.replace("visibility: public", "visibility: private") + "consent:\n  date: soon\n", /consent.date must be/],
+    ["a private repo with an issue link", good.replace("visibility: public", "visibility: private") + "consent:\n  date: 2026-12-01\nmaintainer:\n  issue: https://github.com/acme/widget/issues/1\n", /leave maintainer.issue and maintainer.pr out/],
+    ["a private repo fixed with no response", good.replace("visibility: public", "visibility: private").replace("published", "fixed") + "consent:\n  date: 2026-12-01\n", /needs maintainer.response/],
+    ["a private repo notified", good.replace("visibility: public", "visibility: private").replace("published", "notified") + "consent:\n  date: 2026-12-01\n", /status notified does not fit a private repository/],
     ["a short commit", good.replace("a".repeat(40), "abc1234"), /full 40-character SHA/],
     ["a disputed audit with no response", good.replace("published", "disputed") + "maintainer:\n  issue: https://github.com/acme/widget/issues/1\n", /quote the maintainer's response/],
     ["notified with no link", good.replace("published", "notified"), /needs maintainer.issue/],
@@ -378,6 +390,14 @@ describe("audit pages", () => {
     const { meta, errors } = validateMeta(good + "no_channel: The repository has issues and discussions turned off.\n", "acme__widget");
     expect(errors).toEqual([]);
     expect(meta?.no_channel).toBe("The repository has issues and discussions turned off.");
+  });
+
+  it("accept a private repository on any host, with the maintainers' written consent (0.1.0-dev.16)", () => {
+    const priv = good.replace("https://github.com/acme/widget", "https://gitlab.com/acme/widget").replace("visibility: public", "visibility: private").replace("published", "fixed") +
+      "consent:\n  date: 2026-12-02\n  note: Given by email to info@podwarden.com.\nmaintainer:\n  response: We fixed the history trim.\n  response_date: 2026-12-02\n";
+    const { meta, errors } = validateMeta(priv, "acme__widget");
+    expect(errors).toEqual([]);
+    expect(meta).toMatchObject({ owner: "acme", name: "widget", visibility: "private", consent: { date: "2026-12-02", note: "Given by email to info@podwarden.com." } });
   });
 
   it("accept a draft without the headline fields", () => {

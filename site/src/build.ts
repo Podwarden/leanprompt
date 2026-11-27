@@ -488,10 +488,11 @@ ${audits.length ? `<ul class="audit-cards">\n${auditOrder.map(auditCard).join("\
     [...open, ...server, ...knownLive, ...fixed].forEach((f, i) => f.id !== undefined && numById.set(f.id, i + 1));
     const linkify = (t: string) => e(t).replace(/https:\/\/github\.com\/[\w./#-]+/g, (u) => `<a href="${u}" rel="noopener">${u}</a>`);
     const score = scoreOf(a.findings, m.date, m.leanprompt);
-    const where = (f: Finding) =>
-      f.file === "<external>"
-        ? e(f.where ?? "outside the repository")
-        : `<a href="${m.repo}/blob/${m.commit}/${f.file.split("/").map(encodeURIComponent).join("/")}#L${f.line}" rel="noopener"><code>${e(f.file)}:${f.line}</code></a>`;
+    // A private repository's code is behind a sign-in: name the file and line, link nothing.
+    const priv = m.visibility === "private";
+    const codeAt = (file: string, line: number) =>
+      priv ? `<code>${e(file)}:${line}</code>` : `<a href="${m.repo}/blob/${m.commit}/${file.split("/").map(encodeURIComponent).join("/")}#L${line}" rel="noopener"><code>${e(file)}:${line}</code></a>`;
+    const where = (f: Finding) => (f.file === "<external>" ? e(f.where ?? "outside the repository") : codeAt(f.file, f.line));
     const tokens = (f: Finding) => {
       const t = tokensLost(f);
       if (!t) return "";
@@ -518,10 +519,7 @@ ${f.reach ? `<p class="small"><b>Who reaches this.</b> ${e(f.reach)}</p>` : ""}
 ${f.cached_discount === "none" ? `<p class="small"><b>Money.</b> ${e(NO_DISCOUNT_LINE)}</p>` : ""}
 ${f.confirm ? `<p class="small"><b>${f.status === "frequency-unknown" ? "How often." : f.status === "size-unknown" ? "How big." : "To confirm."}</b> ${e(f.confirm)}</p>` : ""}
 </li>`;
-    const noteWhere = (n: Note) =>
-      n.file === "<external>"
-        ? "outside the repository"
-        : `<a href="${m.repo}/blob/${m.commit}/${n.file.split("/").map(encodeURIComponent).join("/")}#L${n.line}" rel="noopener"><code>${e(n.file)}:${n.line}</code></a>`;
+    const noteWhere = (n: Note) => (n.file === "<external>" ? "outside the repository" : codeAt(n.file, n.line));
     const noteCard = (n: Note) => `<li class="note">
 <h3>${e(n.title)}</h3>
 <p class="small">${noteWhere(n)}${n.rule ? ` · <a href="${ruleUrl(n.rule)}"><code>${e(n.rule)}</code></a> ${e(rules.get(n.rule)?.title ?? "")}${n.severity ? ` · severity ${e(n.severity)}` : ""}` : ""}${n.scope ? ` · ${e(SCOPE_LABEL[n.scope])}` : ""}${n.finding !== undefined && numById.has(n.finding) ? ` · the same problem as <a href="#f${numById.get(n.finding)}">finding ${numById.get(n.finding)}</a>` : ""}</p>
@@ -543,9 +541,12 @@ ${bigNumber(a, true)}
 <p class="dateline">Audited <time datetime="${m.date}">${m.date}</time> with leanprompt ${e(m.leanprompt)}</p>
 <p class="notice"><b>Estimates, not measurements.</b> ${ESTIMATE_LABEL}</p>
 <dl class="facts">
-<div><dt>Repository</dt><dd><a href="${m.repo}" rel="noopener">${e(m.owner)}/${e(m.name)}</a></dd></div>
+${priv ? `<div><dt>Repository</dt><dd>${e(m.owner)}/${e(m.name)}, a private repository</dd></div>
+<div><dt>Commit audited</dt><dd><code>${short}</code></dd></div>
+${m.path ? `<div><dt>Folder</dt><dd><code>${e(m.path)}/</code></dd></div>` : ""}
+<div><dt>Permission</dt><dd>Published with the maintainers’ written permission, given <time datetime="${m.consent!.date}">${m.consent!.date}</time>.${m.consent!.note ? ` ${e(m.consent!.note)}` : ""}</dd></div>` : `<div><dt>Repository</dt><dd><a href="${m.repo}" rel="noopener">${e(m.owner)}/${e(m.name)}</a></dd></div>
 <div><dt>Commit audited</dt><dd><a href="${m.repo}/tree/${m.commit}" rel="noopener"><code>${short}</code></a></dd></div>
-${m.path ? `<div><dt>Folder</dt><dd><a href="${m.repo}/tree/${m.commit}/${m.path}" rel="noopener"><code>${e(m.path)}/</code></a></dd></div>` : ""}
+${m.path ? `<div><dt>Folder</dt><dd><a href="${m.repo}/tree/${m.commit}/${m.path}" rel="noopener"><code>${e(m.path)}/</code></a></dd></div>` : ""}`}
 <div><dt>leanprompt version</dt><dd><a href="${REPO}/tree/v${e(m.leanprompt)}" rel="noopener">${e(m.leanprompt)}</a></dd></div>
 <div><dt>Audit date</dt><dd><time datetime="${m.date}">${m.date}</time></dd></div>
 <div><dt>Status</dt><dd>${m.no_channel ? e(m.no_channel).replace(CONTACT, `<a href="mailto:${CONTACT}">${CONTACT}</a>`) : e(STATUS_TEXT[m.status])}</dd></div>

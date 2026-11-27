@@ -1,0 +1,165 @@
+{
+  "v": 1,
+  "findings": [
+    {
+      "id": "history-sliding-window",
+      "rule": "LP-PC-06",
+      "file": "src/synapse_ceo/storage/sessions.py",
+      "line": 71,
+      "saves": "prefill",
+      "severity": "high",
+      "share": 0.14,
+      "status": "frequency-unknown",
+      "fixed": true,
+      "tokens_per_1k": {
+        "uncached": 2000000
+      },
+      "problem": "Once a conversation passes 60 messages, every save drops the oldest messages so it is exactly 60 again. The start of the history then moves on every turn, so the provider can reuse nothing after the company context: the whole remaining history is computed again on the first call of each later turn.",
+      "change": "Trim in steps instead of on every save: when the history passes 60 messages, cut it back to about 40 (keeping the tool-call boundary rule), so the history stays append-only for the next ten or so turns and the cache breaks once per step, not every turn. Later, a summary message at the cut (cache-aware compaction) keeps what the dropped turns said.",
+      "why": "A sliding window rewrites the front of the history on every turn, and a prefix cache only reuses an unchanged front. Long conversations, the ones with the most history, pay full price for all of it on every turn.",
+      "estimate": "about 2.0M prompt tokens per 1,000 calls not served from cache (estimate)",
+      "assumptions": "about 7 messages per turn, so the cap is reached after 8 to 9 turns; 30% of turns are in sessions past the cap; about 20,000 history tokens at the cap; only the first call of each turn is affected (later rounds append); about 3 calls per turn; the provider's cache outlives the pause between turns",
+      "confirm": "how many turns run in sessions past 60 messages, and cached_tokens on the first round of those turns, from the turn_end account in the logs",
+      "verify": "In a session past 60 messages, the first call of two consecutive turns: cached_tokens on the second covers the system prompt, tools, context and the history up to the previous turn, instead of stopping after the context message."
+    },
+    {
+      "id": "tool-results-whole",
+      "rule": "LP-PD-04",
+      "file": "src/synapse_ceo/loop/agent.py",
+      "line": 687,
+      "saves": "prefill",
+      "severity": "medium",
+      "share": 0.086,
+      "status": "size-unknown",
+      "fixed": true,
+      "tokens_per_1k": {
+        "prompt": 1200000
+      },
+      "problem": "Every tool result goes into the conversation history whole and stays there for every later call of the session. Only the copy sent to the founder's screen is cut to 4,000 characters; the model gets the full text, including raw payloads from connected systems through mcpu__invoke.",
+      "change": "Cut each tool result once, when it is added to the history (agent.py, _tool_message): keep the fields the model uses, cap the length (for example 8,000 characters with a note saying it was cut and how to ask for more), and never change it afterwards.",
+      "why": "A large result is paid for on every later call until it falls out of the 60-message window, mostly as cached reads, and it brings the per-turn token cap and the history trim closer.",
+      "estimate": "about 1.2M prompt tokens per 1,000 calls that need not be sent (estimate)",
+      "assumptions": "an average call carries 2 tool results that could each lose about 600 tokens; most of these tokens are cached reads, so the money saved is smaller than the token count",
+      "confirm": "the size distribution of tool results, from the tool-call log's result_excerpt per tool (task_list, knowledge_read, mcpu__invoke)",
+      "verify": "Replay one tool-heavy session: prompt_tokens on its later calls fall by about the trimmed size, and the eval cases in evals/ still pass."
+    },
+    {
+      "id": "terminal-round-no-tools",
+      "rule": "LP-PC-05",
+      "file": "src/synapse_ceo/loop/agent.py",
+      "line": 275,
+      "saves": "prefill",
+      "severity": "medium",
+      "share": 0.038,
+      "status": "frequency-unknown",
+      "fixed": true,
+      "tokens_per_1k": {
+        "uncached": 530000
+      },
+      "problem": "On the last round after a held write, a queued proposal or a pending approval, the loop sends the request with no tools at all. GLM's chat template puts the tool list in the system block at the very top, so that request shares no prefix with the round before it and is computed again from the first token.",
+      "change": "Keep the same tool list on the terminal round and stop tool use another way: send tool_choice \"none\" if Z.ai accepts it, otherwise keep the tools and the closing instruction and ignore any tool call the model makes on that round, as the loop already does.",
+      "why": "Removing the tools changes the start of the prompt, which throws away the cache for the whole prompt on that call, history included.",
+      "estimate": "about 530k prompt tokens per 1,000 calls not served from cache (estimate)",
+      "assumptions": "10% of turns end in a terminal round; the prompt is about 16,000 tokens at that point; the provider renders tools at the top of the prompt (true for GLM and Qwen chat templates)",
+      "confirm": "how many turns end in a held preview, a queued proposal or a pending approval, and cached_tokens on their final round, from the turn logs",
+      "verify": "On a turn that ends with a held write, cached_tokens on the final round rises from near 0 to about the previous round's prompt size."
+    },
+    {
+      "id": "no-max-tokens",
+      "rule": "LP-GE-03",
+      "file": "src/synapse_ceo/loop/agent.py",
+      "line": 283,
+      "saves": "generation",
+      "severity": "medium",
+      "share": 0.03,
+      "status": "size-unknown",
+      "fixed": true,
+      "tokens_per_1k": {
+        "output": 12000
+      },
+      "problem": "The agent loop's calls send no max_tokens, to a model that always thinks. A runaway answer or a long thinking loop runs to the provider's own maximum before anything stops it; the 150,000-token turn cap is only checked after the call returns.",
+      "change": "Send a per-call max_tokens on the agent loop (a setting, for example 8,000 to 16,000, sized from the measured largest answers plus thinking), the same way the classifier already sends one.",
+      "why": "Output is the most expensive token, and with no cap a single bad call can spend more than a whole normal turn.",
+      "estimate": "about 12k output tokens per 1,000 calls (estimate)",
+      "assumptions": "about 400 output tokens per call on average; runaway calls are rare and make up about 3% of output",
+      "confirm": "the largest completion_tokens per call and how often a call ends with finish_reason length, from the turn_end logs",
+      "verify": "No call's completion_tokens exceeds the cap, and no ordinary answer ends with finish_reason length."
+    },
+    {
+      "id": "reasoning-dropped",
+      "rule": "LP-PC-09",
+      "file": "src/synapse_ceo/loop/agent.py",
+      "line": 466,
+      "saves": "prefill",
+      "severity": "medium",
+      "share": 0.07,
+      "status": "needs-facts",
+      "fixed": true,
+      "tokens_per_1k": {
+        "uncached": 1000000
+      },
+      "problem": "GLM always thinks, but the stream reader keeps only content and tool calls, so the assistant message stored after a tool call has no reasoning. If the provider's template keeps the reasoning of the current turn's tool rounds, the next round's prompt differs from what it cached at that assistant message.",
+      "change": "Read reasoning_content from the stream and store it on the assistant message that carries tool calls, sending it back on the next rounds of the same turn, as Z.ai's thinking docs describe; keep thinking settings the same within a session.",
+      "why": "Everything after the first changed byte is computed again; dropping reasoning between tool rounds also makes the model think again about what it had already worked out.",
+      "estimate": "about 1.0M prompt tokens per 1,000 calls not served from cache, if the template keeps reasoning (estimate)",
+      "assumptions": "two thirds of calls are follow-up rounds of a tool turn; about 1,500 tokens recomputed on each from the last assistant message onwards",
+      "confirm": "whether Z.ai's GLM 5.x template keeps reasoning_content of the current turn's tool rounds (preserved or interleaved thinking): compare cached_tokens on round 2 of a tool turn with the size of round 1's prompt plus its assistant message",
+      "verify": "On round 2 of a tool turn, cached_tokens reaches the end of round 1's assistant message; the evals in evals/ still pass."
+    },
+    {
+      "id": "local-prefix-cache",
+      "rule": "LP-LW-01",
+      "file": "<external>",
+      "line": 0,
+      "where": "LM Warden and the llama.cpp/vLLM engine behind LOCAL_BASE_URL",
+      "fix_by": "server",
+      "saves": "prefill",
+      "severity": "low",
+      "share": 0.01,
+      "status": "needs-facts",
+      "problem": "Is prefix caching on for the local Qwen engine behind Warden, and with what block size? The head this service sends (system prompt and tools) is several thousand tokens, so a block-mode engine reuses it only if caching is on.",
+      "change": "Turn on prefix caching on the engine; for a hybrid model with speculative decoding, set the prefix match unit.",
+      "why": "Without it every local call computes the whole prompt again.",
+      "estimate": "small for this app: the local model serves only model-hint turns and classifier fallback (estimate)",
+      "assumptions": "the worker tier is configured but not used by the turn loop, so local traffic is a small share",
+      "confirm": "whether prefix caching is on in the engine behind Warden and its block or match size (npx leanprompt profile detect --lmwarden reads it)",
+      "verify": "On two consecutive local calls of one session, the engine reports cached prompt tokens close to the shared head."
+    },
+    {
+      "id": "all-tools-every-call",
+      "rule": "LP-PD-01",
+      "file": "src/synapse_ceo/tools/surface.py",
+      "line": 130,
+      "saves": "prefill",
+      "severity": "low",
+      "share": 0.08,
+      "tokens_per_1k": {
+        "prompt": 1150000
+      },
+      "known": {
+        "kind": "planned",
+        "url": "https://gitlab.com/catalation/synapse-ceo/-/issues/14",
+        "note": "Open in the project's own (private) tracker: narrow the tool surface using measured failures (progressive mode, M6)."
+      },
+      "problem": "Every call is offered all 33 tools, write tools included on read-only turns. The project plans to narrow this once it has failure data.",
+      "change": "When narrowing, keep two fixed tool lists (read and write) so each stays cacheable, rather than a list chosen per turn.",
+      "why": "Write tool definitions are sent on turns that cannot use them; switching lists per turn would cost cache, so the gain is mostly in cached-read tokens.",
+      "estimate": "about 1.15M prompt tokens per 1,000 calls, mostly cached reads (estimate)",
+      "assumptions": "half of turns are read-only; the write tools are about 2,300 tokens of the roughly 5,000-token tool list",
+      "verify": "prompt_tokens on read-only turns fall by the write tools' size, and cached_tokens stays high across turns."
+    }
+  ],
+  "notes": [
+    {
+      "title": "A cut-off answer is shown and stored as complete",
+      "file": "src/synapse_ceo/loop/agent.py",
+      "line": 303,
+      "rule": "LP-GE-12",
+      "severity": "medium",
+      "finding": "no-max-tokens",
+      "problem": "The stream reader records finish_reason, but the loop never reads it: an answer that stopped at the output limit (finish_reason length) is streamed to the founder, appended to the history and treated as the turn's answer. Tool-call arguments cut off the same way are only caught by argument validation.",
+      "change": "After each call, check response.finish_reason; on length, tell the founder the answer was cut off (an error or status event) and mark the stored message, or retry once with a larger cap.",
+      "verify": "A test with a stub stream ending in finish_reason length produces a truncation event and no plain completed answer."
+    }
+  ]
+}

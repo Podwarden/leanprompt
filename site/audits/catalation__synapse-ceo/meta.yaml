@@ -1,0 +1,22 @@
+repo: https://gitlab.com/catalation/synapse-ceo
+visibility: private
+consent:
+  date: 2026-11-27
+  note: The maintainers ran leanprompt on their own code and sent us the report.
+commit: 03bbd01
+leanprompt: 0.1.0-dev.15
+date: 2026-11-27
+status: fixed
+headline: "Past 60 messages, every turn paid again for the whole chat history"
+subtitle: "An AI agent that runs company work for a founder on Z.ai's GLM, with a prompt head built byte-stable and guarded by its own test."
+kind: Cache never hits
+figure:
+  finding: history-sliding-window
+  label: prompt tokens the cache could have served, from a history window that slid every turn
+illustration:
+  scene: "a long paper scroll on a wooden roller where a small blade trims exactly one sheet off the top every time a new sheet is added at the bottom, the trimmed sheets piling up on the floor, a brass stamp beside it re-stamping the whole scroll again"
+  alt: A long cream paper scroll unrolls from a wooden roller over a pile of trimmed sheets, with a brass stamp beside it.
+maintainer:
+  response: >-
+    The maintainers ran the audit on their own code, fixed every finding in it, and agreed to its publication here.
+  response_date: 2026-11-27

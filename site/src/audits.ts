@@ -1,7 +1,9 @@
 // Published audits: site/audits/<owner>__<repo>/{meta.yaml, findings.json}.
 //
 // Rules the build enforces, so that an audit page is fair to the project it is about:
-// - only a PUBLIC repository on github.com is published (meta.yaml `repo` and `visibility: public`);
+// - only a PUBLIC repository on github.com is published (meta.yaml `repo` and `visibility: public`),
+//   unless its maintainers gave written permission to publish an audit of their private repository
+//   (`visibility: private` with `consent`): that page names the project but links none of its code;
 // - the page names the commit audited, the leanprompt version and the date;
 // - every figure is labelled as an estimate from reading the code, never a measurement;
 // - the headline names the mistake in plain words, never the people (no mocking words), and the
@@ -96,7 +98,9 @@ export interface AuditMeta {
   repo: string;
   owner: string;
   name: string;
-  visibility: "public";
+  visibility: "public" | "private";
+  /** A private repository only: when the maintainers gave written permission to publish, and how. */
+  consent?: { date: string; note?: string };
   commit: string;
   leanprompt: string;
   date: string;
@@ -180,6 +184,8 @@ export function imageInfo(b: Buffer): { type: "png" | "jpeg" | "webp"; width: nu
 
 const GITHUB_REPO = /^https:\/\/github\.com\/([A-Za-z0-9-]{1,39})\/([A-Za-z0-9._-]{1,100})$/;
 const GITHUB_LINK = /^https:\/\/github\.com\/[A-Za-z0-9-]{1,39}\/[A-Za-z0-9._-]{1,100}\/(issues|pull|discussions)\/\d+(#[\w-]+)?$/;
+/** A private repository's address, on any host: https://<host>/<owner>/<repo>. Never linked from the page. */
+const PRIVATE_REPO = /^https:\/\/([a-z0-9.-]+\.[a-z]{2,})\/([A-Za-z0-9_.-]{1,100})\/([A-Za-z0-9._-]{1,100})$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const VERSION = /^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$/;
 
@@ -199,13 +205,32 @@ export function validateMeta(text: string, slug: string): { meta?: AuditMeta; er
   const dateOf = (v: unknown) => (v instanceof Date ? v.toISOString().slice(0, 10) : typeof v === "string" ? v.trim() : undefined);
 
   const repo = str("repo");
-  const gh = repo ? GITHUB_REPO.exec(repo) : null;
+  const isPrivate = m.visibility === "private";
+  const pm = repo && isPrivate ? PRIVATE_REPO.exec(repo) : null;
+  const gh = repo ? (isPrivate ? (pm ? [pm[0], pm[2], pm[3]] : null) : GITHUB_REPO.exec(repo)) : null;
   if (!repo) errors.push("repo is required: the public github.com URL of the repository audited");
-  else if (!gh) errors.push(`repo must be a public repository URL of the form https://github.com/<owner>/<repo>, not ${repo}`);
-  if (m.visibility !== "public") errors.push("visibility: public is required; only audits of public repositories are published");
+  else if (!gh) errors.push(isPrivate ? `repo must be the private repository's URL, https://<host>/<owner>/<repo>, not ${repo}` : `repo must be a public repository URL of the form https://github.com/<owner>/<repo>, not ${repo}`);
+  if (m.visibility !== "public" && !isPrivate) errors.push("visibility: public is required; only audits of public repositories are published (or private, with the maintainers' written consent)");
   if (gh && slug.toLowerCase() !== `${gh[1]}__${gh[2]}`.toLowerCase()) errors.push(`the folder must be named ${gh[1]}__${gh[2]} (lower case is fine), not ${slug}`);
+  let consent: AuditMeta["consent"];
+  if (m.consent !== undefined && m.consent !== null) {
+    if (!isPrivate) errors.push("consent goes only with visibility: private");
+    if (typeof m.consent !== "object" || Array.isArray(m.consent)) errors.push("consent must be a mapping with date and an optional note");
+    else {
+      const cm = m.consent as Record<string, unknown>;
+      const cd = dateOf(cm.date);
+      const note = typeof cm.note === "string" ? cm.note.trim() : undefined;
+      if (!cd || !DATE.test(cd)) errors.push("consent.date must be the day the maintainers gave written permission, YYYY-MM-DD");
+      if (note !== undefined && (!note || note.length > 300)) errors.push("consent.note must be one sentence of at most 300 characters");
+      const extra = Object.keys(cm).filter((k) => !["date", "note"].includes(k));
+      if (extra.length) errors.push(`consent: unknown keys ${extra.join(", ")}`);
+      if (cd && DATE.test(cd)) consent = { date: cd, ...(note ? { note } : {}) };
+    }
+  } else if (isPrivate) errors.push("a private repository needs consent: {date, note}: the maintainers' written permission to publish the audit");
   const commit = str("commit");
-  if (!commit || !/^[0-9a-f]{40}$/.test(commit)) errors.push("commit must be the full 40-character SHA of the commit audited");
+  // A private repository's audit may name only the short SHA its maintainers' report gives: nobody outside can resolve it anyway.
+  if (!commit || !(isPrivate ? /^[0-9a-f]{7,40}$/ : /^[0-9a-f]{40}$/).test(commit))
+    errors.push(isPrivate ? "commit must be the SHA of the commit audited (at least 7 characters)" : "commit must be the full 40-character SHA of the commit audited");
   const version = str("leanprompt");
   if (!version || !VERSION.test(version)) errors.push("leanprompt must be the version that ran the audit, for example 0.1.0");
   const date = dateOf(m.date);
@@ -281,7 +306,13 @@ export function validateMeta(text: string, slug: string): { meta?: AuditMeta; er
     }
   }
   if (status === "disputed" && !maintainer?.response) errors.push("a disputed audit must quote the maintainer's response");
-  if (status && ["notified", "acknowledged", "fixed", "disputed"].includes(status) && !maintainer?.issue && !maintainer?.pr)
+  if (isPrivate) {
+    if (maintainer?.issue || maintainer?.pr) errors.push("a private repository's issues and pull requests are not public: leave maintainer.issue and maintainer.pr out");
+    if (status === "notified") errors.push("status notified does not fit a private repository: its maintainers gave consent, so use published, acknowledged, fixed or disputed");
+    if (status && ["acknowledged", "fixed"].includes(status) && !maintainer?.response)
+      errors.push(`status ${status} on a private repository needs maintainer.response: what the maintainers said, since there is no public thread to link`);
+    if (m.no_channel !== undefined) errors.push("no_channel does not fit a private repository: consent says how the maintainers were told");
+  } else if (status && ["notified", "acknowledged", "fixed", "disputed"].includes(status) && !maintainer?.issue && !maintainer?.pr)
     errors.push(`status ${status} needs maintainer.issue or maintainer.pr: link where the maintainers were told`);
   const noChannel = m.no_channel === undefined ? undefined : typeof m.no_channel === "string" ? m.no_channel.trim() : "";
   if (noChannel !== undefined) {
@@ -310,7 +341,7 @@ export function validateMeta(text: string, slug: string): { meta?: AuditMeta; er
       if (scene && alt) illustration = { scene, alt };
     }
   } else if (publishable) errors.push("illustration is required: {scene, alt}; see site/audits/README.md");
-  const known = ["repo", "visibility", "commit", "leanprompt", "date", "status", "path", "summary", "headline", "subtitle", "kind", "figure", "maintainer", "no_channel", "illustration"];
+  const known = ["repo", "visibility", "consent", "commit", "leanprompt", "date", "status", "path", "summary", "headline", "subtitle", "kind", "figure", "maintainer", "no_channel", "illustration"];
   const unknown = Object.keys(m).filter((k) => !known.includes(k));
   if (unknown.length) errors.push(`unknown keys ${unknown.join(", ")}`);
   if (errors.length) return { errors };
@@ -320,7 +351,8 @@ export function validateMeta(text: string, slug: string): { meta?: AuditMeta; er
       repo: repo!,
       owner: gh![1]!,
       name: gh![2]!,
-      visibility: "public",
+      visibility: isPrivate ? "private" : "public",
+      ...(consent ? { consent } : {}),
       commit: commit!,
       leanprompt: version!,
       date: date!,

@@ -168,5 +168,7 @@ What the audit could not ask (an unattended run) or the user did not answer: the
 6. <The page: `npx leanprompt@0.1.0-dev.15 report --html` writes `.leanprompt/report.html` with the same content and the copyable hand-off block>
 ````
 
+Name a finding in the next steps by its rule and place ("LP-PC-06 at storage/sessions.py:71"), never by its number: the generated block numbers the findings in its own order (this app's findings, then the open questions, the server questions, the already-known ones), so a number written from memory points at the wrong one.
+
 Write the numbers with their kind every time: "(estimate)" next to a figure from code, "(measured, N calls)" next to a figure from the usage log. A static score is never presented as measured, and money is shown only from the user's own volume and a price with its source and checked date; never invent either.
 <!-- leanprompt:generated v0.1.0-dev.15: written by npx leanprompt install; npx leanprompt update replaces local edits -->
