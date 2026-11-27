@@ -90,4 +90,4 @@ The samples must stay independent draws from the same settings: keep the same te
 
 ## Waste signal
 Measured: the score's generation waste counts output tokens on calls that were repeated identically (same ids, same `params`); repeated sampling calls count there, and after the fix they are one call. Static: severity medium for a loop or gather that sends one unchanged request body several times to a provider that supports a sample count; low where the provider has none.
-<!-- leanprompt:generated v0.1.0-dev.13: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.14: written by leanprompt install; leanprompt update replaces local edits -->

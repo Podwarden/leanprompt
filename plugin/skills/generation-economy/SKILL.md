@@ -6,7 +6,7 @@ license: CC-BY-4.0
 
 # generation-economy
 
-Stops paying to generate, or to prefill again, what one call could have produced. Ten rules, `LP-GE-01` to `LP-GE-10`, each in its own file under `rules/`, each with a way to detect it in code, the smallest fix, what the fix must not break, and how to verify it.
+Stops paying to generate, or to prefill again, what one call could have produced. Eleven rules, `LP-GE-01` to `LP-GE-11`, each in its own file under `rules/`, each with a way to detect it in code, the smallest fix, what the fix must not break, and how to verify it. LP-GE-11 is a correctness rule: an app that meters its own spend from the usage fields must count every billed token. It wastes no tokens, so it has no token share, and the audit records it as a note.
 
 The `prefill-cache` skill makes each prompt cheaper to read. This skill is about the calls themselves: how many there are, how much each one generates, and how many of them are thrown away (repeated, retried after a truncation or a timeout, or discarded after a parse failure).
 
@@ -72,6 +72,7 @@ Prices change: the tables record what each provider documents and when it was ch
 | [LP-GE-08](rules/LP-GE-08.md) | Route trivially small calls to a small model | medium | provider docs |
 | [LP-GE-09](rules/LP-GE-09.md) | Predicted outputs for mostly unchanged text | low | provider docs |
 | [LP-GE-10](rules/LP-GE-10.md) | Structured output instead of parse-and-re-ask | high | provider docs |
+| [LP-GE-11](rules/LP-GE-11.md) | Meter every billed token, cached and unfinished ones too | medium (a note, not scored) | provider docs |
 
 ## Reading the usage record
 
@@ -86,4 +87,4 @@ Batch discounts (LP-GE-07) and model choice (LP-GE-08) change money, not tokens,
 ## What this skill does not do
 
 It does not make prompts cache better (that is `prefill-cache`), it does not cut dead weight from the prompt (that is `prompt-diet`), it does not tune engine settings or replica routing on a self-hosted server (that is `lmwarden`), and it does not promise a saving for an app it has not measured.
-<!-- leanprompt:generated v0.1.0-dev.13: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.14: written by leanprompt install; leanprompt update replaces local edits -->

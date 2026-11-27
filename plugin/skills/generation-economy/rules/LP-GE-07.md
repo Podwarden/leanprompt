@@ -81,4 +81,4 @@ The request bodies are unchanged, so answers do not change. What changes is deli
 
 ## Waste signal
 Not in the score (the score counts tokens, not price). Static: severity medium for a scheduled or bulk job that sends many independent calls to the interactive endpoint of a provider with a batch API; reported with the provider's discount from its table.
-<!-- leanprompt:generated v0.1.0-dev.13: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.14: written by leanprompt install; leanprompt update replaces local edits -->

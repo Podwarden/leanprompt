@@ -69,4 +69,4 @@ Regrouping changes the order in which work runs, not the prompts, so answers do 
 
 ## Waste signal
 Measured: not counted against the app. The score caps "reusable" by the provider's cache lifetime, so a prefix last seen longer ago than the lifetime leaves E and S unchanged; the audit reports how many requests had a cold prefix. Static: severity low, with the break-even advice (mark, don't mark, longer lifetime, restructure).
-<!-- leanprompt:generated v0.1.0-dev.13: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.14: written by npx leanprompt install; npx leanprompt update replaces local edits -->

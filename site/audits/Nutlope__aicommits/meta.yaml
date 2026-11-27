@@ -1,0 +1,26 @@
+# Audited with leanprompt 0.1.0-dev.13, scored with 0.1.0-dev.14: unattended, on a clone of the
+# develop branch, where development happens; findings converted to the 0.1.0-dev.14 format
+# (static score 88 with 0.1.0-dev.13, 97 now). What changed: the cut-off retry is recorded as
+# reported upstream (pull requests #367 and #368 raised and exposed the output limit after cut-off
+# answers, without changing the retry) and its visible face, the cut-off body committed as whole,
+# is the first note; the shared deadline is recorded as the project's design (pull request #351)
+# and only the README's description of it is a note; the Claude Agent usage gap is a note under the
+# spend-meter rule. Both known items are left out of the score. No response from the maintainers
+# yet (checked 2026-11-27). The commit is the one audited.
+repo: https://github.com/Nutlope/aicommits
+visibility: public
+commit: 98e9c4e4ea025053d4ede2ed4ee08aed9b7e0419
+leanprompt: 0.1.0-dev.14
+date: 2026-11-27
+status: notified
+summary: >-
+  A commit-message CLI with twelve providers and a carefully bounded agentic flow: diffs segmented so every change is seen, a model-call budget, validated subjects. A cut-off answer is retried with the same limit and a cut-off body can be committed as whole; the other items are small. Figures are estimates from the code.
+maintainer:
+  issue: https://github.com/Nutlope/aicommits/issues/383
+headline: "The same cut-off request is sent up to three times, unchanged"
+subtitle: >-
+  A commit-message CLI for twelve providers, with a carefully bounded agentic flow that sees every staged change.
+kind: Cut-off answer
+figure:
+  finding: "cutoff-retry"
+  label: "for a cut-off answer sent again with the same output limit"

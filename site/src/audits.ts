@@ -4,7 +4,10 @@
 // - only a PUBLIC repository on github.com is published (meta.yaml `repo` and `visibility: public`);
 // - the page names the commit audited, the leanprompt version and the date;
 // - every figure is labelled as an estimate from reading the code, never a measurement;
-// - the title is neutral ("Where <repo> could save tokens");
+// - the headline names the mistake in plain words, never the people (no mocking words), and the
+//   subtitle says what the project already does well;
+// - the big number at the top is one finding's tokens per 1,000 calls (or runs), always labelled
+//   an estimate, or a count read from the project's own output, labelled as such;
 // - the maintainer's issue, pull request and response are linked when there is one;
 // - every page carries the corrections and takedown line.
 // A folder whose name starts with "_" (the template) is skipped, and so is an audit whose status
@@ -13,7 +16,8 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { parse } from "yaml";
-import { parseFindings, type AverageCall, type Finding, type KvsigUse, type Note } from "../../cli/src/score/static.js";
+import { loadNoteRuleIds } from "../../cli/src/lint/rules.js";
+import { isKnownFinding, isServerFinding, knownOf, parseFindings, type AverageCall, type Finding, type KvsigUse, type Note } from "../../cli/src/score/static.js";
 
 export const AUDITS_DIR = "site/audits";
 
@@ -33,6 +37,35 @@ export const STATUS_TEXT: Record<Status, string> = {
   withdrawn: "Withdrawn.",
 };
 
+/** The kinds of mistake an audit leads with: one short label on the card and the page. */
+export const KINDS = [
+  "Cut-off answer",
+  "Retry loop",
+  "Cache never hits",
+  "Blind spend meter",
+  "Setting that does nothing",
+  "Runs again every night",
+  "Wrong text summarised",
+] as const;
+export type Kind = (typeof KINDS)[number];
+
+/** Words that mock people or call a mistake a failure of theirs; never in a headline or subtitle. */
+export const MOCKING = /\b(silly|dumb|stupid|lazy|wasteful|sloppy|careless|incompetent|clueless|fail(s|ed|ing)?|failure|embarrassing|terrible|awful|idiotic|wasted)\b/i;
+
+/**
+ * The big number at the top of an audit. Either the tokens one finding costs per 1,000 calls
+ * (`finding`: its id or file:line; the default is the largest open finding), always shown as an
+ * estimate, or a count the audit read from the project's own output (`count`, like "66 of 558").
+ */
+export interface Figure {
+  finding?: string;
+  count?: string;
+  /** What the number measures, in a few plain words (at most 120 characters). */
+  label: string;
+  /** "runs" when the findings count per run of a CLI or batch tool; "calls" otherwise. */
+  unit: "calls" | "runs";
+}
+
 export interface AuditMeta {
   repo: string;
   owner: string;
@@ -45,6 +78,12 @@ export interface AuditMeta {
   /** A subfolder of the repository the audit covered, if not all of it. */
   path?: string;
   summary?: string;
+  /** Plain-English headline naming the mistake (at most 80 characters); required to publish. */
+  headline?: string;
+  /** One sentence: what the app is and what it already does well (at most 240 characters). */
+  subtitle?: string;
+  kind?: Kind;
+  figure?: Figure;
   maintainer?: { issue?: string; pr?: string; response?: string; response_date?: string };
 }
 
@@ -59,6 +98,8 @@ export interface Audit {
   kvsig?: KvsigUse;
   /** Verified problems outside the rules: shown after the findings, never scored. */
   notes?: Note[];
+  /** The audit ran unattended (findings.json `unattended: true`); the page says so. */
+  unattended?: boolean;
 }
 
 const GITHUB_REPO = /^https:\/\/github\.com\/([A-Za-z0-9-]{1,39})\/([A-Za-z0-9._-]{1,100})$/;
@@ -100,6 +141,47 @@ export function validateMeta(text: string, slug: string): { meta?: AuditMeta; er
   const summary = str("summary");
   if (summary !== undefined && summary.length > 400) errors.push("summary must be at most 400 characters");
 
+  const publishable = !!status && !UNPUBLISHED.has(status);
+  const headline = str("headline");
+  const subtitle = str("subtitle");
+  const kind = str("kind") as Kind | undefined;
+  if (headline === undefined) {
+    if (publishable) errors.push("headline is required: the mistake in plain words, at most 80 characters");
+  } else {
+    if (headline.length > 80) errors.push(`headline must be at most 80 characters, not ${headline.length}`);
+    if (headline.endsWith("?") || /!/.test(headline)) errors.push("headline must be a plain statement, without a question or exclamation mark");
+  }
+  if (subtitle === undefined) {
+    if (publishable) errors.push("subtitle is required: one sentence on what the app is and what it already does well");
+  } else if (subtitle.length > 240) errors.push(`subtitle must be at most 240 characters, not ${subtitle.length}`);
+  for (const [k, v] of [["headline", headline], ["subtitle", subtitle]] as const) {
+    if (v === undefined) continue;
+    const bad = MOCKING.exec(v);
+    if (bad) errors.push(`${k} must describe the mistake, not mock it: remove "${bad[0]}"`);
+    if (/[\u2014]/.test(v)) errors.push(`${k} must not use an em dash`);
+  }
+  if (kind === undefined) {
+    if (publishable) errors.push(`kind is required, one of: ${KINDS.join(", ")}`);
+  } else if (!KINDS.includes(kind)) errors.push(`kind must be one of: ${KINDS.join(", ")}`);
+  let figure: Figure | undefined;
+  if (m.figure !== undefined && m.figure !== null) {
+    if (typeof m.figure !== "object" || Array.isArray(m.figure)) errors.push("figure must be a mapping");
+    else {
+      const fm = m.figure as Record<string, unknown>;
+      const fs = (k: string) => (typeof fm[k] === "string" ? (fm[k] as string).trim() : typeof fm[k] === "number" ? String(fm[k]) : undefined);
+      const label = fs("label");
+      const unit = fs("unit") ?? "calls";
+      if (!label) errors.push("figure.label is required: what the number measures");
+      else if (label.length > 120) errors.push("figure.label must be at most 120 characters");
+      if (unit !== "calls" && unit !== "runs") errors.push("figure.unit must be calls or runs");
+      if (fs("finding") !== undefined && fs("count") !== undefined) errors.push("figure takes finding or count, not both");
+      if (fs("count") !== undefined && !/^\d[\d,]*( of \d[\d,]*)?$/.test(fs("count")!)) errors.push('figure.count must be a number or "N of M"');
+      const extra = Object.keys(fm).filter((k) => !["finding", "count", "label", "unit"].includes(k));
+      if (extra.length) errors.push(`figure: unknown keys ${extra.join(", ")}`);
+      if (label) figure = { label, unit: unit as Figure["unit"], ...(fs("finding") ? { finding: fs("finding")! } : {}), ...(fs("count") ? { count: fs("count")! } : {}) };
+    }
+  } else if (publishable) errors.push("figure is required: at least its label, what the big number measures");
+
   let maintainer: AuditMeta["maintainer"];
   if (m.maintainer !== undefined && m.maintainer !== null) {
     if (typeof m.maintainer !== "object" || Array.isArray(m.maintainer)) errors.push("maintainer must be a mapping");
@@ -125,7 +207,7 @@ export function validateMeta(text: string, slug: string): { meta?: AuditMeta; er
   if (status === "disputed" && !maintainer?.response) errors.push("a disputed audit must quote the maintainer's response");
   if (status && ["notified", "acknowledged", "fixed", "disputed"].includes(status) && !maintainer?.issue && !maintainer?.pr)
     errors.push(`status ${status} needs maintainer.issue or maintainer.pr: link where the maintainers were told`);
-  const known = ["repo", "visibility", "commit", "leanprompt", "date", "status", "path", "summary", "maintainer"];
+  const known = ["repo", "visibility", "commit", "leanprompt", "date", "status", "path", "summary", "headline", "subtitle", "kind", "figure", "maintainer"];
   const unknown = Object.keys(m).filter((k) => !known.includes(k));
   if (unknown.length) errors.push(`unknown keys ${unknown.join(", ")}`);
   if (errors.length) return { errors };
@@ -142,13 +224,17 @@ export function validateMeta(text: string, slug: string): { meta?: AuditMeta; er
       status: status!,
       ...(path ? { path: path.replace(/\/+$/, "") } : {}),
       ...(summary ? { summary } : {}),
+      ...(headline ? { headline } : {}),
+      ...(subtitle ? { subtitle } : {}),
+      ...(kind ? { kind } : {}),
+      ...(figure ? { figure } : {}),
       ...(maintainer && Object.keys(maintainer).length ? { maintainer } : {}),
     },
   };
 }
 
 /** Every publishable audit under site/audits, newest first. Throws with every problem found. */
-export function loadAudits(root: string, ruleIds: ReadonlySet<string>): Audit[] {
+export function loadAudits(root: string, ruleIds: ReadonlySet<string>, noteRuleIds: ReadonlySet<string> = loadNoteRuleIds(root)): Audit[] {
   const dir = join(root, AUDITS_DIR);
   if (!existsSync(dir)) return [];
   const out: Audit[] = [];
@@ -172,7 +258,7 @@ export function loadAudits(root: string, ruleIds: ReadonlySet<string>): Audit[] 
       problems.push(`${at}: findings.json is missing`);
       continue;
     }
-    const parsed = parseFindings(readFileSync(findingsFile, "utf8"), ruleIds);
+    const parsed = parseFindings(readFileSync(findingsFile, "utf8"), ruleIds, noteRuleIds);
     if (parsed.errors.length) {
       problems.push(...parsed.errors.map((x) => `${at}/findings.json: ${x}`));
       continue;
@@ -181,6 +267,9 @@ export function loadAudits(root: string, ruleIds: ReadonlySet<string>): Audit[] 
       if (f.tokens_per_1k?.measured_calls !== undefined)
         problems.push(`${at}/findings.json: findings[${i}] has measured_calls; a published audit states estimates from the code only`);
     }
+    const fig = meta.figure?.finding;
+    if (fig !== undefined && !parsed.findings.some((f) => f.id === fig || `${f.file}:${f.line}` === fig))
+      problems.push(`${at}/meta.yaml: figure.finding ${fig} names no finding in findings.json (use its id or file:line)`);
     out.push({
       slug: slug.toLowerCase(),
       folder: slug,
@@ -189,8 +278,79 @@ export function loadAudits(root: string, ruleIds: ReadonlySet<string>): Audit[] 
       ...(parsed.average_call ? { average_call: parsed.average_call } : {}),
       ...(parsed.kvsig ? { kvsig: parsed.kvsig } : {}),
       ...(parsed.notes?.length ? { notes: parsed.notes } : {}),
+      ...(parsed.unattended ? { unattended: true } : {}),
     });
   }
   if (problems.length) throw new Error(`audits:\n  ${problems.join("\n  ")}`);
   return out.sort((a, b) => (a.meta.date === b.meta.date ? a.slug.localeCompare(b.slug) : b.meta.date.localeCompare(a.meta.date)));
+}
+
+/** A finding's tokens per 1,000 calls, the three billed sides the page sums. */
+export function findingTokens(f: Finding): number {
+  const t = f.tokens_per_1k ?? {};
+  return (t.uncached ?? 0) + (t.prompt ?? 0) + (t.output ?? 0);
+}
+
+/** The finding the big number is taken from: the one meta.figure names, else the largest open one. */
+export function leadFinding(a: Audit): Finding | undefined {
+  const name = a.meta.figure?.finding;
+  if (name !== undefined) return a.findings.find((f) => f.id === name || `${f.file}:${f.line}` === name);
+  if (a.meta.figure?.count !== undefined) return undefined;
+  const open = a.findings.filter((f) => !f.fixed && !isKnownFinding(f) && !isServerFinding(f));
+  return [...open].sort((x, y) => findingTokens(y) - findingTokens(x))[0];
+}
+
+/** Two significant figures, so the big number never reads as more exact than the estimate is. */
+export function roundFigure(n: number): number {
+  if (n <= 0) return 0;
+  const p = 10 ** Math.max(0, Math.floor(Math.log10(n)) - 1);
+  return Math.round(n / p) * p;
+}
+
+export type BigNumber =
+  | { kind: "tokens"; value: number; text: string; unit: "calls" | "runs"; label: string }
+  | { kind: "count"; text: string; label: string };
+
+/** The big number on the card and the page header; undefined when the audit has nothing to count. */
+export function bigNumberOf(a: Audit): BigNumber | undefined {
+  const fig = a.meta.figure;
+  if (!fig) return undefined;
+  if (fig.count !== undefined) return { kind: "count", text: fig.count, label: fig.label };
+  const f = leadFinding(a);
+  const v = f ? roundFigure(findingTokens(f)) : 0;
+  if (!v) return undefined;
+  return { kind: "tokens", value: v, text: v.toLocaleString("en-US"), unit: fig.unit, label: fig.label };
+}
+
+export const BADGES = {
+  fixed: "Fixed upstream",
+  reported: "Reported",
+  planned: "Already planned by the maintainers",
+  demo: "Demonstration",
+} as const;
+export type Badge = keyof typeof BADGES;
+
+/**
+ * The status badge: Fixed upstream when the maintainers changed the code (status fixed); Already
+ * planned when the lead finding is in the project's own plans; Reported when the maintainers were
+ * told (an issue or pull request is linked); Demonstration for leanprompt's own example.
+ */
+export function badgeOf(a: Audit): Badge | undefined {
+  const m = a.meta;
+  if (m.status === "demo") return "demo";
+  if (m.status === "fixed") return "fixed";
+  const lead = leadFinding(a);
+  if (lead && knownOf(lead)?.kind === "planned") return "planned";
+  if (m.maintainer?.issue || m.maintainer?.pr) return "reported";
+  return undefined;
+}
+
+/** The index order: fixed upstream first, then by the big number (token figures before counts), the demonstration last. */
+export function sortForIndex(audits: Audit[]): Audit[] {
+  const rank = (a: Audit) => (badgeOf(a) === "fixed" ? 0 : badgeOf(a) === "demo" ? 2 : 1);
+  const size = (a: Audit) => {
+    const b = bigNumberOf(a);
+    return b?.kind === "tokens" ? b.value : -1;
+  };
+  return [...audits].sort((x, y) => rank(x) - rank(y) || size(y) - size(x) || x.slug.localeCompare(y.slug));
 }

@@ -12,7 +12,7 @@ From your project root:
 npx leanprompt install
 ```
 
-To pin a release, add its version: `npx leanprompt@0.1.0-dev.13 install`. To run the latest code from GitHub instead: `npx github:Podwarden/leanprompt install`.
+To pin a release, add its version: `npx leanprompt@0.1.0-dev.14 install`. To run the latest code from GitHub instead: `npx github:Podwarden/leanprompt install`.
 
 In a terminal, `install`:
 
@@ -24,6 +24,14 @@ In a terminal, `install`:
 The installed skills carry what an audit needs offline: the provider, model and runtime fact tables, the evidence table and the profile reference, under `leanprompt/facts/` next to the other skills, linked from the rules. Their commands name the version that installed them (`npx leanprompt@<version> score`), so the skills and the CLI they call stay in step; `update` moves both to a new version.
 
 Auditing a repository that is not yours? Install with `--scope=global` so nothing is written into it, and see "Auditing someone else's repository" in the audit skill's `presenting.md`.
+
+Behind a private npm registry? A project whose `.npmrc` sets `registry=` to a private feed (an Azure Artifacts or Artifactory mirror, for example) can answer `npx leanprompt` with a 404 when the feed does not carry the package. Point that one call at the public registry, without changing the project's settings:
+
+```
+npm_config_registry=https://registry.npmjs.org/ npx leanprompt install
+```
+
+On Windows PowerShell: `$env:npm_config_registry="https://registry.npmjs.org/"; npx leanprompt install`. The same variable works for every `npx leanprompt` command, including the ones the installed skills run.
 
 Reload your assistant afterwards so it sees the new skills. Then type `/leanprompt init` (`$leanprompt init` in Codex) to set up `leanprompt.yaml`, or `/leanprompt audit` to go straight to the audit.
 
@@ -120,5 +128,5 @@ curl -fsSL https://raw.githubusercontent.com/Podwarden/leanprompt/main/scripts/i
 To pin a release, set the version for `sh`:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/Podwarden/leanprompt/main/scripts/install.sh | LEANPROMPT_VERSION=0.1.0-dev.13 sh -s -- --providers=cursor
+curl -fsSL https://raw.githubusercontent.com/Podwarden/leanprompt/main/scripts/install.sh | LEANPROMPT_VERSION=0.1.0-dev.14 sh -s -- --providers=cursor
 ```

@@ -82,4 +82,4 @@ Used by the `prompt-diet` rules.
 ## Not stated in the docs
 
 - Whether a cache entry can be evicted before its lifetime ends: not stated in the docs (checked 2026-11-26). Only the first 100,000 characters of the page were read; the rest was not.
-<!-- leanprompt:generated v0.1.0-dev.13: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.14: written by leanprompt install; leanprompt update replaces local edits -->

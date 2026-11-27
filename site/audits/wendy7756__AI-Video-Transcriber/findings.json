@@ -1,0 +1,85 @@
+{
+  "v": 1,
+  "unattended": true,
+  "average_call": {
+    "prompt_tokens": 1230,
+    "output_tokens": 790
+  },
+  "findings": [
+    {
+      "rule": "LP-GE-03",
+      "file": "backend/summarizer.py",
+      "line": 1095,
+      "saves": "both",
+      "severity": "medium",
+      "share_prefill": 0.065,
+      "share_output": 0.1,
+      "status": "frequency-unknown",
+      "confirm": "how often finish_reason is length on the section-summary calls (max_tokens 600, line 1095) and the transcript-formatting calls (max_tokens 4000, line 328), from the provider's logs or the 'LLM 返回空内容' warnings that llm_client.py already writes",
+      "tokens_per_1k": {
+        "prompt": 80000,
+        "output": 80000
+      },
+      "problem": "Section summaries are capped at 600 output tokens and transcript formatting at 4,000, and the cap includes a reasoning model's thinking. On a reasoning or hybrid model the first attempt often spends the cap thinking, comes back empty, and is sent again with double the cap.",
+      "change": "Size the caps for reasoning models: raise the section-summary cap (for example to 2,000) and the formatting cap, or make the caps configurable next to the model id, so the first attempt can finish.",
+      "why": "Each empty first attempt pays for the whole prompt and the whole cap of output, then the retry pays again. The app already logs these retries (llm_client.py:43), which is the waste this finding counts.",
+      "estimate": "about 80k output and 80k prompt tokens per 1,000 calls (estimate)",
+      "assumptions": "a 30-minute talk makes about 18 calls: 7 formatting, 7 section summaries, 1 merge, about 3.5 translation; average call about 1,230 prompt and 790 output tokens; 30% of calls go to a reasoning or hybrid model (GPT-5.5 defaults to medium effort; DeepSeek hybrids); of those, half the 600-cap calls and a tenth of the 4,000-cap calls come back empty the first time",
+      "verify": "Count the 'LLM 返回空内容' warnings with finish_reason=length per task before and after; with the larger caps they should fall to near zero and output tokens per task fall.",
+      "id": "summary-caps",
+      "known": {
+        "kind": "reported",
+        "url": "https://github.com/wendy7756/AI-Video-Transcriber/issues/52",
+        "note": "Issue #52 (closed) traced empty answers from reasoning models to thinking that used up max_tokens; the fix in 7f1c619 retries an empty answer once with a doubled cap. The caps themselves stay as they were, and an answer that is cut off but not empty is not covered (see the note)."
+      }
+    },
+    {
+      "rule": "LP-GE-03",
+      "file": "backend/translator.py",
+      "line": 302,
+      "saves": "both",
+      "severity": "medium",
+      "share_prefill": 0.005,
+      "share_output": 0.029,
+      "status": "frequency-unknown",
+      "confirm": "how often translation chunk calls end with finish_reason length, from the provider's logs; the cases with non-empty content are not logged by the app today",
+      "tokens_per_1k": {
+        "prompt": 6600,
+        "output": 23000
+      },
+      "problem": "Each translation chunk is up to 4,000 characters and the output cap is 4,000 tokens including thinking. Translating 4,000 Chinese characters into English is about 3,400 visible tokens, which leaves little room for a reasoning model's thinking.",
+      "change": "Cut translation chunks smaller (for example 2,500 characters) or raise the cap for the chunk calls and the single-text call (line 257), so a whole chunk fits with room for thinking.",
+      "why": "A chunk that runs out of room either comes back empty and is retried (both attempts billed) or comes back cut off, and the cut-off tail is lost (see the note on cut-off answers).",
+      "estimate": "about 23k output tokens per 1,000 calls (estimate)",
+      "assumptions": "translation is about 19% of calls (it runs only when the video language differs from the summary language); 30% of calls on a reasoning model, a tenth of those empty on the first try; 4,000 Chinese characters is about 2,600 English words, about 3,400 tokens",
+      "verify": "Translate a 30-minute Chinese transcript to English with a reasoning model; no chunk should end with finish_reason length, and the translation's last sentence should match the transcript's last sentence.",
+      "id": "translation-caps",
+      "known": {
+        "kind": "reported",
+        "url": "https://github.com/wendy7756/AI-Video-Transcriber/issues/52",
+        "note": "Issue #52 (closed) traced empty answers from reasoning models to thinking that used up max_tokens; the fix in 7f1c619 retries an empty answer once with a doubled cap. The caps themselves stay as they were, and an answer that is cut off but not empty is not covered (see the note)."
+      }
+    }
+  ],
+  "notes": [
+    {
+      "title": "A cut-off answer is accepted as complete",
+      "file": "backend/llm_client.py",
+      "line": 39,
+      "problem": "complete_text returns any non-empty content at line 39 without looking at finish_reason. Only an empty answer is checked for length (line 48). A transcript chunk, translation chunk or summary that stopped at max_tokens is stored and shown as if whole, and nothing is logged.",
+      "change": "Check finish_reason before returning: on length, log it and retry once with the larger budget the empty case already uses (line 49); if the retry is still cut off, return it with a warning or raise so the existing fallback runs.",
+      "why": "A reasoning model's thinking counts toward max_tokens, so on long chunks the visible text can stop mid-sentence. Users lose the end of each chunk with no sign in the log or the UI.",
+      "verify": "Add a test next to tests/test_empty_llm_content.py where the fake client returns content='partial' with finish_reason='length' first and a full answer second; complete_text should return the second.",
+      "finding": "translation-caps"
+    },
+    {
+      "title": "The single-pass summary path is almost never taken",
+      "file": "backend/summarizer.py",
+      "line": 1004,
+      "problem": "summarize() uses one call only when _estimate_tokens is at most 4,000, but _estimate_tokens adds a fixed 2,500 (line 112). That leaves about 1,500 tokens: roughly 700 English words or 900 Chinese characters, 3 to 5 minutes of speech. The comment at line 1002 says the limit was raised to prefer the single-call path.",
+      "change": "Compare the transcript's own estimate (without the 2,500) to the limit, or raise the limit for models with large context windows, keeping the chunked path for small local models.",
+      "why": "A 30-minute talk becomes about 7 section summaries plus a merge: 8 sequential calls instead of 1, about 1,400 extra output tokens and 2,300 extra prompt tokens per task, and a summary of summaries.",
+      "verify": "Log which path summarize() takes for a 10-minute and a 30-minute transcript before and after the change."
+    }
+  ]
+}

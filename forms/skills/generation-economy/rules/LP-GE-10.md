@@ -101,4 +101,4 @@ The schema must let the model say what it would have said in prose: allow `null`
 
 ## Waste signal
 Measured: output tokens of answers discarded after a parse failure (`flags.parse_failed`) count as generation waste. Static: severity high for a parse-and-re-ask loop; medium for JSON requested in the prompt with no schema on a provider that supports one. On a self-hosted server that returns thinking inside `content`, the finding stands, but record the fix as waiting on the LP-GE-03 thinking decision.
-<!-- leanprompt:generated v0.1.0-dev.13: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.14: written by npx leanprompt install; npx leanprompt update replaces local edits -->

@@ -26,7 +26,7 @@ volume:                      # optional: calls a month, for money figures on the
   calls_per_month: 30000
   source: our dashboard, Nov 2026
 
-prices:                      # optional: per model, US dollars per 1M tokens, with source and date
+prices:                      # optional: per model, per 1M tokens (US dollars unless currency is set), with source and date
   example-model:
     input: 0.50
     cached_input: 0.05
@@ -159,10 +159,14 @@ never invents a volume or a price, and money is never part of the score.
   give each entry its own `volume:` instead; the page uses their sum, and only when
   every entry has one. A top-level `volume:` next to `targets:` is an error.
 - `prices.<model>`: `input` and `output` (required), `cached_input` (needed to price
-  prompt tokens the cache could have served) and `cache_write`, in US dollars per
-  million tokens, with `source` (the pricing page's URL, or where your own price comes
-  from) and `checked` (the date you read it, `YYYY-MM-DD`). A price without a source
-  or a date is rejected. With several models, the audit sets `model` on each finding.
+  prompt tokens the cache could have served) and `cache_write`, per million tokens,
+  with `source` (the pricing page's URL, or where your own price comes from) and
+  `checked` (the date you read it, `YYYY-MM-DD`). A price without a source or a date is
+  rejected. With several models, the audit sets `model` on each finding. Prices are in
+  US dollars unless the entry sets `currency`, a three-letter ISO 4217 code in capitals
+  (`CNY`, `EUR`): the page then shows every figure in that currency, as given, and never
+  converts it. Models priced in different currencies are not added together; the page
+  asks for one currency instead.
 - `engine.prefill_tokens_per_second` (self-hosted): your engine's measured prefill
   throughput. With a volume, the page shows the GPU prefill time the findings cost a
   month and the first-token time they add.
@@ -260,4 +264,4 @@ and nothing to choose by, it throws `AmbiguousTargetError` (`code:
 "ambiguous_target"`). It throws
 `unknown provider: <name>` when the name has no table and `no cache facts for
 <engine> yet` for `llama.cpp`.
-<!-- leanprompt:generated v0.1.0-dev.13: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.14: written by leanprompt install; leanprompt update replaces local edits -->

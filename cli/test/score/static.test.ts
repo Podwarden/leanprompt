@@ -15,7 +15,7 @@ const W = (o: Partial<Weights> = {}): Weights => ({
 
 describe("staticScore", () => {
   it("no findings gives 100", () => {
-    expect(staticScore([])).toEqual({ score: 100, inputs: { E: 1, S: 1, G: 0 }, weights: "default", default_shares: { used: 0, of: 0 }, server_findings: 0, included_server: false });
+    expect(staticScore([])).toEqual({ score: 100, inputs: { E: 1, S: 1, G: 0 }, weights: "default", default_shares: { used: 0, of: 0 }, server_findings: 0, included_server: false, known_findings: 0, included_known: false });
   });
   it("one high prefill finding gives 70", () => {
     const r = staticScore([f()]);

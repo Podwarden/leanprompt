@@ -1,12 +1,31 @@
 export type Saves = "prefill" | "generation" | "both";
 export type Severity = "high" | "medium" | "low";
-export type Status = "needs-facts" | "frequency-unknown";
+export type Status = "needs-facts" | "frequency-unknown" | "size-unknown";
+export const STATUSES: readonly Status[] = ["needs-facts", "frequency-unknown", "size-unknown"];
+
+/**
+ * What the project already knows about a finding, from its tracker or docs (the audit's prior-art step).
+ * `planned` and `in-progress`: the project means to make the change, or is making it. `reported`: someone has
+ * raised it (an issue or a pull request) and the project has not decided. `declined`: the project decided against
+ * it. None of these counts toward the headline estimate or the static score.
+ */
+export type KnownKind = "planned" | "in-progress" | "declined" | "reported";
+export const KNOWN_KINDS: readonly KnownKind[] = ["planned", "in-progress", "declined", "reported"];
+export interface Known {
+  /** The issue, pull request, discussion, decision record or doc that shows it, as an http(s) URL. */
+  url?: string;
+  kind: KnownKind;
+  /** One line on what the link says (at most 600 characters). */
+  note?: string;
+}
 export type FixBy = "app" | "server";
 
 /** `file` of a finding that lives outside the repository (an engine's launch flags, a gateway's config). */
 export const EXTERNAL = "<external>";
 
 export interface Finding {
+  /** Optional id, unique in the file, for `overlaps` and for a note's `finding`. */
+  id?: string;
   rule: string;
   /** A path relative to the project root, or `<external>`. */
   file: string;
@@ -22,7 +41,8 @@ export interface Finding {
   /**
    * `needs-facts`: the behaviour itself is not confirmed; whether the finding holds depends on a fact not known yet.
    * `frequency-unknown`: the code shows the problem; only how often it happens is assumed.
-   * Either needs `confirm`: the fact that would settle it.
+   * `size-unknown`: the code shows the problem and how often; only how many tokens it costs each time is assumed.
+   * Each needs `confirm`: the fact that would settle it.
    */
   status?: Status;
   /**
@@ -31,8 +51,18 @@ export interface Finding {
    * app's static score by default (see `staticScore`).
    */
   fix_by?: FixBy;
-  /** Planned work this finding is already part of: an issue link or reference, a TODO, a design note. */
+  /**
+   * Planned work this finding is already part of: an issue link or reference, a TODO, a design note.
+   * Kept for files written before 0.1.0-dev.14: it means the same as `known: {kind: "planned", note: <text>}`.
+   */
   planned?: string;
+  /** What the project already knows about it (prior art): planned, in progress, declined or reported, with the link. */
+  known?: Known;
+  /**
+   * Ids of other findings that lose some of the same tokens (one fix covers both, or fixing one shrinks the
+   * other). In the totals and the score, a group of overlapping findings counts once: the largest wins.
+   */
+  overlaps?: string[];
   /** Free text: where an `<external>` finding lives, for example "engine launch flags". Required for `<external>`. */
   where?: string;
   /** The fact that would confirm or dismiss the finding. Required with `status: "needs-facts"`. */
@@ -75,6 +105,14 @@ export interface TokensLost {
  */
 export interface Note {
   title: string;
+  /** A correctness rule (`saves: none` in its frontmatter, such as LP-GE-11) the note applies. */
+  rule?: string;
+  /** With `rule`: how serious, as the rule's "Waste signal" says for the shape found. */
+  severity?: Severity;
+  /** The id of a finding this note is another face of (the same bug, seen by the user). */
+  finding?: string;
+  /** What the project already knows about it. A declined note is listed with its link only, and left out of the hand-off. */
+  known?: Known;
   /** A path relative to the project root, or `<external>`. */
   file: string;
   /** The line the note is about; 0 for an `<external>` note with no line. */
@@ -85,7 +123,8 @@ export interface Note {
   verify?: string;
 }
 
-export const NOTE_KEYS = ["title", "file", "line", "problem", "change", "why", "verify"] as const;
+export const NOTE_KEYS = ["title", "rule", "severity", "finding", "known", "file", "line", "problem", "change", "why", "verify"] as const;
+export const ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/;
 export const NOTE_TITLE_MAX = 120;
 
 /** The audit's assumed average call, for the share of the bill a fix saves. */
@@ -114,8 +153,38 @@ export const TEXT_MAX = 600;
  */
 export const isServerFinding = (f: Finding): boolean => (f.fix_by ?? (f.file === EXTERNAL && f.rule.startsWith("LP-LW-") ? "server" : "app")) === "server";
 
+/** What the project already knows about a finding: `known`, or the older `planned` text as a planned entry. Fixed findings are not "known". */
+export const knownOf = (f: Finding): Known | undefined =>
+  f.known ?? (f.planned !== undefined ? { kind: "planned", note: f.planned } : undefined);
+
+/** A finding the project already knows about (prior art): left out of the headline estimate and the static score. */
+export const isKnownFinding = (f: Finding): boolean => !f.fixed && knownOf(f) !== undefined;
+
 /** A finding the report lists under "Open questions": an app finding outside the repository, or one whose behaviour is unconfirmed. */
-export const isOpenQuestion = (f: Finding): boolean => !isServerFinding(f) && (f.file === EXTERNAL || f.status === "needs-facts");
+export const isOpenQuestion = (f: Finding): boolean => !isKnownFinding(f) && !isServerFinding(f) && (f.file === EXTERNAL || f.status === "needs-facts");
+
+/**
+ * Groups of findings that overlap (connected through `overlaps`), as lists of indexes into `findings`.
+ * A finding with no overlaps is a group of one. Ids that name no finding are ignored here (parseFindings rejects them).
+ */
+export function overlapGroups(findings: readonly Finding[]): number[][] {
+  const parent = findings.map((_, i) => i);
+  const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i]!)));
+  const byId = new Map<string, number>();
+  findings.forEach((f, i) => f.id !== undefined && byId.set(f.id, i));
+  findings.forEach((f, i) => {
+    for (const o of f.overlaps ?? []) {
+      const j = byId.get(o);
+      if (j !== undefined) parent[find(i)] = find(j);
+    }
+  });
+  const groups = new Map<number, number[]>();
+  findings.forEach((_, i) => {
+    const r = find(i);
+    groups.set(r, [...(groups.get(r) ?? []), i]);
+  });
+  return [...groups.values()];
+}
 
 /** `.leanprompt/weights.json`, written by `calibrate`. */
 export interface Weights {
@@ -138,6 +207,9 @@ export interface StaticScore {
   server_findings: number;
   /** Whether server findings were counted. */
   included_server: boolean;
+  /** Open findings the project already knows about (`known`, or the older `planned`): left out unless `includeKnown`. */
+  known_findings: number;
+  included_known: boolean;
 }
 
 const DEFAULT_SHARE: Record<Severity, number> = { high: 0.5, medium: 0.2, low: 0.05 };
@@ -158,7 +230,9 @@ export function scoreFrom({ E, S, G }: { E: number; S: number; G: number }): num
 export function parseFindings(
   text: string,
   ruleIds: ReadonlySet<string>,
-): { findings: Finding[]; errors: string[]; average_call?: AverageCall; kvsig?: KvsigUse; notes?: Note[] } {
+  /** Ids of the correctness rules (`saves: none`): a note may name one; a finding may not. See `loadNoteRuleIds`. */
+  noteRuleIds: ReadonlySet<string> = new Set(),
+): { findings: Finding[]; errors: string[]; average_call?: AverageCall; kvsig?: KvsigUse; notes?: Note[]; unattended?: boolean } {
   const findings: Finding[] = [];
   const errors: string[] = [];
   let doc: unknown;
@@ -195,12 +269,17 @@ export function parseFindings(
     else {
       notes = [];
       d.notes.forEach((raw: unknown, i: number) => {
-        const n = parseNote(raw, `notes[${i}]`, errors);
+        const n = parseNote(raw, `notes[${i}]`, errors, noteRuleIds);
         if (n) notes!.push(n);
       });
     }
   }
-  const extra = { ...(average_call ? { average_call } : {}), ...(kvsig ? { kvsig } : {}), ...(notes ? { notes } : {}) };
+  let unattended: boolean | undefined;
+  if (d.unattended !== undefined) {
+    if (typeof d.unattended !== "boolean") errors.push("unattended must be true or false");
+    else unattended = d.unattended;
+  }
+  const extra = { ...(average_call ? { average_call } : {}), ...(kvsig ? { kvsig } : {}), ...(notes ? { notes } : {}), ...(unattended !== undefined ? { unattended } : {}) };
   if (!Array.isArray(d.findings)) {
     errors.push("findings must be an array");
     return { findings, errors, ...extra };
@@ -210,7 +289,9 @@ export function parseFindings(
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) return void errors.push(`${at}: must be an object`);
     const r = raw as Record<string, unknown>;
     const bad = (msg: string) => void errors.push(`${at}: ${msg}`);
+    if (typeof r.rule === "string" && noteRuleIds.has(r.rule)) return bad(`${r.rule} is a correctness rule with no token share: record it as a note with "rule": "${r.rule}"`);
     if (typeof r.rule !== "string" || !ruleIds.has(r.rule)) return bad(`unknown rule ${String(r.rule)}`);
+    if (r.id !== undefined && (typeof r.id !== "string" || !ID_RE.test(r.id))) return bad("id must be 1 to 40 letters, digits, dots, dashes or underscores, starting with a letter or digit");
     if (typeof r.file !== "string" || !r.file) return bad("file must be a non-empty string");
     const external = r.file === EXTERNAL;
     if (external) {
@@ -228,13 +309,28 @@ export function parseFindings(
     const text = (v: unknown): v is string => typeof v === "string" && v.trim() !== "";
     if (external && !text(r.where)) return bad("a finding in <external> needs `where` (for example \"engine launch flags\")");
     for (const k of ["where", "confirm"] as const) if (r[k] !== undefined && !text(r[k])) return bad(`${k} must be a non-empty string`);
-    if (r.status !== undefined && r.status !== "needs-facts" && r.status !== "frequency-unknown") {
-      return bad(`status must be needs-facts or frequency-unknown, not ${String(r.status)}`);
+    if (r.status !== undefined && !(STATUSES as readonly unknown[]).includes(r.status)) {
+      return bad(`status must be needs-facts, frequency-unknown or size-unknown, not ${String(r.status)}`);
     }
     if (r.status === "needs-facts" && r.confirm === undefined) return bad("a needs-facts finding needs `confirm`: the fact that would confirm or dismiss it");
     if (r.status === "frequency-unknown" && r.confirm === undefined) return bad("a frequency-unknown finding needs `confirm`: what would show how often it happens");
+    if (r.status === "size-unknown" && r.confirm === undefined) return bad("a size-unknown finding needs `confirm`: what would show how many tokens it costs");
     if (r.fix_by !== undefined && r.fix_by !== "app" && r.fix_by !== "server") return bad(`fix_by must be app or server, not ${String(r.fix_by)}`);
     if (r.planned !== undefined && (!text(r.planned) || r.planned.length > TEXT_MAX)) return bad(`planned must be a non-empty string of at most ${TEXT_MAX} characters`);
+    let known: Known | undefined;
+    if (r.known !== undefined) {
+      if (r.planned !== undefined) return bad("give known or planned, not both (known: {kind: \"planned\", url, note} replaces planned)");
+      const k = parseKnown(r.known);
+      if (typeof k === "string") return bad(k);
+      known = k;
+    }
+    let overlaps: string[] | undefined;
+    if (r.overlaps !== undefined) {
+      if (!Array.isArray(r.overlaps) || r.overlaps.length === 0 || !r.overlaps.every((x) => typeof x === "string" && ID_RE.test(x))) return bad("overlaps must be a non-empty list of finding ids");
+      if (r.id === undefined) return bad("a finding with overlaps needs its own id");
+      if (r.overlaps.includes(r.id)) return bad("a finding cannot overlap itself");
+      overlaps = [...(r.overlaps as string[])];
+    }
     for (const k of TEXT_FIELDS) {
       const v = r[k];
       if (v !== undefined && (!text(v) || v.length > TEXT_MAX)) return bad(`${k} must be a non-empty string of at most ${TEXT_MAX} characters`);
@@ -265,6 +361,7 @@ export function parseFindings(
       }
     }
     const out: Finding = { rule: r.rule, file: r.file, line: (r.line as number | undefined) ?? 0, saves: r.saves as Saves, severity: r.severity as Severity };
+    if (r.id !== undefined) out.id = r.id as string;
     if (r.share !== undefined) out.share = r.share as number;
     if (r.share_prefill !== undefined) out.share_prefill = r.share_prefill as number;
     if (r.share_output !== undefined) out.share_output = r.share_output as number;
@@ -272,6 +369,8 @@ export function parseFindings(
     if (r.status !== undefined) out.status = r.status as Status;
     if (r.fix_by !== undefined) out.fix_by = r.fix_by as FixBy;
     if (r.planned !== undefined) out.planned = r.planned as string;
+    if (known) out.known = known;
+    if (overlaps) out.overlaps = overlaps;
     if (r.where !== undefined) out.where = r.where as string;
     if (r.confirm !== undefined) out.confirm = r.confirm as string;
     for (const k of TEXT_FIELDS) if (r[k] !== undefined) out[k] = r[k] as string;
@@ -279,18 +378,56 @@ export function parseFindings(
     if (tokens) out.tokens_per_1k = tokens;
     findings.push(out);
   });
+  // Ids are unique, and overlaps and notes name findings that exist.
+  const ids = new Map<string, number>();
+  findings.forEach((f, i) => {
+    if (f.id === undefined) return;
+    if (ids.has(f.id)) errors.push(`findings: id ${f.id} is used twice`);
+    else ids.set(f.id, i);
+  });
+  for (const f of findings) {
+    for (const o of f.overlaps ?? []) if (!ids.has(o)) errors.push(`finding ${f.id}: overlaps names ${o}, which no finding has as its id`);
+  }
+  for (const [i, n] of (notes ?? []).entries()) {
+    if (n.finding !== undefined && !ids.has(n.finding)) errors.push(`notes[${i}]: finding ${n.finding} is not the id of any finding`);
+  }
   return { findings, errors, ...extra };
 }
 
+/** A `known` entry, validated; the error text when it is malformed. */
+function parseKnown(raw: unknown): Known | string {
+  const k = raw as Record<string, unknown> | null;
+  if (!k || typeof k !== "object" || Array.isArray(k)) return "known must be {url, kind, note}";
+  const extraKeys = Object.keys(k).filter((x) => !["url", "kind", "note"].includes(x));
+  if (extraKeys.length) return `known: unknown key ${extraKeys[0]}`;
+  if (typeof k.kind !== "string" || !(KNOWN_KINDS as readonly string[]).includes(k.kind)) return `known.kind must be one of ${KNOWN_KINDS.join(", ")}`;
+  if (typeof k.url !== "string" || !/^https?:\/\/\S+$/.test(k.url) || k.url.length > TEXT_MAX) return "known.url must be the http(s) link to the issue, pull request or doc that shows it";
+  if (k.note !== undefined && (typeof k.note !== "string" || k.note.trim() === "" || k.note.length > TEXT_MAX)) return `known.note must be a non-empty string of at most ${TEXT_MAX} characters`;
+  return { url: k.url, kind: k.kind as KnownKind, ...(k.note !== undefined ? { note: k.note as string } : {}) };
+}
+
 /** One `notes` entry, validated; null (with the error recorded) when it is malformed. */
-function parseNote(raw: unknown, at: string, errors: string[]): Note | null {
+function parseNote(raw: unknown, at: string, errors: string[], noteRuleIds: ReadonlySet<string>): Note | null {
   const bad = (msg: string) => (errors.push(`${at}: ${msg}`), null);
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return bad("must be an object");
   const r = raw as Record<string, unknown>;
   for (const k of Object.keys(r)) {
     if (!(NOTE_KEYS as readonly string[]).includes(k)) {
-      return bad(["share", "severity", "saves", "rule"].includes(k) ? `${k} is not allowed: a note is never scored` : `unknown key ${k}`);
+      return bad(["share", "saves", "share_prefill", "share_output", "tokens_per_1k"].includes(k) ? `${k} is not allowed: a note is never scored` : `unknown key ${k}`);
     }
+  }
+  if (r.rule !== undefined && (typeof r.rule !== "string" || !noteRuleIds.has(r.rule))) {
+    return bad(`rule ${String(r.rule)} is not a correctness rule; a note may name only a rule with saves: none (such as LP-GE-11), or leave rule out`);
+  }
+  if (r.severity !== undefined && (r.rule === undefined || typeof r.severity !== "string" || !SEVERITY.includes(r.severity))) {
+    return bad(r.rule === undefined ? "severity is not allowed on a note without a rule: a note is never scored" : "severity must be high, medium or low");
+  }
+  if (r.finding !== undefined && (typeof r.finding !== "string" || !ID_RE.test(r.finding))) return bad("finding must be the id of a finding");
+  let known: Known | undefined;
+  if (r.known !== undefined) {
+    const k = parseKnown(r.known);
+    if (typeof k === "string") return bad(k);
+    known = k;
   }
   const text = (v: unknown, max: number): v is string => typeof v === "string" && v.trim() !== "" && v.length <= max;
   if (!text(r.title, NOTE_TITLE_MAX)) return bad(`title must be a non-empty string of at most ${NOTE_TITLE_MAX} characters`);
@@ -303,6 +440,10 @@ function parseNote(raw: unknown, at: string, errors: string[]): Note | null {
     if (r[k] !== undefined && !text(r[k], TEXT_MAX)) return bad(`${k} must be a non-empty string of at most ${TEXT_MAX} characters`);
   }
   const n: Note = { title: r.title, file: r.file, line: (r.line as number | undefined) ?? 0, problem: r.problem as string, change: r.change as string };
+  if (r.rule !== undefined) n.rule = r.rule as string;
+  if (r.severity !== undefined) n.severity = r.severity as Severity;
+  if (r.finding !== undefined) n.finding = r.finding as string;
+  if (known) n.known = known;
   if (r.why !== undefined) n.why = r.why as string;
   if (r.verify !== undefined) n.verify = r.verify as string;
   return n;
@@ -316,6 +457,9 @@ function parseNote(raw: unknown, at: string, errors: string[]): Note | null {
  * Server findings (`isServerFinding`: the fix is a server or engine setting) are skipped too, unless
  * `includeServer`: the score is the app's (a score change in 0.1.0-dev.13, docs/score.md). App findings
  * in `<external>` and `needs-facts` findings count like any other.
+ * Known findings (`isKnownFinding`: planned, in progress, declined or reported in the project's own tracker
+ * or docs) are skipped unless `includeKnown` (a score change in 0.1.0-dev.14). Findings that overlap
+ * (`overlaps`) count once per group: on each side, the largest share in the group (0.1.0-dev.14).
  * Pure: filtering by the profile's `ignore:` is the caller's job.
  *
  * Share per finding: an explicit share (set by the auditor) is used as is. Otherwise the
@@ -324,13 +468,18 @@ function parseNote(raw: unknown, at: string, errors: string[]): Note | null {
  * generation side. k does NOT scale an explicit share: calibration corrects the guessed
  * defaults, not a share the auditor stated.
  */
-export function staticScore(findings: readonly Finding[], weights?: Weights, opts: { includeServer?: boolean } = {}): StaticScore {
-  let es = 1;
-  let keepG = 1;
+export function staticScore(findings: readonly Finding[], weights?: Weights, opts: { includeServer?: boolean; includeKnown?: boolean } = {}): StaticScore {
   const default_shares = { used: 0, of: 0 };
   let server_findings = 0;
+  let known_findings = 0;
+  const scored: { p: number; o: number }[] = [];
+  const scoredFindings: Finding[] = [];
   for (const f of findings) {
     if (f.fixed) continue;
+    if (isKnownFinding(f)) {
+      known_findings++;
+      if (!opts.includeKnown) continue;
+    }
     if (isServerFinding(f)) {
       server_findings++;
       if (!opts.includeServer) continue;
@@ -340,8 +489,17 @@ export function staticScore(findings: readonly Finding[], weights?: Weights, opt
     if (!explicit) default_shares.used++;
     const share = (side: number | undefined, k: number): number =>
       side ?? f.share ?? (weights ? Math.min(SHARE_CAP, DEFAULT_SHARE[f.severity] * k) : DEFAULT_SHARE[f.severity]);
-    if (f.saves !== "generation") es *= 1 - share(f.share_prefill, weights?.k_prefill ?? 1);
-    if (f.saves !== "prefill") keepG *= 1 - share(f.share_output, weights?.k_gen ?? 1);
+    scored.push({
+      p: f.saves !== "generation" ? share(f.share_prefill, weights?.k_prefill ?? 1) : 0,
+      o: f.saves !== "prefill" ? share(f.share_output, weights?.k_gen ?? 1) : 0,
+    });
+    scoredFindings.push(f);
+  }
+  let es = 1;
+  let keepG = 1;
+  for (const g of overlapGroups(scoredFindings)) {
+    es *= 1 - Math.max(...g.map((i) => scored[i]!.p));
+    keepG *= 1 - Math.max(...g.map((i) => scored[i]!.o));
   }
   const inputs = { E: es, S: 1, G: 1 - keepG };
   return {
@@ -351,5 +509,7 @@ export function staticScore(findings: readonly Finding[], weights?: Weights, opt
     default_shares,
     server_findings,
     included_server: opts.includeServer === true,
+    known_findings,
+    included_known: opts.includeKnown === true,
   };
 }

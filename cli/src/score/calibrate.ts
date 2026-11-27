@@ -6,7 +6,7 @@ import { dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { optionsFor, usageLine, spec } from "../help.js";
 import { loadCacheFacts, type CacheFacts } from "../facts.js";
-import { loadRuleIds } from "../lint/rules.js";
+import { loadNoteRuleIds, loadRuleIds } from "../lint/rules.js";
 import { parseUsageLog, type UsageRecord } from "../log/record.js";
 import { effectiveFacts, loadProfile } from "../profile.js";
 import { measuredScore, MIN_CALLS } from "./measured.js";
@@ -190,7 +190,7 @@ export async function calibrateCommand(args: string[], io: CalibrateIo = {}): Pr
   const usagePath = resolve(values.usage ?? join(dir, USAGE_FILE));
   for (const p of [findingsPath, usagePath]) if (!existsSync(p)) throw new Error(`${p}: no such file`);
 
-  const parsed = parseFindings(readFileSync(findingsPath, "utf8"), loadRuleIds(PACKAGE_ROOT));
+  const parsed = parseFindings(readFileSync(findingsPath, "utf8"), loadRuleIds(PACKAGE_ROOT), loadNoteRuleIds(PACKAGE_ROOT));
   if (parsed.errors.length > 0) throw new Error(`${findingsPath}: ${parsed.errors.join("; ")}`);
   const profile = loadProfile(dir);
   const findings = filterIgnored(parsed.findings, profile);

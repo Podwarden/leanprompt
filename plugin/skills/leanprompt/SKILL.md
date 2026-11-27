@@ -47,4 +47,4 @@ The rules themselves live in [prefill-cache](../prefill-cache/SKILL.md), [genera
 ## Running the CLI
 
 The commands above call the leanprompt CLI as `leanprompt <command>`. In the installed skills the command names the version they came with (`leanprompt@<version> <command>`), so the skills and the CLI stay in step. `score`, `report --html` and `calibrate` only read and write files under `.leanprompt/` (and `report --md` writes `leanprompt-report.md`) and make no network calls. Ask before editing code, installing a package, or running anything that sends requests to a provider, which are billed.
-<!-- leanprompt:generated v0.1.0-dev.13: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.14: written by leanprompt install; leanprompt update replaces local edits -->

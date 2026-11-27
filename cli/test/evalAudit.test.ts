@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { compareFindings, evalAuditCommand, listCases, type ExpectedFinding } from "../src/evalAudit.js";
-import { loadRuleIds } from "../src/lint/rules.js";
+import { loadNoteRuleIds, loadRuleIds } from "../src/lint/rules.js";
 import { PACKAGE_ROOT } from "../src/score/write.js";
 import type { Finding } from "../src/score/static.js";
 
@@ -52,7 +52,9 @@ describe("fixtures", () => {
   it("seed every LP-PC and LP-GE rule at least once", () => {
     const seeded = new Set<string>();
     for (const n of files) for (const e of JSON.parse(readFileSync(join(dir, "expected", n), "utf8")) as ExpectedFinding[]) seeded.add(e.rule);
-    const wanted = [...loadRuleIds(PACKAGE_ROOT)].filter((id) => /^LP-(PC|GE)-/.test(id));
+    // Correctness rules (LP-GE-11) are recorded as notes, which eval-audit does not score.
+    const notes = loadNoteRuleIds(PACKAGE_ROOT);
+    const wanted = [...loadRuleIds(PACKAGE_ROOT)].filter((id) => /^LP-(PC|GE)-/.test(id) && !notes.has(id));
     expect(wanted.length).toBe(22);
     expect(wanted.filter((id) => !seeded.has(id))).toEqual([]);
   });

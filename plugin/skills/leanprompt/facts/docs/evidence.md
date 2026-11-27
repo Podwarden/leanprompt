@@ -20,6 +20,6 @@ hosts, no keys.
 | E12 | A literary question-answering benchmark sent the same request repeatedly to collect several samples, instead of one request with `n` samples, paying prefill once per sample. | Anonymised case study (internal report, not public) | No measured before/after yet; to be measured before it is quoted |
 
 E10 is engine-side, not a prompt change. It belongs in the `lmwarden` skill
-and on the [self-hosting page](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.13/docs/self-hosting.md), never presented as what a
+and on the [self-hosting page](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.14/docs/self-hosting.md), never presented as what a
 leanprompt rule achieves.
-<!-- leanprompt:generated v0.1.0-dev.13: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.14: written by leanprompt install; leanprompt update replaces local edits -->

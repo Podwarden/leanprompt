@@ -5,10 +5,10 @@ import { parseArgs } from "node:util";
 import { parseDoc } from "../frontmatter.js";
 import { optionsFor } from "../help.js";
 import { REPO } from "../forms.js";
-import { loadRuleIds } from "../lint/rules.js";
+import { loadNoteRuleIds, loadRuleIds } from "../lint/rules.js";
 import { loadProfile, type Profile } from "../profile.js";
-import { EXTERNAL, parseFindings, type AverageCall, type Finding, type KvsigUse, type Note, type Severity } from "../score/static.js";
-import { costSummary, formatDollars, formatTokens, groupOf, type CostSummary } from "./cost.js";
+import { EXTERNAL, knownOf, parseFindings, type AverageCall, type Finding, type Known, type KvsigUse, type Note, type Severity } from "../score/static.js";
+import { costSummary, costsNothing, formatDollars, formatPrice, formatTokens, groupOf, ownerQuestions, type CostSummary } from "./cost.js";
 import { filterIgnored, FINDINGS_FILE, localDate, PACKAGE_ROOT } from "../score/write.js";
 import { MD_FILE, projectName, rawPriority, renderMarkdown, spliceReport } from "./markdown.js";
 
@@ -25,9 +25,11 @@ export interface ScoreFile {
   inputs?: { E?: number; S?: number; G?: number };
   calls?: number;
   unmeasured?: number;
-  diagnostics?: { estimate?: string; default_shares?: number; findings?: number; server_findings?: number };
+  diagnostics?: { estimate?: string; default_shares?: number; findings?: number; server_findings?: number; known_findings?: number };
   /** Static only, when there are findings for the server's administrator (0.1.0-dev.13 and later). */
   server?: { included?: boolean; findings?: number; with_server_score?: number; app_score?: number };
+  /** Static only, when some findings are already known to the project (0.1.0-dev.14 and later). */
+  known?: { findings?: number; with_known_score?: number };
   message?: string;
   color?: string;
   date?: string;
@@ -53,6 +55,10 @@ export interface ReportInput {
   notes?: Note[];
   /** Local git facts for the badge snippet. */
   git?: GitInfo;
+  /** The audit ran unattended (nobody was asked), from findings.json. The page says so. */
+  unattended?: boolean;
+  /** `priority:` as leanprompt.yaml writes it, for "Questions for the owner"; undefined when it is not set. */
+  priority?: string;
 }
 
 export const DEFAULT_OUT = join(".leanprompt", "report.html");
@@ -113,6 +119,11 @@ function scoreSection(score: ScoreFile | null, kvsig?: KvsigUse): string {
       html += `<p class="muted">${e(`This is the app's own score. It leaves out ${plural(svn, "finding")} for the server's administrator, whose fix is a server setting, not the app's code${num(sv.with_server_score) !== undefined ? `; with them it would be ${sv.with_server_score}` : ""}.`)}</p>`;
     }
   }
+  const kn = score.known;
+  const knn = num(kn?.findings);
+  if (!measured && kn && knn !== undefined && knn > 0) {
+    html += `<p class="muted">${e(`It leaves out ${plural(knn, "finding")} the project already knows about (planned, in progress, declined or reported)${num(kn.with_known_score) !== undefined ? `; with them it would be ${kn.with_known_score}` : ""}.`)}</p>`;
+  }
   if (measured) {
     html += `<p class="muted">Reusable tokens are estimated from the character share of each prompt part, not counted by the provider.</p>`;
   } else {
@@ -168,6 +179,8 @@ export interface Groups {
   questions: Finding[];
   /** Findings whose fix is a server or engine setting: questions for the server's administrator. */
   server: Finding[];
+  /** Findings the project already knows about: planned, in progress or reported, then declined. Not in the totals or the score. */
+  known: Finding[];
   fixed: Finding[];
 }
 export function groups(findings: Finding[]): Groups {
@@ -176,44 +189,94 @@ export function groups(findings: Finding[]): Groups {
     open: ranked.filter((f) => groupOf(f) === "open"),
     questions: ranked.filter((f) => groupOf(f) === "question"),
     server: ranked.filter((f) => groupOf(f) === "server"),
+    known: ranked.filter((f) => groupOf(f) === "known").sort((a, b) => Number(knownOf(a)!.kind === "declined") - Number(knownOf(b)!.kind === "declined")),
     fixed: ranked.filter((f) => f.fixed),
   };
+}
+
+/** The open findings that cost tokens: the "places" the headline counts. A finding that costs nothing stays on the page. */
+export const costly = (g: Groups): Finding[] => g.open.filter((f) => !costsNothing(f));
+
+/** How each kind of known finding is named on the page. */
+export const KNOWN_LABEL: Record<Known["kind"], string> = {
+  planned: "Already planned",
+  "in-progress": "In progress",
+  reported: "Already reported",
+  declined: "Declined by the project",
+};
+
+/** The known entry as one line: "Already planned: <note> (<url>)". */
+export const knownLine = (f: Finding): string | undefined => {
+  const k = knownOf(f);
+  if (!k) return undefined;
+  return `${k.note ?? (k.url ? "" : KNOWN_LABEL[k.kind])}${k.note && k.url ? " " : ""}${k.url ?? ""}`.trim();
+};
+
+/**
+ * The largest open question, when it is larger than the largest finding (or there is no finding with a number):
+ * the headline names it, so a question that may be the main result is not lost under "plus N open questions".
+ */
+export function largestQuestion(g: Groups): Finding | undefined {
+  const q = g.questions[0];
+  const tq = q ? tokensOf(q) : undefined;
+  if (!q || tq === undefined || tq <= 0) return undefined;
+  const top = costly(g)[0];
+  const t = top ? tokensOf(top) : undefined;
+  return t === undefined || tq > t ? q : undefined;
 }
 
 /** "an estimate from the code, not a measurement" or "measured over N calls". */
 export const tokenKind = (c: CostSummary): string =>
   c.measured ? `measured over ${(c.measured_calls ?? 0).toLocaleString("en-US")} calls` : "an estimate from the code, not a measurement";
 
+/** The line an unattended audit carries on the page and in the Markdown report. */
+export const UNATTENDED_LINE =
+  "Unattended audit: nobody was asked during the run, so priority, volume and prices were left open; the questions for the owner are listed at the end.";
+
 function headline(o: ReportInput, g: Groups, cost: CostSummary): string {
-  const n = g.open.length;
+  const places = costly(g);
+  const n = places.length;
+  const zero = g.open.length - n;
   let h = `<header class="lede" id="s-top"><p class="project">leanprompt audit of <strong>${e(o.project)}</strong></p>`;
+  if (o.unattended) h += `<p class="flag unattended">${e(UNATTENDED_LINE)}</p>`;
+  const bigQ = largestQuestion(g);
+  const questionLine = (): string => {
+    if (!bigQ) return "";
+    const what = bigQ.problem ? splitLead(bigQ.problem)[0] : `${ruleTitle(bigQ, o.rules).replace(/\.$/, "")}.`;
+    return `<p class="sub">${n > 0 ? "The largest item is an open question" : "The largest"}, at ${location(bigQ)}, about ${e(formatTokens(tokensOf(bigQ)!))} tokens per 1,000 calls if it holds: ${e(afterColon(what))}</p>`;
+  };
   const extras = (): string => {
     let x = "";
+    if (zero > 0) x += `<p class="muted">${e(`Plus ${plural(zero, "finding")} that ${zero === 1 ? "costs" : "cost"} no tokens today, listed with the findings and not counted as places.`)}</p>`;
     if (g.server.length > 0) {
       x += `<p class="muted">${e(`Plus ${plural(g.server.length, "question")} for the server's administrator, listed after the findings. They are about the server's settings, not this app's code, so they are not in this app's score.`)}</p>`;
     }
-    if ((o.notes ?? []).length > 0) x += `<p class="muted">Plus ${e(plural(o.notes!.length, "other problem"))} the audit found outside the rules, listed after the findings. Not scored.</p>`;
+    if (g.known.length > 0) x += `<p class="muted">${e(`Plus ${plural(g.known.length, "finding")} the project already knows about (planned, in progress, reported or declined), listed after the findings. They are not in the totals or the score.`)}</p>`;
+    if ((o.notes ?? []).length > 0) x += `<p class="muted">Plus ${e(plural(o.notes!.length, "other problem"))} the audit found, listed after the findings. Not scored.</p>`;
     return x;
   };
   if (n === 0 && g.questions.length === 0) {
-    if (g.fixed.length > 0) {
+    if (g.fixed.length > 0 && zero === 0) {
       h += `<h1>No open findings</h1><p class="sub">${e(plural(g.fixed.length, "finding"))}, fixed. Nothing open remains in this app&#39;s code.</p>`;
     } else h += `<h1>${e("The audit found no place where this app pays for tokens it doesn't need")}</h1>`;
     return `${h}${extras()}</header>`;
   }
   if (n === 0) {
     h += `<h1>${e(`Nothing confirmed yet, and ${plural(g.questions.length, "open question")} to settle`)}</h1>`;
+    h += questionLine();
   } else {
     h += `<h1>${e(`${plural(n, "place")} where this app pays for tokens it doesn't need`)}</h1>`;
-    const top = g.open[0]!;
+    const top = places[0]!;
     const t = tokensOf(top);
     const size = t !== undefined ? `, about ${e(formatTokens(t))} tokens per 1,000 calls` : top.estimate ? `, ${e(top.estimate)}` : "";
     const what = top.problem ? splitLead(top.problem)[0] : `${ruleTitle(top, o.rules).replace(/\.$/, "")}.`;
     h += `<p class="sub">The biggest, at ${location(top)}${size}: ${e(afterColon(what))}</p>`;
+    h += questionLine();
     if (cost.with_tokens > 0) {
       const kind = tokenKind(cost);
       h += `<p class="total"><span class="lbl">Together</span> <strong>about ${e(formatTokens(cost.tokens_per_1k))} tokens per 1,000 calls</strong> `;
       h += `${cost.with_tokens < n ? `For the ${e(cost.with_tokens)} with a number, ${e(kind)}.` : `${e(kind.charAt(0).toUpperCase() + kind.slice(1))}.`}`;
+      if (cost.overlaps) h += ` Findings that overlap are counted once.`;
       if (cost.question_tokens_per_1k > 0) h += ` <span class="oq">If the open questions hold, add about ${e(formatTokens(cost.question_tokens_per_1k))}.</span>`;
       h += `</p>`;
       h += tokenBar(g.open, o.rules);
@@ -279,29 +342,31 @@ function costSection(cost: CostSummary, version: string): string {
   let html = `<section class="cost" id="s-cost"><h2>What this costs you</h2>`;
   const m = cost.money;
   if (m) {
-    html += `<p class="big"><strong>About ${e(formatDollars(m.lost_per_month))} a month at ${e(m.calls_per_month.toLocaleString("en-US"))} calls a month.</strong></p>`;
-    html += `<p>Fixing these saves about ${e(formatDollars(m.saved_if_fixed))} a month`;
-    if (m.percent !== undefined && m.bill_per_month !== undefined) html += ` (about ${e(m.percent.toFixed(1))}% of an estimated ${e(formatDollars(m.bill_per_month))} monthly bill)`;
+    const cur = m.currency;
+    html += `<p class="big"><strong>About ${e(formatDollars(m.lost_per_month, cur))} a month at ${e(m.calls_per_month.toLocaleString("en-US"))} calls a month.</strong></p>`;
+    html += `<p>Fixing these saves about ${e(formatDollars(m.saved_if_fixed, cur))} a month`;
+    if (m.percent !== undefined && m.bill_per_month !== undefined) html += ` (about ${e(m.percent.toFixed(1))}% of an estimated ${e(formatDollars(m.bill_per_month, cur))} monthly bill)`;
     html += `.`;
-    if (m.questions_per_month !== undefined) html += ` If the open questions hold, add about ${e(formatDollars(m.questions_per_month))} a month.`;
-    if (m.server_per_month !== undefined) html += ` ${e(`The questions for the server's administrator, if they hold, are about ${formatDollars(m.server_per_month)} a month more.`)}`;
-    if (m.saved_by_fixes !== undefined) html += ` The fixes already made save about ${e(formatDollars(m.saved_by_fixes))} a month.`;
+    if (m.questions_per_month !== undefined) html += ` If the open questions hold, add about ${e(formatDollars(m.questions_per_month, cur))} a month.`;
+    if (m.server_per_month !== undefined) html += ` ${e(`The questions for the server's administrator, if they hold, are about ${formatDollars(m.server_per_month, cur)} a month more.`)}`;
+    if (m.saved_by_fixes !== undefined) html += ` The fixes already made save about ${e(formatDollars(m.saved_by_fixes, cur))} a month.`;
+    if (cur) html += ` ${e(`Prices are in ${cur}, as given in leanprompt.yaml; leanprompt does not convert them.`)}`;
     html += `</p>`;
   }
   if (cost.gpu) {
     const h = cost.gpu.hours_per_month;
     html += `<p class="big"><strong>About ${e(h.toFixed(1))} ${h === 1 ? "hour" : "hours"} of GPU prefill time a month</strong> at ${e(cost.gpu.calls_per_month.toLocaleString("en-US"))} calls a month and ${e(cost.gpu.prefill_tokens_per_second.toLocaleString("en-US"))} prefill tokens a second.</p>`;
   }
-  html += `<p class="muted">Every figure here is ${e(tokenKind(cost))}. Findings can overlap (one failed call can show up in two), so the sum may count some tokens twice. Money is not part of the score. ${e("The table lists this app's findings first, largest first, then its open questions, then the questions for the server's administrator.")}</p>`;
+  html += `<p class="muted">Every figure here is ${e(tokenKind(cost))}. ${cost.overlaps ? "Findings the audit marked as overlapping are counted once in the totals, the largest of each group; other findings can still overlap." : "Findings can overlap (one failed call can show up in two), so the sum may count some tokens twice."} Money is not part of the score. ${e("The table lists this app's findings first, largest first, then its open questions, then the questions for the server's administrator, then the findings the project already knows about, which are not in the totals.")}</p>`;
   // The inputs, so every figure can be checked by hand.
   html += `<div class="tablewrap"><table><thead><tr><th>Finding</th><th>Where</th><th class="fig">Tokens per 1,000 calls</th>${m ? `<th class="fig">A month</th>` : ""}${cost.rows.some((r) => r.ttft_seconds !== undefined) ? `<th class="fig">First-token time</th>` : ""}</tr></thead><tbody>`;
   for (const r of cost.rows.filter((x) => !x.finding.fixed)) {
     const t = r.finding.tokens_per_1k!;
     const parts = [t.prompt ? `${formatTokens(t.prompt)} prompt` : "", t.uncached ? `${formatTokens(t.uncached)} not cached` : "", t.output ? `${formatTokens(t.output)} output` : ""].filter(Boolean).join(", ");
     const write = t.cache_write ? `; the fix writes ${formatTokens(t.cache_write)} to the cache at the write price` : "";
-    const tag = r.group === "question" ? " (open question)" : r.group === "server" ? " (server)" : "";
+    const tag = r.group === "question" ? " (open question)" : r.group === "server" ? " (server)" : r.group === "known" ? ` (${KNOWN_LABEL[knownOf(r.finding)!.kind].toLowerCase()})` : "";
     html += `<tr><td class="rule">${e(r.finding.rule)}${e(tag)}</td><td class="loc">${location(r.finding)}</td><td class="fig tok">${e((parts || "0") + write)}</td>`;
-    if (m) html += `<td class="fig mon">${r.dollars_per_month !== undefined ? e(formatDollars(r.dollars_per_month)) : ""}</td>`;
+    if (m) html += `<td class="fig mon">${r.dollars_per_month !== undefined ? e(formatDollars(r.dollars_per_month, m.currency)) : ""}</td>`;
     if (cost.rows.some((x) => x.ttft_seconds !== undefined)) html += `<td class="fig ttft">${r.ttft_seconds !== undefined ? `+${e(r.ttft_seconds.toFixed(2))} s` : ""}</td>`;
     html += `</tr>`;
   }
@@ -310,7 +375,7 @@ function costSection(cost: CostSummary, version: string): string {
   if (m) {
     inputs.push(`Volume: ${e(m.calls_per_month.toLocaleString("en-US"))} calls a month${m.volume_source ? `, from ${e(m.volume_source)}` : ""}.`);
     for (const { model, price } of m.prices) {
-      const usd = (v: number): string => `$${v.toFixed(Math.max(2, (String(v).split(".")[1] ?? "").length))}`;
+      const usd = (v: number): string => formatPrice(v, price.currency);
       const bits = [`input ${usd(price.input)}`, price.cached_input !== undefined ? `cached input ${usd(price.cached_input)}` : "", price.cache_write !== undefined ? `cache write ${usd(price.cache_write)}` : "", `output ${usd(price.output)}`].filter(Boolean).join(", ");
       inputs.push(`Price of <code>${e(model)}</code>: ${e(bits)} per 1M tokens, from ${e(price.source)}, checked ${e(price.checked)}.`);
     }
@@ -334,7 +399,7 @@ export function splitLead(text: string): [string, string] {
   return m ? [m[1]!, text.slice(m[0].length)] : [text, ""];
 }
 
-function card(f: Finding, i: number, o: ReportInput, version: string, kind: "open" | "question" | "server" | "fixed"): string {
+function card(f: Finding, i: number, o: ReportInput, version: string, kind: "open" | "question" | "server" | "known" | "fixed", num: Map<string, number> = new Map()): string {
   const link = ruleLink(f, o.rules, version);
   const title = ruleTitle(f, o.rules);
   let html = `<article class="finding sev-${f.severity}${f.fixed ? " fixed" : ""}" data-where="${e(whereText(f))}" id="f${i + 1}">`;
@@ -342,7 +407,7 @@ function card(f: Finding, i: number, o: ReportInput, version: string, kind: "ope
   // The first sentence of the problem is the card's heading; the rest follows it as text.
   const [lead, rest] = f.problem ? splitLead(f.problem) : [title, ""];
   html += `<h3>${e(lead)}</h3>`;
-  const freq = f.status === "frequency-unknown" ? ` <span class="flag">how often is assumed</span>` : "";
+  const freq = f.status === "frequency-unknown" ? ` <span class="flag">how often is assumed</span>` : f.status === "size-unknown" ? ` <span class="flag">size is assumed</span>` : "";
   const unconfirmed = f.status === "needs-facts" && kind !== "question" ? ` <span class="flag">unconfirmed</span>` : "";
   html += `<p class="meta"><span class="visually-hidden">Finding ${i + 1}. </span>${location(f)} <span class="sev">${e(f.severity)}</span> <span class="rid">${e(f.rule)}</span>${f.fixed ? ` <span class="tag">fixed</span>` : ""}${freq}${unconfirmed}</p>`;
   if (rest) html += `<p class="rest">${e(rest)}</p>`;
@@ -354,7 +419,11 @@ function card(f: Finding, i: number, o: ReportInput, version: string, kind: "ope
   ];
   if (asks) dl.unshift(["act confirm", kind === "server" ? "What would answer it" : "To confirm", f.confirm]);
   else if (f.status === "frequency-unknown") dl.push(["why freq", "How often it happens", `The code shows the problem; how often it happens is assumed. To measure it: ${f.confirm ?? ""}`]);
-  if (f.planned) dl.push(["why planned", "Already planned", f.planned]);
+  else if (f.status === "size-unknown") dl.push(["why freq", "How big it is", `The code shows the problem and how often it happens; how many tokens it costs each time is assumed. To measure it: ${f.confirm ?? ""}`]);
+  const k = knownOf(f);
+  if (k) dl.push(["why planned", KNOWN_LABEL[k.kind], knownLine(f)]);
+  const others = (f.overlaps ?? []).map((id) => num.get(id)).filter((x): x is number => x !== undefined);
+  if (others.length) dl.push(["why overlap", "Overlaps", `Finding ${others.join(", ")} loses some of the same tokens; the totals count the larger once.`]);
   const rows = dl.filter(([, , v]) => v).map(([c, k, v]) => `<div class="${c}"><dt>${e(k)}</dt><dd>${e(v)}</dd></div>`);
   if (estimate || f.assumptions) {
     let dd = estimate ? `<span class="est">${e(estimate)}</span>` : "";
@@ -374,53 +443,115 @@ function card(f: Finding, i: number, o: ReportInput, version: string, kind: "ope
   return `${html}</div></article>`;
 }
 
+/** The number each finding with an id has on the page (open, questions, server, known, fixed, in that order). */
+function numbering(g: Groups): Map<string, number> {
+  const m = new Map<string, number>();
+  [...g.open, ...g.questions, ...g.server, ...g.known, ...g.fixed].forEach((f, i) => f.id !== undefined && m.set(f.id, i + 1));
+  return m;
+}
+
 function findingsSection(o: ReportInput, g: Groups, version: string): string {
   const all = g.open.length + g.questions.length;
-  let html = `<section class="findings" id="s-findings"><h2>${e("What's wrong and what to change")}</h2><p class="muted">${all} open, ${g.server.length > 0 ? e(`${g.server.length} for the server's administrator, `) : ""}${g.fixed.length} fixed`;
+  const num = numbering(g);
+  let html = `<section class="findings" id="s-findings"><h2>${e("What's wrong and what to change")}</h2><p class="muted">${all} open, ${g.server.length > 0 ? e(`${g.server.length} for the server's administrator, `) : ""}${g.known.length > 0 ? e(`${g.known.length} already known to the project, `) : ""}${g.fixed.length} fixed`;
   if (o.ignored) html += `, ${o.ignored} ignored by the profile`;
   html += `. Largest first, by the audit's estimate of tokens lost per 1,000 calls.</p>`;
-  html += g.open.map((f, i) => card(f, i, o, version, "open")).join("");
+  html += g.open.map((f, i) => card(f, i, o, version, "open", num)).join("");
   if (g.open.length === 0) html += `<p>No confirmed findings.</p>`;
   html += `</section>`;
   if (g.questions.length > 0) {
     html += `<section class="findings" id="s-questions"><h2>Open questions</h2><p class="muted">Findings outside this repository, or whose behaviour the code cannot show. They still count in the score. Each says what to confirm.</p>`;
-    html += g.questions.map((f, i) => card(f, g.open.length + i, o, version, "question")).join("");
+    html += g.questions.map((f, i) => card(f, g.open.length + i, o, version, "question", num)).join("");
     html += `</section>`;
   }
   if (g.server.length > 0) {
     html += `<section class="findings" id="s-server"><h2>${e("Questions for the server's administrator")}</h2>`;
     html += `<p class="muted">${e("These are about the server or engine the app calls (its launch settings, its cache, its replicas), not this app's code, so they are not in this app's score;")} <code>npx leanprompt score --with-server</code> counts them. Each says what would answer it. For an LM Warden server, <code>npx leanprompt profile detect --lmwarden &lt;url&gt;</code> reads the engine&#39;s cache facts (block size, match unit, speculative decoding) into <code>leanprompt.yaml</code>.</p>`;
-    html += g.server.map((f, i) => card(f, all + i, o, version, "server")).join("");
+    html += g.server.map((f, i) => card(f, all + i, o, version, "server", num)).join("");
     html += `</section>`;
   }
-  html += notesSection(o.notes ?? []);
+  html += knownSection(o, g, version, num);
+  html += notesSection(o.notes ?? [], o, version, num);
   if (g.fixed.length > 0) {
-    const start = all + g.server.length;
+    const start = all + g.server.length + g.known.length;
     html += `<section class="findings" id="s-fixed"><details class="fixed-list"><summary><h2>${e(plural(g.fixed.length, "fixed finding"))}</h2></summary>`;
-    html += g.fixed.map((f, i) => card(f, start + i, o, version, "fixed")).join("");
+    html += g.fixed.map((f, i) => card(f, start + i, o, version, "fixed", num)).join("");
     html += `</details></section>`;
   }
   return html;
 }
 
+/**
+ * Findings the project already knows about, from its tracker or docs: planned, in progress or reported as cards with
+ * the link; declined ones as one line each with the link, and no proposed change. Not in the totals or the score.
+ */
+function knownSection(o: ReportInput, g: Groups, version: string, num: Map<string, number>): string {
+  if (g.known.length === 0) return "";
+  const start = g.open.length + g.questions.length + g.server.length;
+  const live = g.known.filter((f) => knownOf(f)!.kind !== "declined");
+  const declined = g.known.filter((f) => knownOf(f)!.kind === "declined");
+  let html = `<section class="findings known" id="s-known"><h2>Already known to the project</h2>`;
+  html += `<p class="muted">${e("The project's own issues, pull requests or docs already cover these, so they are not new and are not in the totals or the score. Read the link before working on one.")}</p>`;
+  html += live.map((f, i) => card(f, start + i, o, version, "known", num)).join("");
+  if (declined.length) {
+    html += `<h3>Declined by the project</h3><ul class="declined">`;
+    declined.forEach((f, i) => {
+      const k = knownOf(f)!;
+      const lead = f.problem ? splitLead(f.problem)[0] : ruleTitle(f, o.rules);
+      html += `<li id="f${start + live.length + i + 1}">${e(lead)} ${location(f)}${k.url ? ` <a href="${e(k.url)}">${e(k.url)}</a>` : ""}</li>`;
+    });
+    html += `</ul>`;
+  }
+  return `${html}</section>`;
+}
+
 /** Where a note is: `file:line`, or for an `<external>` one just that. */
 export const noteWhere = (n: Note): string => (n.file === EXTERNAL ? "outside the repository" : n.line > 0 ? `${n.file}:${n.line}` : n.file);
 
-/** Verified problems outside the rules: correctness bugs on the LLM paths. Never scored. */
-function notesSection(notes: Note[]): string {
+/** Verified correctness problems on the LLM paths: outside the rules, or under a correctness rule (LP-GE-11). Never scored. */
+function notesSection(notes: Note[], o?: ReportInput, version?: string, num: Map<string, number> = new Map()): string {
   if (notes.length === 0) return "";
   let html = `<section class="findings notes" id="s-notes"><h2>Other problems the audit found</h2>`;
-  html += `<p class="muted">Problems the audit checked in the code that no rule covers, such as a spend meter that ignores cache tokens or a cut-off answer accepted as complete. They are not scored. Check each one before you change anything.</p>`;
+  html += `<p class="muted">Problems the audit checked in the code that cost no tokens of their own, such as a spend meter that ignores cache tokens or a cut-off answer accepted as complete. They are not scored. Check each one before you change anything.</p>`;
   notes.forEach((n, i) => {
+    if (n.known?.kind === "declined") {
+      // The project has said no: the title, where, and the link, without a proposed change.
+      html += `<article class="finding note declined" id="n${i + 1}"><div class="num" aria-hidden="true">N${i + 1}</div><div class="body"><h3>${e(n.title)}</h3>`;
+      html += `<p class="meta">${n.file === EXTERNAL ? e(noteWhere(n)) : `<code>${e(noteWhere(n))}</code>`} <span class="flag">${e(KNOWN_LABEL.declined.toLowerCase())}</span></p>`;
+      html += `<p class="rest">${e(n.known.note ?? KNOWN_LABEL.declined)}${n.known.url ? ` <a href="${e(n.known.url)}">${e(n.known.url)}</a>` : ""}</p></div></article>`;
+      return;
+    }
     html += `<article class="finding note" data-where="${e(noteWhere(n))}" id="n${i + 1}"><div class="num" aria-hidden="true">N${i + 1}</div><div class="body">`;
-    html += `<h3>${e(n.title)}</h3><p class="meta"><span class="visually-hidden">Note ${i + 1}. </span>${n.file === EXTERNAL ? e(noteWhere(n)) : `<code>${e(noteWhere(n))}</code>`} <span class="flag">not scored</span></p>`;
+    const rid = n.rule ? ` <span class="rid">${e(n.rule)}</span>${n.severity ? ` <span class="sev">${e(n.severity)}</span>` : ""}` : "";
+    html += `<h3>${e(n.title)}</h3><p class="meta"><span class="visually-hidden">Note ${i + 1}. </span>${n.file === EXTERNAL ? e(noteWhere(n)) : `<code>${e(noteWhere(n))}</code>`}${rid} <span class="flag">not scored</span></p>`;
     html += `<p class="rest">${e(n.problem)}</p>`;
     const rows: [string, string, string | undefined][] = [["act", "What to change", n.change], ["why", "Why it matters", n.why]];
-    html += `<dl class="why">${rows.filter(([, , v]) => v).map(([c, k, v]) => `<div class="${c}"><dt>${e(k)}</dt><dd>${e(v)}</dd></div>`).join("")}</dl>`;
-    if (n.verify) html += `<footer class="check"><p><span class="k">How to check the fix</span> ${e(n.verify)}</p></footer>`;
+    html += `<dl class="why">${rows.filter(([, , v]) => v).map(([c, k, v]) => `<div class="${c}"><dt>${e(k)}</dt><dd>${e(v)}</dd></div>`).join("")}`;
+    const fnum = n.finding !== undefined ? num.get(n.finding) : undefined;
+    if (fnum !== undefined) html += `<div class="why"><dt>Same problem as</dt><dd><a href="#f${fnum}">finding ${fnum}</a></dd></div>`;
+    if (n.known) html += `<div class="why planned"><dt>${e(KNOWN_LABEL[n.known.kind])}</dt><dd>${e([n.known.note, n.known.url].filter(Boolean).join(" "))}</dd></div>`;
+    html += `</dl>`;
+    const link = n.rule && o && version ? ruleLink({ rule: n.rule } as Finding, o.rules, version) : undefined;
+    if (n.verify || link) {
+      html += `<footer class="check">`;
+      if (n.verify) html += `<p><span class="k">How to check the fix</span> ${e(n.verify)}</p>`;
+      if (link) html += `<p class="rulelink">Rule: ${e(o!.rules.get(n.rule!)?.title ?? n.rule!)}. <a href="${e(link)}">How this rule works</a></p>`;
+      html += `</footer>`;
+    }
     html += `</div></article>`;
   });
   return `${html}</section>`;
+}
+
+/** Questions only the owner can answer, still open (an unattended audit, or nobody answered): the same list as the Markdown report. */
+function ownerSection(o: ReportInput, cost: CostSummary): string {
+  const q = ownerQuestions(o.profile ?? null, cost, o.priority);
+  if (q.length === 0) return "";
+  const code = (t: string) => e(t).replace(/`([^`]+)`/g, "<code>$1</code>");
+  let html = `<section class="owner" id="s-owner"><h2>Questions for the owner</h2>`;
+  html += `<p class="muted">${e("These were not answered during the audit. Until they are, the page shows tokens only and ranks the advice without a priority.")}</p><ul>`;
+  html += q.map((x) => `<li><strong>${e(x.label)}:</strong> ${code(x.text)}</li>`).join("");
+  return `${html}</ul></section>`;
 }
 
 const NPX_BARE = "npx leanprompt";
@@ -447,6 +578,12 @@ export function handoffText(findings: Finding[], rules: Map<string, RuleInfo>, o
     lines.push("", "Findings, largest first:");
     g.open.forEach((f, i) => lines.push(`${i + 1}. ${f.rule} at ${whereText(f)}: ${f.problem ?? ruleTitle(f, rules)}`));
   }
+  // Declined findings are left out: the project has said no, so they are not work to do.
+  const live = g.known.filter((f) => knownOf(f)!.kind !== "declined");
+  if (live.length > 0) {
+    lines.push("", "Already known to the project (read the link first; do not duplicate work the project has planned or started):");
+    for (const f of live) lines.push(`- ${f.rule} (${whereText(f)}): ${f.problem ?? ruleTitle(f, rules)} ${KNOWN_LABEL[knownOf(f)!.kind]}: ${knownLine(f)}`);
+  }
   if (g.questions.length > 0) {
     lines.push("", "Open questions (confirm before fixing):");
     for (const f of g.questions) lines.push(`- ${f.rule} (${whereText(f)}): ${f.problem ?? ruleTitle(f, rules)}${f.confirm ? ` To confirm: ${f.confirm}` : ""}`);
@@ -455,10 +592,10 @@ export function handoffText(findings: Finding[], rules: Map<string, RuleInfo>, o
     lines.push("", "Questions for the server's administrator (not this app's code; do not change the app for these):");
     for (const f of g.server) lines.push(`- ${f.rule} (${whereText(f)}): ${f.problem ?? ruleTitle(f, rules)}${f.confirm ? ` What would answer it: ${f.confirm}` : ""}`);
   }
-  const notes = opts.notes ?? [];
+  const notes = (opts.notes ?? []).filter((n) => n.known?.kind !== "declined");
   if (notes.length > 0) {
-    lines.push("", "Other problems found outside the rules (check each against the code first; not scored):");
-    for (const n of notes) lines.push(`- ${n.title} (${noteWhere(n)}): ${n.problem} Change: ${n.change}`);
+    lines.push("", "Other problems found (check each against the code first; not scored):");
+    for (const n of notes) lines.push(`- ${n.title} (${noteWhere(n)})${n.rule ? ` [${n.rule}]` : ""}: ${n.problem} Change: ${n.change}`);
   }
   return lines.join("\n");
 }
@@ -484,10 +621,11 @@ export function shareText(findings: Finding[], score: ScoreFile | null, profile:
   const g = groups(findings);
   const cost = costSummary(findings, profile);
   let what: string;
-  if (g.open.length > 0) {
-    what = `leanprompt checked how our app calls LLMs and found ${plural(g.open.length, "place")} where it pays for tokens it doesn't need`;
+  const places = costly(g);
+  if (places.length > 0) {
+    what = `leanprompt checked how our app calls LLMs and found ${plural(places.length, "place")} where it pays for tokens it doesn't need`;
     if (cost.with_tokens > 0) what += `, about ${formatTokens(cost.tokens_per_1k)} tokens per 1,000 calls, ${cost.measured ? `measured over ${cost.measured_calls} calls` : "an estimate from the code"}`;
-    else if (g.open[0]!.estimate) what += `; the largest is ${g.open[0]!.estimate}, an estimate from the code`;
+    else if (places[0]!.estimate) what += `; the largest is ${places[0]!.estimate}, an estimate from the code`;
     what += ".";
   } else if (g.fixed.length > 0) {
     what = `leanprompt checked how our app calls LLMs; we fixed the ${plural(g.fixed.length, "place")} where it paid for tokens it didn't need.`;
@@ -579,9 +717,11 @@ function navRail(o: ReportInput, g: Groups, cost: CostSummary): string {
   items.push(["s-findings", "Findings", String(g.open.length)]);
   if (g.questions.length > 0) items.push(["s-questions", "Questions", String(g.questions.length)]);
   if (g.server.length > 0) items.push(["s-server", "For the server", String(g.server.length)]);
+  if (g.known.length > 0) items.push(["s-known", "Already known", String(g.known.length)]);
   if ((o.notes ?? []).length > 0) items.push(["s-notes", "Other problems", String(o.notes!.length)]);
   if (g.fixed.length > 0) items.push(["s-fixed", "Fixed", String(g.fixed.length)]);
   items.push(["s-fix", "Hand-off to your agent", ""], ["s-score", "Score", o.score && num(o.score.score) !== undefined ? String(o.score.score) : ""]);
+  if (ownerQuestions(o.profile ?? null, cost, o.priority).length > 0) items.push(["s-owner", "For the owner", ""]);
   if (worthSharing(o)) items.push(["s-share", "Share", ""]);
   const li = items.map(([id, label, n]) => `<li><a href="#${id}"><span>${e(label)}</span>${n ? `<span class="c">${e(n)}</span>` : ""}</a></li>`).join("");
   return `<nav class="rail" aria-label="Sections"><p class="mark">leanprompt</p><p class="proj">${e(o.project)}</p><ul>${li}</ul></nav>`;
@@ -598,6 +738,7 @@ export function renderReport(o: ReportInput): string {
     findingsSection(o, g, version) +
     handoffSection(o) +
     scoreSection(o.score, o.kvsig) +
+    ownerSection(o, cost) +
     shareSection(o);
   const footer = `<footer class="page-foot muted">Made by leanprompt ${e(version)}, by the LM Warden Team, on your machine; this page loads nothing from the network. <a href="${REPO}">${REPO}</a></footer>`;
   return readFileSync(TEMPLATE, "utf8")
@@ -663,17 +804,20 @@ export async function reportCommand(args: string[]): Promise<number> {
   let average_call: AverageCall | undefined;
   let kvsig: KvsigUse | undefined;
   let notes: Note[] | undefined;
+  let unattended: boolean | undefined;
   const profile = loadProfile(dir);
   const fpath = join(dir, FINDINGS_FILE);
   if (existsSync(fpath)) {
-    const parsed = parseFindings(readFileSync(fpath, "utf8"), loadRuleIds(PACKAGE_ROOT));
+    const parsed = parseFindings(readFileSync(fpath, "utf8"), loadRuleIds(PACKAGE_ROOT), loadNoteRuleIds(PACKAGE_ROOT));
     if (parsed.errors.length > 0) throw new Error(`${fpath}: ${parsed.errors.join("; ")}`);
     findings = filterIgnored(parsed.findings, profile);
     ignored = parsed.findings.length - findings.length;
     average_call = parsed.average_call;
     kvsig = parsed.kvsig;
     notes = parsed.notes;
+    unattended = parsed.unattended;
   }
+  const priority = rawPriority(dir);
   const input: ReportInput = {
     findings,
     ignored,
@@ -684,12 +828,13 @@ export async function reportCommand(args: string[]): Promise<number> {
     ...(average_call ? { average_call } : {}),
     ...(kvsig ? { kvsig } : {}),
     ...(notes ? { notes } : {}),
+    ...(unattended ? { unattended } : {}),
+    ...(priority !== undefined ? { priority } : {}),
     git: readGit(dir),
   };
   if (values.md) {
     const target = resolve(dir, values.html ? MD_FILE : (values.out ?? MD_FILE));
     const existing = existsSync(target) ? readFileSync(target, "utf8") : null;
-    const priority = rawPriority(dir);
     const text = spliceReport(existing, renderMarkdown(input, { date: localDate(), ...(priority !== undefined ? { priority } : {}) }));
     if (text === null) {
       process.stderr.write(`leanprompt: ${target} exists and was not written by report --md (it has no generated block); move it aside or pass --out <file>\n`);

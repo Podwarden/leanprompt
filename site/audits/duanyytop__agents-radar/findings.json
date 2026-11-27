@@ -1,0 +1,114 @@
+{
+  "v": 1,
+  "unattended": true,
+  "average_call": {
+    "prompt_tokens": 7000,
+    "output_tokens": 2200
+  },
+  "findings": [
+    {
+      "rule": "LP-GE-05",
+      "file": "src/providers/openai-compatible.ts",
+      "line": 17,
+      "saves": "both",
+      "severity": "medium",
+      "share_prefill": 0.002,
+      "share_output": 0.004,
+      "status": "frequency-unknown",
+      "confirm": "How often DashScope returns a 5xx or 408/409 on this endpoint, from the Actions logs or the Model Studio console; a 5xx retried by the SDK leaves no line in the app's log.",
+      "tokens_per_1k": {
+        "prompt": 14000,
+        "output": 8800
+      },
+      "problem": "The OpenAI client is created with the SDK defaults, which silently retry 408, 409, 429 and every 5xx twice before callLlm sees the error. report.ts:191-196 says a 5xx must not be retried because it risks a duplicate generation that was already billed, so the SDK does exactly what the app's policy rules out, and callLlm's own 429 and connection ladders run on top of it (up to 3 x 7 = 21 HTTP attempts per call).",
+      "change": "Pass maxRetries: 0 to new OpenAI(...) in openai-compatible.ts (and to new Anthropic() in anthropic.ts), so callLlm's ladder is the only retry layer.",
+      "why": "Each SDK retry of a 5xx resends the full prompt and, if the provider had started generating, pays for the output again.",
+      "estimate": "about 23k tokens per 1,000 calls if 2 in 1,000 calls hit a billed 5xx (estimate)",
+      "assumptions": "2 of 1,000 calls get a 5xx after generation started; a digest call is about 7,000 prompt and 2,200 output tokens; each SDK retry repeats both. Connection failures, the common case here, cost no tokens and are not counted.",
+      "verify": "In a unit test with a fake fetch that returns 500, the provider makes exactly one HTTP request and callLlm throws without retrying."
+    },
+    {
+      "rule": "LP-GE-04",
+      "file": "src/providers/openai-compatible.ts",
+      "line": 17,
+      "saves": "generation",
+      "severity": "medium",
+      "share": 0.002,
+      "status": "frequency-unknown",
+      "confirm": "Whether any run logged an APIConnectionTimeoutError, from the Actions logs; none of the last 40 runs took longer than 21 minutes.",
+      "tokens_per_1k": {
+        "output": 4096
+      },
+      "problem": "No timeout is set, so each request may wait the SDK default of 10 minutes, and a timed-out request is retried twice by the SDK and then counted by isConnectionError (report.ts:183) as a connection failure, which callLlm retries 6 more times. One stalled request can therefore hold a concurrency slot for well over the 40-minute job limit (daily-digest.yml:63), and the job is killed before anything is committed.",
+      "change": "Set timeout to about 3 minutes on the client (a 4,096-token qwen-flash answer takes well under a minute), together with maxRetries: 0.",
+      "why": "A request that times out after the provider generated the answer is billed and thrown away, and the run loses the whole day.",
+      "estimate": "about 4k output tokens per 1,000 calls if 1 in 1,000 calls stalls (estimate)",
+      "assumptions": "1 stalled call per 1,000; the stalled call is billed for a full 4,096-token answer. Observed runs take 5 to 21 minutes, so stalls have been rare or absent.",
+      "verify": "With a fake fetch that never answers, callLlm gives up within the new timeout times the retry ladder, well inside 40 minutes."
+    },
+    {
+      "rule": "LP-GE-05",
+      "file": "src/index.ts",
+      "line": 628,
+      "saves": "generation",
+      "severity": "low",
+      "share": 0.001,
+      "status": "frequency-unknown",
+      "confirm": "How often a highlights reply is cut at 2,048 tokens; the provider returns finish_reason, which the app discards.",
+      "tokens_per_1k": {
+        "output": 2048
+      },
+      "problem": "attemptJson retries the highlights call when the JSON does not parse, with the same 2,048-token limit. If the parse failed because the reply was cut off at the limit, the retry is cut off the same way and both attempts are billed.",
+      "change": "Read finish_reason in the provider, and when it is length raise the limit for the second attempt (for example to 4,096) instead of repeating it unchanged.",
+      "why": "A truncated reply sent again unchanged usually stops at the same place.",
+      "estimate": "about 2k output tokens per 1,000 calls (estimate)",
+      "assumptions": "The English highlights reply is about 900 tokens and the translated one similar, so truncation is rare; assumed once per 1,000 calls.",
+      "verify": "A test where the provider returns a cut-off JSON with finish_reason length shows the second attempt sent with the larger limit."
+    },
+    {
+      "rule": "LP-GE-07",
+      "file": "src/report.ts",
+      "line": 201,
+      "saves": "both",
+      "severity": "low",
+      "share": 0,
+      "problem": "Model Studio's Batch API bills qwen-flash at 50% of the real-time price, and this is a nightly job no user waits on. It is not recommended here: the batch window is at least 24 hours with no stated turnaround, and the run has four dependent stages (summaries, translations, comparisons, highlights) that must finish by about 07:00 CST.",
+      "change": "No change recommended. Revisit only if the delivery time can move by a day.",
+      "why": "The same tokens at half price, about 0.25 yuan a day at the project's stated 0.5 yuan per run.",
+      "estimate": "no tokens saved; price only",
+      "assumptions": "Batch facts from help.aliyun.com/zh/model-studio/batch-interfaces-compatible-with-openai, read 2026-11-26: qwen-flash supported in Beijing, 50% price, completion window 24h to 336h.",
+      "verify": "Not applicable."
+    }
+  ],
+  "notes": [
+    {
+      "title": "Telegram and Feishu highlights are extracted from only the first 2,000 characters of each report",
+      "file": "src/prompts-data.ts",
+      "line": 303,
+      "problem": "buildHighlightsPrompt sends content.slice(0, 2000) of each report. For ai-cli, ai-agents and ai-infra that is the title, the list of project links and the start of the comparison, cut mid-table, but the model is asked for 6 highlights per report. Over 2026-10-27 to 2026-11-26, 66 of 558 highlights for these three reports name a project whose text was not in the excerpt (only its link), e.g. 'ZeroClaw introduces new agent sandbox' on 2026-11-25, while the ZeroClaw section never mentions a sandbox.",
+      "change": "For the three repo reports, build the excerpt from each project's 'Today's Highlights' paragraph (or the comparison without the link list) instead of the head of the file; keep the 2,000-character slice for the single-topic reports.",
+      "why": "The highlights are the push notification subscribers read; a claim invented from a project name is worse than no claim.",
+      "verify": "Rerun scripts/regen-highlights.ts on a past day and check that every ai-cli, ai-agents and ai-infra highlight is supported by that day's report text."
+    },
+    {
+      "title": "A reply cut off at the output limit is published as complete",
+      "file": "src/providers/openai-compatible.ts",
+      "line": 29,
+      "problem": "The provider returns message.content and drops finish_reason, so a summary, comparison or translation that stopped at max_completion_tokens is published as if whole, with no line in llmStats or the step summary. A scan of the 1,444 report files committed since 2026-09-01 found no cut-off endings, so this is currently rare.",
+      "change": "Return finish_reason with the text and log a warning (and count it in llmStats) when it is length.",
+      "verify": "A test where the fake provider returns finish_reason length shows the warning in the step summary."
+    },
+    {
+      "title": "A failed translation publishes English text in the Chinese report",
+      "file": "src/report.ts",
+      "line": 251,
+      "problem": "translateToZh returns the English text when the translation call fails, so on a day with failed calls the Chinese report is partly English.",
+      "change": "None proposed: the project chose this on purpose.",
+      "known": {
+        "kind": "declined",
+        "url": "https://github.com/duanyytop/agents-radar/blob/7c5355e1bbea9c99ba251b2874ed8106329a4432/CLAUDE.md#L63",
+        "note": "By design: CLAUDE.md says a partly English Chinese report still carries the day's information, and a health gate stops the run when half the calls fail."
+      }
+    }
+  ]
+}

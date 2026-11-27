@@ -1,0 +1,130 @@
+{
+  "v": 1,
+  "unattended": true,
+  "average_call": {
+    "prompt_tokens": 4200,
+    "output_tokens": 1150
+  },
+  "findings": [
+    {
+      "id": "effort-langgraph",
+      "rule": "LP-GE-03",
+      "file": "src/backend/core/providers/llm/foundry_iq.py",
+      "line": 491,
+      "saves": "generation",
+      "severity": "high",
+      "share": 0.22,
+      "status": "size-unknown",
+      "confirm": "usage.output_tokens_details.reasoning_tokens per answer on a fixed set of 30 to 50 questions, once at effort medium and once at low, plus the answer check on the same set",
+      "tokens_per_1k": {
+        "output": 250000
+      },
+      "problem": "On the default deployment (gpt-5.4-mini, PostgreSQL, LangGraph) every answer is sent through the Responses API with reasoning effort fixed at medium and no output limit. The model's own default is none, and the admin page's max tokens and temperature are not sent on this path.",
+      "change": "Read the effort from settings (for example AZURE_OPENAI_REASONING_EFFORT, default low or the current medium) and send max_output_tokens derived from the admin max tokens plus headroom for reasoning; treat a response.incomplete event as a cut-off answer.",
+      "why": "Reasoning tokens are billed as output. A grounded answer over five retrieved pages rarely needs medium effort, and with no limit a runaway answer is billed up to the model's 128,000-token output ceiling.",
+      "estimate": "about 250k output tokens per 1,000 calls (estimate), if low effort uses about 500 fewer reasoning tokens per answer than medium",
+      "assumptions": "half of calls go through this path (postgresql is the azd default and maps to langgraph); about 800 reasoning tokens at medium and 300 at low per answer, not measured; about 350 visible answer tokens. Lowering effort can change answers; the reasoning panel (ADR 0007) still works at low.",
+      "verify": "Run the same question set at medium and at low: reasoning_tokens per answer falls, the answer check passes, and no answer ends with status incomplete."
+    },
+    {
+      "id": "effort-agent-framework",
+      "rule": "LP-GE-03",
+      "file": "src/backend/core/providers/orchestrators/agent_framework.py",
+      "line": 290,
+      "saves": "generation",
+      "severity": "high",
+      "share": 0.22,
+      "status": "size-unknown",
+      "confirm": "reasoning_tokens per answer from the Foundry agent run at effort medium and at low on the same question set",
+      "tokens_per_1k": {
+        "output": 250000
+      },
+      "problem": "The Agent Framework orchestrator (the default for Cosmos DB deployments) sends the same fixed reasoning effort of medium and drops the admin max tokens whenever the answer model supports reasoning, so the answer has no output limit.",
+      "change": "Use the same configurable effort and max_output_tokens as the LangGraph path, passed through ChatOptions.",
+      "why": "Same as the LangGraph path: reasoning tokens are output tokens, and medium on every answer is above what a grounded answer usually needs.",
+      "estimate": "about 250k output tokens per 1,000 calls (estimate)",
+      "assumptions": "half of calls go through this orchestrator; same per-answer reasoning numbers as the LangGraph finding, not measured.",
+      "verify": "Same question set at medium and low: reasoning_tokens fall and the answer check passes."
+    },
+    {
+      "rule": "LP-PC-02",
+      "file": "src/backend/core/providers/orchestrators/langgraph.py",
+      "line": 186,
+      "saves": "prefill",
+      "severity": "medium",
+      "share": 0.035,
+      "tokens_per_1k": {
+        "uncached": 146000
+      },
+      "problem": "The LangGraph path puts the retrieved sources for the current question in a system message directly after the system prompt and before the conversation history, so the history changes position on every turn and the provider cannot reuse it from its cache.",
+      "change": "Prepend the Sources block to the latest user message, the way agent_framework.py:236-245 already does for app-side retrieval, so the system prompt and earlier turns form a stable prefix.",
+      "why": "Azure OpenAI caches only an identical prefix of at least 1,024 tokens. With the sources in front, everything after the system prompt is recomputed at the full input price on every follow-up.",
+      "estimate": "about 146k prompt tokens per 1,000 calls not served from cache (estimate)",
+      "assumptions": "langgraph serves half of calls; four-turn conversations; about 390 tokens per earlier exchange; with the fix turn k reuses the system prompt plus exchanges 1 to k-2. The system prompt is about 1,000 tokens (4,197 characters), close to the 1,024 minimum, so today it may not be cached at all. Moving sources next to the question can change answers.",
+      "verify": "Send turn 3 of a conversation twice: prompt_tokens_details.cached_tokens rises from about the system prompt size (or 0) to the system prompt plus the first exchange; the answer check passes."
+    },
+    {
+      "rule": "LP-PD-05",
+      "file": "src/frontend/src/api/streamChat.tsx",
+      "line": 233,
+      "saves": "prefill",
+      "severity": "low",
+      "share": 0.02,
+      "status": "frequency-unknown",
+      "confirm": "the distribution of message counts per /api/conversation request in App Insights",
+      "tokens_per_1k": {
+        "prompt": 84000
+      },
+      "problem": "The frontend sends the whole thread on every turn and neither the request model (models/conversation.py:11) nor the orchestrators cap it, so long conversations resend every earlier answer.",
+      "change": "Keep the last N exchanges (a setting, for example 10) in the orchestrator, dropping whole exchanges from the oldest end.",
+      "why": "Each earlier answer is resent as input on every later turn; past a point it adds cost and little to a grounded answer.",
+      "estimate": "about 84k prompt tokens per 1,000 calls (estimate), only from conversations longer than 10 exchanges",
+      "assumptions": "5% of calls come from conversations longer than 10 exchanges, carrying about 1,700 extra tokens each; not measured.",
+      "verify": "A 15-turn conversation's request carries at most 10 earlier exchanges; follow-up questions in the answer check still resolve."
+    },
+    {
+      "rule": "LP-GE-03",
+      "file": "infra/scripts/post-provision/post_provision.py",
+      "line": 424,
+      "saves": "generation",
+      "severity": "low",
+      "share": 0.03,
+      "status": "needs-facts",
+      "confirm": "GET the cwyd-kb knowledge base and read retrievalReasoningEffort; check the retrieve activity array for a modelQueryPlanning entry and its token counts",
+      "tokens_per_1k": {},
+      "problem": "Does the Foundry IQ knowledge base run an LLM query-planning step on every retrieval? The seed attaches the chat model and sets no retrievalReasoningEffort; the example response on Microsoft's page shows low as the stored value, which uses LLM planning.",
+      "change": "Set retrievalReasoningEffort explicitly in the knowledge base body (minimal if planning does not improve retrieval for typical questions, low otherwise).",
+      "why": "Planning adds a model call per question on top of the answer call; minimal skips it.",
+      "estimate": "not estimated: depends on the stored effort",
+      "assumptions": "Cosmos DB deployments only. The default is not stated in the docs read (https://learn.microsoft.com/en-us/azure/search/agentic-retrieval-how-to-create-knowledge-base, read 2026-11-27).",
+      "verify": "Retrieve activity shows no modelQueryPlanning entry at minimal, and answer-check recall stays the same."
+    }
+  ],
+  "notes": [
+    {
+      "title": "The admin page's max tokens and temperature do nothing on the default model",
+      "finding": "effort-langgraph",
+      "file": "src/frontend/src/pages/admin/Configuration/Configuration.tsx",
+      "line": 219,
+      "problem": "The admin page offers 'OpenAI max tokens: Maximum number of tokens the chat model may generate per response.' With the default gpt-5.4-mini, complete() routes to reason() (foundry_iq.py:667-672) and agent_framework.py:274-292 builds ChatOptions without max_tokens or temperature, so both saved values are ignored and the answer has no output limit.",
+      "change": "Map the admin max tokens to max_output_tokens on the reasoning path (with headroom for reasoning), or label the field as applying only to non-reasoning models.",
+      "verify": "Set max tokens to 200 in the admin page and ask a long question: the Responses request carries max_output_tokens and the answer is capped."
+    },
+    {
+      "title": "A cut-off answer is stored and shown as complete",
+      "file": "src/backend/core/providers/llm/foundry_iq.py",
+      "line": 364,
+      "problem": "chat() returns only choices[0].message.content and drops finish_reason, so on a non-reasoning model an answer that hits max_tokens (1,000 by default) is persisted as whole. reason() (foundry_iq.py:519-542) ignores the response.incomplete event in the same way.",
+      "change": "When finish_reason is length or the stream ends with response.incomplete, log it and emit a reasoning or error event so the user and operator see that the answer was cut.",
+      "verify": "With max tokens at 50, the answer comes with a visible truncation notice and a log line."
+    },
+    {
+      "title": "A second gpt-5-mini deployment for reasoning is provisioned but no code uses it",
+      "file": "infra/bicep/main.bicep",
+      "line": 184,
+      "problem": "The template deploys a second model (reasoningModelName gpt-5-mini, 50k TPM, main.bicep:184-186) and outputs AZURE_OPENAI_REASONING_DEPLOYMENT (main.bicep:822), and docs/QuotaCheck.md asks for 50k of quota for it, but nothing under src/ reads that variable; reasoning goes through the chat deployment (foundry_iq.py:667).",
+      "change": "Either route reason() to the reasoning deployment, or drop the deployment and its quota requirement from the template and docs.",
+      "verify": "rg AZURE_OPENAI_REASONING_DEPLOYMENT src returns a reader, or the deployment is gone from main.bicep and QuotaCheck.md."
+    }
+  ]
+}

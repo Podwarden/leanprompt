@@ -68,9 +68,9 @@ describe("the page: notes, frequency-unknown, planned", () => {
     expect(sec).toContain("The meter matches the bill.");
     expect(html.indexOf("Other problems the audit found")).toBeGreaterThan(html.indexOf("What&#39;s wrong and what to change"));
     expect(html.indexOf("Other problems the audit found")).toBeLessThan(html.indexOf("Fix it with your coding agent"));
-    expect(html).toMatch(/Plus 1 other problem the audit found outside the rules/);
+    expect(html).toMatch(/Plus 1 other problem the audit found, listed after the findings/);
     const block = handoffText([f()], rules, { notes: [note] });
-    expect(block).toContain("Other problems found outside the rules (check each against the code first; not scored):\n- The spend cap ignores cache tokens (lib/usage.ts:31): It adds input_tokens and output_tokens only. Change: Add the two cache fields.");
+    expect(block).toContain("Other problems found (check each against the code first; not scored):\n- The spend cap ignores cache tokens (lib/usage.ts:31): It adds input_tokens and output_tokens only. Change: Add the two cache fields.");
     expect(render([f()])).not.toContain("Other problems the audit found");
   });
 

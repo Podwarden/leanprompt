@@ -64,7 +64,7 @@ Seven skills, each a folder with a `SKILL.md`; the rule skills have one file per
 - [`leanprompt`](skills/leanprompt/SKILL.md): the entry point; routes each command to the skill below that does the work.
 - [`llm-call-audit`](skills/llm-call-audit/SKILL.md): finds every LLM call, checks it against the rules, ranks the findings and writes the report.
 - [`prefill-cache`](skills/prefill-cache/SKILL.md): prompts the provider's prefix cache can reuse (LP-PC-01 to LP-PC-12).
-- [`generation-economy`](skills/generation-economy/SKILL.md): samples, budgets, timeouts, retries and batching that do not waste calls or output (LP-GE-01 to LP-GE-10).
+- [`generation-economy`](skills/generation-economy/SKILL.md): samples, budgets, timeouts, retries and batching that do not waste calls or output (LP-GE-01 to LP-GE-10), and a correctness rule for apps that meter their own spend (LP-GE-11).
 - [`prompt-diet`](skills/prompt-diet/SKILL.md): dead weight in what each call sends, every trim with an answer check (LP-PD-01 to LP-PD-06).
 - [`measure-loop`](skills/measure-loop/SKILL.md): measure, change one thing, measure again; the usage logger, the stable-head CI test, the score.
 - [`lmwarden`](skills/lmwarden/SKILL.md): self-hosted engines (vLLM, SGLang, LM Warden): engine settings, replica routing, cache isolation (LP-LW-01 to LP-LW-03).

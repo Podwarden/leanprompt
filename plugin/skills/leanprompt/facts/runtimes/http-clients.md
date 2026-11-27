@@ -28,4 +28,4 @@ A serverless platform ends a function that runs past its time limit, however its
 | Vercel Functions | `maxDuration`: a named export in a Next.js App Router route file (`export const maxDuration = 60`), or the `functions` object in `vercel.json` (`{"functions": {"api/*.js": {"maxDuration": 15}}}`); the page also documents a team-wide default and longer limits on some plans | The maximum time the function can run, in seconds | https://vercel.com/docs/functions/configuring-functions/duration |
 
 Other platforms (AWS Lambda, Cloudflare Workers, Netlify Functions) have their own limits; they were not read for this table (checked 2026-11-26), so look the limit up in the platform's documentation.
-<!-- leanprompt:generated v0.1.0-dev.13: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.14: written by leanprompt install; leanprompt update replaces local edits -->

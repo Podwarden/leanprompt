@@ -1,0 +1,25 @@
+# Audited with leanprompt 0.1.0-dev.13, unattended, on a shallow clone; findings converted to the
+# 0.1.0-dev.14 format and re-scored with 0.1.0-dev.14. Static score 99 with both versions. What
+# changed: the batch API finding, which recommends no change, costs no tokens and is no longer
+# counted as a place; the English fallback in failed translations is recorded as declined by the
+# project (by design, CLAUDE.md line 63) and shown only with that link.
+# Left out on purpose: tagging people in cross-referenced upstream issues, which issue #203 had
+# already fixed before the audit (published issue bodies carry no github.com links); `known` has no
+# kind for work already done, so it is not listed. The commit is the one audited.
+repo: https://github.com/duanyytop/agents-radar
+visibility: public
+commit: 7c5355e1bbea9c99ba251b2874ed8106329a4432
+leanprompt: 0.1.0-dev.14
+date: 2026-11-27
+status: notified
+summary: >-
+  A nightly digest pipeline on Alibaba Model Studio that is already lean: English first then translation, skipped quiet repositories, a retry policy and a health gate written up with dated incidents. The main item is not tokens: the highlights for three reports are written from a 2,000-character head that leaves most projects out. Figures are estimates from the code.
+maintainer:
+  issue: https://github.com/duanyytop/agents-radar/issues/4506
+headline: "66 of 558 highlights name a project whose text the AI never saw"
+subtitle: >-
+  A nightly AI-news digest that is already lean: English first then translation, quiet repositories skipped, a health gate.
+kind: Wrong text summarised
+figure:
+  count: "66 of 558"
+  label: "highlights checked over one month of Telegram and Feishu digests"

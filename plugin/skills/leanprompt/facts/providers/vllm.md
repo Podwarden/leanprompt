@@ -50,4 +50,4 @@ Used by the `generation-economy` rules.
 - Default block size and eviction policy: not stated in the docs (checked 2026-11-26).
 - `cache_salt`: not mentioned on the page (checked 2026-11-26).
 - The docs call `--prefix-match-unit` both required and defaulted; the default above is the one the page gives for the unset case.
-<!-- leanprompt:generated v0.1.0-dev.13: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.14: written by leanprompt install; leanprompt update replaces local edits -->

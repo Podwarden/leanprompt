@@ -1,15 +1,28 @@
 # Audited with leanprompt 0.1.0-dev.11; findings converted to the 0.1.0-dev.13 format
-# (planned, notes) and re-scored with 0.1.0-dev.13. The commit is the one audited.
+# (planned, notes), then to the 0.1.0-dev.14 format, and re-scored with 0.1.0-dev.14.
+# The commit is the one audited.
+# Re-scored with 0.1.0-dev.14 (2026-11-27): the three findings planned in issue #6401 are now
+# recorded as `known` (kind planned, with the link) and, as 0.1.0-dev.14 counts them, left out
+# of the static score and the totals: static score 74 (0.1.0-dev.13) -> 90. The open total
+# falls from about 3.5M to about 1.1M tokens per 1,000 calls; the planned findings keep their
+# estimates on the page. The run was unattended, now recorded as such.
 # Left out on purpose: the unbounded re-ask on unparseable tool arguments (the maintainers
 # declined re-prompting in #6593 and #7102) and the cache-token metering fix (in their open
 # pull request #6747).
 repo: https://github.com/Mintplex-Labs/anything-llm
 visibility: public
 commit: b01447009150507ae0cfd1304e3492fcaf2a92d8
-leanprompt: 0.1.0-dev.13
+leanprompt: 0.1.0-dev.14
 date: 2026-11-26
 status: notified
 summary: >-
-  The three largest cache findings are already planned in the maintainers' issue #6401 and are marked so; the audit adds the sliding history window and the agent loop. Cache-token metering is in their open pull request #6747 and the tool-argument re-ask was declined in #7102, so neither is listed. Audited with leanprompt 0.1.0-dev.11, re-scored with 0.1.0-dev.13.
+  The three largest cache findings are already planned in the maintainers' issue #6401, so they are shown as already known and left out of the score; the audit adds the sliding history window and the agent loop. Metering is in their open pull request #6747 and the tool-argument re-ask was declined in #7102. Audited with 0.1.0-dev.11, re-scored with 0.1.0-dev.14.
 maintainer:
   issue: https://github.com/Mintplex-Labs/anything-llm/issues/6401#issuecomment-7208577332
+headline: "Changing documents come before the chat history, so the cache cannot reuse it"
+subtitle: >-
+  An all-in-one AI app with 40 chat providers, whose maintainers already describe the fix in their own issue.
+kind: Cache never hits
+figure:
+  finding: "server/utils/AiProviders/openAi/index.js:125"
+  label: "for chat history the cache could have served"

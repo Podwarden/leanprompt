@@ -10,3 +10,9 @@ summary: >-
   A gardening-advice demo on Claude with a tool loop. It already marks its tools and system prompt for Anthropic's cache; the audit found the tool loop's own messages unmarked, and, outside the rules, two gaps in the daily budget meter. Audited with leanprompt 0.1.0-dev.11, re-scored with 0.1.0-dev.13.
 maintainer:
   issue: https://github.com/wyattlindsey/rootwise/issues/1
+headline: "A daily spending cap that can be overshot by about a third"
+subtitle: >-
+  A gardening-advice demo on Claude that already marks its tools and system prompt for Anthropic's cache.
+kind: Blind spend meter
+figure:
+  label: "the largest finding: tool-loop messages sent without a cache mark"

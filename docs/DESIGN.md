@@ -637,3 +637,30 @@ From the feedback of four real audits, one of them run independently by an app's
 - Error-path findings in their own group on the page, so a rare but real bug is not lost at the bottom of a token ranking.
 - A way to say "the main LLM cost of this app runs in a client the audit cannot see" (an app driven by an external agent).
 - A possible prompt-diet direction, not planned: what is asked of the model. When code can do the obvious part of a task, the model needs to return only the rest (for example, code fills the fields it already knows and the model writes only the judgement). This changes what the model is asked, so it is outside "keep meaning" and would need its own answer checks; recorded here, not implemented.
+
+## Owner decisions (2026-11-27, 0.1.0-dev.14)
+
+From the feedback of seven real audits of public repositories (three of them the first real use of 0.1.0-dev.13) and one run by an app's own team.
+
+- **Prior art is a required step.** Before it writes the findings, the audit searches the project's open and closed issues and pull requests, its docs and its decision records for each candidate finding. `findings.json` gains `known: {kind, url, note}` with kind `planned`, `in-progress`, `reported` or `declined`. `planned` (the 0.1.0-dev.13 text field) stays valid and means `known` with kind `planned`, so older files still parse. Known findings keep their estimates but are not counted among the places, not in the totals and not in the static score; a declined finding is shown only as "Declined by the project" with its link, and is left out of the hand-off block and of any issue the audit drafts. The audit's own report upstream is not prior art: `known` is for what the project had before the audit.
+- **Score change (pre-1.0, as the 0.1.0-dev.13 decision allows).** Leaving known findings out raises the static score of a file that has them; `score.json` keeps the old figure (`known.with_known_score`). Findings linked by `overlaps` (by finding `id`) count once per group, the largest share on each side, and the page's totals take the largest token figure of each group, so an app is not charged twice for tokens one fix saves. Listed under "Score change" in the CHANGELOG and in `docs/score.md`.
+- **A metering rule after all, as a correctness rule.** This supersedes "a metering rule was considered and not added" in the 0.1.0-dev.13 decisions: the bug appeared in four audits, and the auditors needed the provider facts and the detection shapes in one place. LP-GE-11 (meter every billed token, cached and unfinished ones too) keeps the reasoning of that decision: a meter that undercounts wastes no tokens, so the rule has `saves: none`, a severity and no token share, and the audit records a match as a note that names the rule. A finding cannot use a `saves: none` rule, and the score never reads notes. This follows section 8 ("Not in the score: ... money"): the score measures billing outcomes, and a meter is a report of them.
+- **The headline counts what costs tokens.** A finding whose shares and tokens are all 0 stays on the page, marked as costing no tokens today, and is not counted as a place. When the largest open question is larger than the largest finding, the headline names it.
+- **Unattended runs say so.** `findings.json` takes `unattended: true`; the page and the Markdown report label the run, and the page shows the same "Questions for the owner" section as the Markdown report.
+- **Smaller additions.** `size-unknown` next to `frequency-unknown` (the code shows the problem and how often; only the tokens each time are assumed). A note can name the finding it is another face of (`finding`), a correctness rule with its severity, and `known`. Prices take a `currency` (ISO code), shown as given and never converted; models in different currencies are not added together. `npm_config_registry` is documented for projects whose `.npmrc` points at a private feed. "Auditing someone else's repository" lists the contribution-policy checks (rules on AI-generated contributions, a CLA, issue first, labels reserved for the core team) and asks for one complete post with a disclosure line and no follow-up offers.
+- **Provider tables** for Vercel AI Gateway, Alibaba Model Studio and Azure OpenAI, and the OpenAI Node SDK's defaults and the GPT-5.4 family's reasoning defaults in `providers/openai.md`, each fact from an official page with the date read.
+
+### Next (deferred from these audits)
+
+- A top-level `traffic:` (or `call_mix:`) assumption that findings can refer to, for apps that choose among many providers or models at run time, shown on the page as assumed.
+- `callers` or `also_at` on a finding, for one helper with many call sites, and one card for one decision found in two files.
+- Volume and prices the audit found itself (public run logs, the provider's page) recorded in `findings.json` as found by the audit and not confirmed by the owner, and a top-level `target` for unattended runs.
+- `status: "information"` for a finding that is recorded but not recommended (a batch API that does not fit the schedule), dropped from the hand-off list.
+- A rule or a note pattern for a fixed-length head slice of a structured document passed to a summariser, which cuts the context the call needs.
+- Using an app's committed or logged model outputs as evidence of how often a finding happens.
+- A `decision: {doc, quote}` on a finding for a documented project decision that is not a tracker item.
+- Ranking latency-only findings (a retry of a non-retryable error that costs minutes, not tokens) under a speed priority, or a time column.
+- The G input's label against the sum of output shares (G combines shares as a product, so it is below their sum), stated on the page.
+- "(estimate)" appended to an `estimate` text that already says it is not estimated.
+- A `known` kind, or another record, for work the project finished before the audit.
+- The items deferred from 0.1.0-dev.13 above remain.

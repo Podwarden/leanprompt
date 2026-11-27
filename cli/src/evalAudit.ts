@@ -3,7 +3,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { optionsFor } from "./help.js";
-import { loadRuleIds } from "./lint/rules.js";
+import { loadNoteRuleIds, loadRuleIds } from "./lint/rules.js";
 import { EXTERNAL, parseFindings, type Finding } from "./score/static.js";
 import { PACKAGE_ROOT } from "./score/write.js";
 
@@ -136,7 +136,7 @@ export async function evalAuditCommand(args: string[]): Promise<number> {
   } catch (e) {
     return fail(`${expectedPath}: ${(e as Error).message}`);
   }
-  const { findings, errors } = parseFindings(readFileSync(findingsPath, "utf8"), loadRuleIds(PACKAGE_ROOT));
+  const { findings, errors } = parseFindings(readFileSync(findingsPath, "utf8"), loadRuleIds(PACKAGE_ROOT), loadNoteRuleIds(PACKAGE_ROOT));
   if (errors.length > 0 && findings.length === 0) return fail(`invalid findings file: ${errors.join("; ")}`);
   for (const e of errors) process.stderr.write(`leanprompt: warning: ${e}\n`);
 

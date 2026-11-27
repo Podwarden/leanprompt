@@ -79,4 +79,4 @@ Run an answer check before keeping the change: a fixed set of synthetic inputs (
 
 ## Waste signal
 Measured: not counted directly in the score (separate questions are not identical calls); it shows as fewer calls and fewer prompt tokens per document in a before/after run (the `measure-loop` skill). Static: severity medium for a loop that sends the same long context with a different question each time and does not chain the answers.
-<!-- leanprompt:generated v0.1.0-dev.13: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.14: written by leanprompt install; leanprompt update replaces local edits -->

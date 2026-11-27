@@ -10,3 +10,10 @@ summary: >-
   A book translator that is already very cache-aware: session mode, Anthropic cache marks, cached-token metering, the batch APIs. A retry of a cut-off batch was fixed in pull request #590 (merged 2026-11-27); a question about stacked timeouts and an unchecked cut-off reply remain. Audited with leanprompt 0.1.0-dev.11, re-scored with 0.1.0-dev.13.
 maintainer:
   pr: https://github.com/yihong0618/bilingual_book_maker/pull/590
+headline: "A cut-off batch was paid for three times. Fixed the next day."
+subtitle: >-
+  A book translator that is already very cache-aware: session mode, Anthropic cache marks, cached-token metering.
+kind: Retry loop
+figure:
+  finding: "book_maker/translator/chatgptapi_translator.py:1811"
+  label: "for a cut-off batch sent twice more, before the fix"

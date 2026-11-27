@@ -20,6 +20,7 @@ const TITLES: Record<string, string> = {
   "LP-GE-08": "Route trivially small calls to a small model",
   "LP-GE-09": "Predicted outputs for mostly unchanged text",
   "LP-GE-10": "Structured output instead of parse-and-re-ask",
+  "LP-GE-11": "Meter every billed token, cached and unfinished ones too",
 };
 
 function ruleFiles(): string[] {
@@ -41,7 +42,7 @@ describe("generation-economy skill content", () => {
     expect(issues).toEqual([]);
   });
 
-  it("has exactly LP-GE-01..10 with the planned titles, one per file", () => {
+  it("has exactly LP-GE-01..11 with the planned titles, one per file", () => {
     const files = ruleFiles();
     expect(files).toEqual(Object.keys(TITLES).map((id) => `${id}.md`));
     const got = Object.fromEntries(
@@ -55,7 +56,7 @@ describe("generation-economy skill content", () => {
 
   it("every Verify section names a provider usage field and a leanprompt usage-record signal", () => {
     const files = ruleFiles();
-    expect(files.length).toBe(10);
+    expect(files.length).toBe(11);
     const provider = /output_tokens|completion_tokens|finish_reason|stop_reason|finishReason|candidatesTokenCount|cached_tokens/;
     const record = /flags\.retry_of|flags\.parse_failed|finish: "length"|`output_tokens`|`finish`/;
     for (const f of files) {

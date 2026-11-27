@@ -34,7 +34,7 @@ TS/JS:
 ```
 rg -n '@anthropic-ai/sdk|messages\.(create|stream)\(|cache_control|cacheControl' -g '*.{ts,tsx,js,mjs}'
 ```
-Shapes: `system: "..."` as a string; Vercel AI SDK calls to an Anthropic model with no `providerOptions: { anthropic: { cacheControl: ... } }` on any message; `fetch(".../v1/messages", ...)` bodies without `"cache_control"`.
+Shapes: `system: "..."` as a string; Vercel AI SDK calls to an Anthropic model with no `providerOptions: { anthropic: { cacheControl: ... } }` on any message; the reverse, marks keyed to one provider (`providerOptions.anthropic`) sent on calls whose model may be another explicit-cache provider (Alibaba's explicit-only Qwen models, MiniMax), which ignores them, so that traffic caches nothing (through Vercel AI Gateway, `providerOptions.gateway.caching: 'auto'` marks for each provider, [providers/vercel-ai-gateway.md](../../leanprompt/facts/providers/vercel-ai-gateway.md)); `fetch(".../v1/messages", ...)` bodies without `"cache_control"`.
 
 Go:
 ```
@@ -92,7 +92,7 @@ messages: [
 
 To choose a longer lifetime, add the `ttl` field documented in [providers/anthropic.md](../../leanprompt/facts/providers/anthropic.md), and only where the break-even rule favours it.
 
-If the app meters its own spend from the usage fields (a daily cap, a cost display), check the meter before adding marks. On Anthropic, `input_tokens` counts only the tokens after the last breakpoint; the total input is `cache_read_input_tokens + cache_creation_input_tokens + input_tokens` ([providers/anthropic.md](../../leanprompt/facts/providers/anthropic.md)). Marks move tokens out of `input_tokens` into the two cache fields, so a meter that reads `input_tokens` and `output_tokens` alone undercounts more after the fix. Count all three input fields, each at its own price; a meter that is already wrong is worth reporting as a note (outside the rules) in the audit.
+If the app meters its own spend from the usage fields (a daily cap, a cost display), check the meter before adding marks. On Anthropic, `input_tokens` counts only the tokens after the last breakpoint; the total input is `cache_read_input_tokens + cache_creation_input_tokens + input_tokens` ([providers/anthropic.md](../../leanprompt/facts/providers/anthropic.md)). Marks move tokens out of `input_tokens` into the two cache fields, so a meter that reads `input_tokens` and `output_tokens` alone undercounts more after the fix. Count all three input fields, each at its own price; a meter that is already wrong is worth reporting as a note under [LP-GE-11](../../generation-economy/rules/LP-GE-11.md) in the audit.
 
 The estimate for a mark finding: the tokens the cache could serve are `uncached`, and the tokens the fix newly writes to the cache (each write of the marked prefix, including the last turn of a conversation, which is never read back) are `cache_write`. The page prices the write premium and subtracts it, so the money it shows is the net saving.
 
@@ -108,4 +108,4 @@ A mark does not change the text the model sees, so adding marks cannot change an
 
 ## Waste signal
 Measured: lowers E (provider-cached tokens over reusable tokens). kvsig says the prefix was equal, the provider reports no read. Missing marks count against the app: leanprompt scores what the provider could have reused, and a mark is the app's to add. Static: a finding of severity high on each Anthropic call site, direct or routed, that sends no marks. Medium for partial marking (the head is marked, the messages of a loop are not). Over-marking is reported with the break-even advice (mark, don't mark, longer lifetime, restructure).
-<!-- leanprompt:generated v0.1.0-dev.13: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.14: written by leanprompt install; leanprompt update replaces local edits -->

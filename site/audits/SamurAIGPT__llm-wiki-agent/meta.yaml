@@ -1,0 +1,28 @@
+# Audited with leanprompt 0.1.0-dev.13, scored with 0.1.0-dev.14: unattended, on a clone of main;
+# findings converted to the 0.1.0-dev.14 format (static score 53 with 0.1.0-dev.13, 60 now). The
+# project's main mode is a coding agent following CLAUDE.md, which makes no calls of its own; this
+# audit covers the secondary path, the Python scripts in tools/ and the nightly job in
+# docs/automated-sync.md. What changed: the nightly re-ingest and the refresh hash mismatch overlap
+# (fixing refresh and having the job call it covers both), so they count once; the graph prompt
+# order needs facts (which provider the build runs on); the heal and lint name mismatch is the first
+# note, linked to its finding. Prior art checked and matching no finding: RFC #23 (wiki dedup and
+# compaction), #12/#13 (graph cache, fixed), #41/#42 (litellm pin), #54/#56 (heal path traversal,
+# fixed; the underscore join came in with #56). No response from the maintainers yet (checked
+# 2026-11-27). The commit is the one audited.
+repo: https://github.com/SamurAIGPT/llm-wiki-agent
+visibility: public
+commit: 86ab47d7cfe3b41e604df6bf19afbd9a911b9068
+leanprompt: 0.1.0-dev.14
+date: 2026-11-27
+status: notified
+summary: >-
+  A wiki builder whose main mode is a coding agent following CLAUDE.md; this audit covers its secondary path, the standalone Python scripts, which share one small LLM helper. A healed entity with a space in its name is never found again, so heal.py writes it on every run. Figures are estimates from the code.
+maintainer:
+  issue: https://github.com/SamurAIGPT/llm-wiki-agent/issues/87
+headline: "Pays to write the same wiki pages again every night"
+subtitle: >-
+  A wiki builder used mainly as a coding agent; its optional Python scripts share one small, tidy LLM helper.
+kind: Runs again every night
+figure:
+  finding: "nightly-reingest"
+  label: "if the documented nightly job ingests files that did not change"

@@ -9,3 +9,9 @@ date: 2026-11-26
 status: demo
 path: examples/dated-chat/before
 summary: A demonstration on leanprompt's own example app. The before form starts its system prompt with the current time, so no call can reuse the handbook that follows it.
+headline: "A timestamp at the top of the prompt means no call can reuse the cache"
+subtitle: >-
+  leanprompt's own example chat app, which keeps its whole handbook in one system prompt.
+kind: Cache never hits
+figure:
+  label: "for a handbook the cache could have served"

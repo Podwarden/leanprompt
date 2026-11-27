@@ -70,4 +70,4 @@ Splitting keys does not change answers. Do not split a prefix that belongs to on
 
 ## Waste signal
 Measured: none directly; attribution by key is what lets the other rules' signals be read per app, and the usage log carries no key. Static: severity medium where one credential is read by several services or one client serves several tenants through a shared server; low for a single app with a single consumer. A shared cache is not waste, and it is only a finding where the tenants' prompts are confidential from each other. Keys and cache partitioning are the server's settings: in `<external>` the finding is for the server's administrator (`fix_by: "server"` by default) and is not in the app's score; give it `share: 0` when it costs no tokens.
-<!-- leanprompt:generated v0.1.0-dev.13: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.14: written by npx leanprompt install; npx leanprompt update replaces local edits -->

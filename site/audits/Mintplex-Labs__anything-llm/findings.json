@@ -21,7 +21,11 @@
       "estimate": "about 1.2M prompt tokens per 1,000 calls not served from cache (estimate)",
       "assumptions": "1,000 app calls = 700 chat turns, 250 agent calls, 50 other; 85% of chat on providers with automatic prefix reuse; 60% of chat in workspaces with documents or memories; 85% of turns are not the first of a thread; average history 4,000 tokens; average prompt 6,900 tokens.",
       "verify": "With the reorder applied, the second of two turns in the same thread a minute apart reports cached tokens (prompt_tokens_details.cached_tokens or input_tokens_details.cached_tokens) close to the history size instead of 0. Answer check required: the context moves away from the instructions.",
-      "planned": "Issue #6401 (open, core team): keep the system message static and move retrieved context, memories and the time into the newest user turn. https://github.com/Mintplex-Labs/anything-llm/issues/6401"
+      "known": {
+        "kind": "planned",
+        "url": "https://github.com/Mintplex-Labs/anything-llm/issues/6401",
+        "note": "Issue #6401 (open, core team): keep the system message static and move retrieved context, memories and the time into the newest user turn."
+      }
     },
     {
       "rule": "LP-PC-03",
@@ -39,7 +43,11 @@
       "estimate": "about 0.8M prompt tokens per 1,000 calls not served from cache (estimate)",
       "assumptions": "Same call mix as the first finding; counts only the 40% of chat in workspaces without documents or memories, so it does not overlap the first finding; default prompt in use.",
       "verify": "Build the system prompt twice across a minute boundary: the bytes must be equal. Then two turns a minute apart show cached tokens near the history size.",
-      "planned": "Reported in #6398, which the maintainers closed into #6401 (open, core team); #6401 drops the datetime from the default system prompt. https://github.com/Mintplex-Labs/anything-llm/issues/6401"
+      "known": {
+        "kind": "planned",
+        "url": "https://github.com/Mintplex-Labs/anything-llm/issues/6401",
+        "note": "Reported in #6398, which the maintainers closed into #6401 (open, core team); #6401 drops the datetime from the default system prompt."
+      }
     },
     {
       "rule": "LP-PD-05",
@@ -74,7 +82,11 @@
       "estimate": "about 0.36M prompt tokens per 1,000 calls not served from cache (estimate)",
       "assumptions": "15% of chat traffic on Anthropic (unknown, assumed); 85% non-first turns; history 4,000 tokens. Caching is off by default ('No caching'), a deliberate opt-in from #6035.",
       "verify": "Two turns a minute apart: cache_read_input_tokens on the second rises from 0 to about the history size, and cache_creation_input_tokens drops to the new turn only.",
-      "planned": "Point 4 of issue #6401 (open, core team): a second cache mark on the last history message. https://github.com/Mintplex-Labs/anything-llm/issues/6401"
+      "known": {
+        "kind": "planned",
+        "url": "https://github.com/Mintplex-Labs/anything-llm/issues/6401",
+        "note": "Point 4 of issue #6401 (open, core team): a second cache mark on the last history message."
+      }
     },
     {
       "rule": "LP-PC-01",
@@ -145,5 +157,6 @@
       "change": "Surface stop_reason max_tokens to the user, as the agent path does, and mark a reply that ended in a provider error so it is not reused as a complete answer.",
       "verify": "With a small output limit, the saved chat shows that the reply was cut off."
     }
-  ]
+  ],
+  "unattended": true
 }

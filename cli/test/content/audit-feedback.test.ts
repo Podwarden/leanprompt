@@ -105,8 +105,9 @@ describe("the audit skill", () => {
     const s = section(PRESENTING, "Auditing someone else's repository");
     expect(s).toMatch(/--scope=global/);
     expect(s).toMatch(/\.git\/info\/exclude/);
-    expect(s).toMatch(/policy on AI-generated/);
-    expect(s).toMatch(/one verified finding at a time/);
+    expect(s).toMatch(/contribution policy/);
+    expect(s).toMatch(/AI-generated contributions/);
+    expect(s).toMatch(/One complete post/);
   });
 
   it("presenting.md lists every key leanprompt.yaml accepts", () => {

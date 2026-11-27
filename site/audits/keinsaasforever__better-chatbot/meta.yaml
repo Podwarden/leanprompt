@@ -1,0 +1,23 @@
+# Audited with leanprompt 0.1.0-dev.13, unattended, on a shallow clone; findings converted to
+# the 0.1.0-dev.14 format and re-scored with 0.1.0-dev.14 (static score 68 with 0.1.0-dev.13, 69 now).
+# What changed: the agent-loop cache finding overlaps the gateway caching question, since one
+# option fixes both, so the score and the totals count the larger once; the temporary-chat clock
+# finding is recorded as already reported in pull request #371 (open since 2026-02-21, superseded
+# by the team's 2.0 work for the main route) and left out of the score; the project-brain clock
+# finding costs no tokens today and is no longer counted as a place. The commit is the one audited.
+repo: https://github.com/keinsaasforever/better-chatbot
+visibility: public
+commit: 6f4183566bc48616303cb84055f11f79578c82fe
+leanprompt: 0.1.0-dev.14
+date: 2026-11-27
+status: notified
+summary: >-
+  A chat app whose 2.0 code already takes caching seriously: Anthropic cache marks, a stable system prompt with the clock moved out, slimmed history, cost-weighted metering. The open question is the default model, an Alibaba model on Vercel AI Gateway that caches only at explicit marks the app does not send it. Figures are estimates from the code.
+maintainer:
+  issue: https://github.com/keinsaasforever/better-chatbot/issues/435
+headline: "The default model probably never uses its prompt cache"
+subtitle: >-
+  A chat app whose 2.0 code already takes caching seriously, with Anthropic cache marks and a stable system prompt.
+kind: Cache never hits
+figure:
+  label: "for default-model chats, if the gateway does not cache them"

@@ -7,11 +7,13 @@ The plain-English lines come from each finding's fields in `.leanprompt/findings
 ````markdown
 # leanprompt report: <project name>
 
-<date> · leanprompt <version> · target: <provider or engine, model family> · priority: <cost | speed | quality | weights>
+<date> · leanprompt <version> · target: <provider or engine, model family> · priority: <cost | speed | quality | weights><" · unattended run" when findings.json has "unattended": true>
 
-**<n> places where this app pays for tokens it doesn't need.** The biggest: <rule title, plain> at <file>:<line>, about <tokens> tokens per 1,000 calls. Together about <total tokens> tokens per 1,000 calls (<"estimate from the code, not a measurement" | "measured over N calls">).<If there are open questions:> Plus <n> open questions to confirm; if they hold, add about <tokens>.<If there are server questions:> Plus <n> questions for the server's administrator, not in this app's score.<If there are notes:> Plus <n> other problems outside the rules, not scored.
+<Unattended only:> **Unattended audit: nobody was asked during the run, so priority, volume and prices were left open; the questions for the owner are listed at the end.**
 
-`<n>` counts the app's confirmed findings only (including those marked "how often is assumed"), the same as the page: not the open questions, the questions for the server's administrator or the notes.
+**<n> places where this app pays for tokens it doesn't need.** The biggest: <rule title, plain> at <file>:<line>, about <tokens> tokens per 1,000 calls.<If the largest open question is larger:> The largest item is an open question, at <where>, about <tokens> tokens per 1,000 calls if it holds: <its problem, plain>. Together about <total tokens> tokens per 1,000 calls (<"estimate from the code, not a measurement" | "measured over N calls">).<If there are open questions:> Plus <n> open questions to confirm; if they hold, add about <tokens>.<If there are server questions:> Plus <n> questions for the server's administrator, not in this app's score.<If some findings cost no tokens:> Plus <n> findings that cost no tokens today.<If some are already known:> Plus <n> findings the project already knows about, not in the totals or the score.<If there are notes:> Plus <n> other problems, not scored.
+
+`<n>` counts the app's confirmed findings that cost tokens (including those marked "how often is assumed" or "size is assumed"), the same as the page: not a finding whose shares and tokens are all 0, the open questions, the questions for the server's administrator, the findings the project already knows about, or the notes. Findings linked by `overlaps` count once in the totals, the largest of each group.
 
 ## What this costs you
 
@@ -39,7 +41,8 @@ Largest first, by estimated tokens lost per 1,000 calls. Findings that change pr
 - **Assumes:** <`assumptions`: call mix, tokens per call, how often this path runs>
 - **Share:** <0.000> of <prompt | output> tokens = <tokens lost per 1,000 calls> ÷ <that side's tokens for the same 1,000 calls>. <For a `both` finding with two shares: "<0.000> of prompt tokens and <0.000> of output tokens">. <Or: "severity default share: no estimate possible, because <reason>">
 - **How often:** <only for `frequency-unknown`: "the code shows the problem; how often it happens is assumed. To measure it: <confirm>">
-- **Already planned:** <only with `planned`: the issue or plan it belongs to>
+- **How big:** <only for `size-unknown`: "the code shows the problem and how often it happens; how many tokens it costs each time is assumed. To measure it: <confirm>">
+- **Overlaps:** <only with `overlaps`: "finding <n> loses some of the same tokens; the totals count the larger once">
 - **Don't break meaning:** <the rule's check for this fix, or "caching only: answers cannot change">
 - **How to check the fix:** <`verify`: the usage field that must change and the kvsig id that must stay equal>; proved with `measure-loop`
 - **Rule:** [<rule id> <rule title>](<link to the rule file>)
@@ -69,6 +72,19 @@ Findings whose fix is a setting of the server or engine the app calls (`fix_by: 
 - **Change, if confirmed:** <`change`>
 - **Rule:** [<rule id> <rule title>](<link to the rule file>)
 - **Status:** question for the server's administrator
+
+## Already known to the project
+
+Findings the prior-art step matched to the project's own issues, pull requests or docs (`known`). They are not in the totals or the score. Leave this heading out when there are none.
+
+#### <n>. <problem, in a few words> · <file>:<line>
+
+- **<Already planned | In progress | Already reported>:** <`known.note`> <`known.url`>
+- <the other lines as for a finding>
+
+### Declined by the project
+
+<n>. <problem, in a few words> · <file>:<line> · <`known.url`>
 
 ## Other problems the audit found
 

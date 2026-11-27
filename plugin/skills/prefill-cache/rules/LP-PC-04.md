@@ -78,4 +78,4 @@ Some models favour tools listed earlier. If the existing order was deliberate (t
 
 ## Waste signal
 Measured: order that varies per process or per conversation shows as several `tools` ids for one tool set and a short shared prefix on first requests; order that varies per call inside a conversation lowers S. Static: severity high for a tool list built by iterating a map, set or registry without a fixed order, medium for unsorted JSON serialisation of content that goes back into the prompt.
-<!-- leanprompt:generated v0.1.0-dev.13: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.14: written by leanprompt install; leanprompt update replaces local edits -->

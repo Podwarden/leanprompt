@@ -27,4 +27,4 @@ A user may skip volume and prices: the report then shows tokens only.
 Show the exact lines that would be written, then ask whether to write them. Answering a question is not consent to writing the file. On a yes, write the file and say which keys were added. On a no, keep the answers for this session only.
 
 Then suggest `/leanprompt audit`.
-<!-- leanprompt:generated v0.1.0-dev.13: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.14: written by leanprompt install; leanprompt update replaces local edits -->

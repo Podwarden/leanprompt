@@ -28,6 +28,7 @@ Status: documented, and the 1,024 minimum and 128-token steps measured in E2 (95
 | Render order (system vs tools) | Observed 2026-11-21 in the replay test (internal report, not public): when only the tool list changed, the system-prompt part stayed cached, consistent with system rendered before tools. Not stated in OpenAI's docs (checked 2026-11-26) | observed 2026-11-21 (internal report) |
 | What must match | The entire rendered prefix up to a breakpoint, including relevant request settings | docs |
 | Usage fields | `usage.input_tokens_details.cached_tokens` (Responses); `prompt_tokens_details.cached_tokens` (Chat Completions, as seen through OpenRouter) | docs; OpenRouter docs |
+| Total input | Cached tokens are part of the input count, not added to it. Chat Completions: `prompt_tokens` is the "Number of tokens in the prompt" and `prompt_tokens_details.cached_tokens` the "Cached tokens present in the prompt"; `prompt_tokens_details.cache_write_tokens` is "The unadjusted number of prompt tokens written to cache". Responses: the caching guide's example gives ordinary input as `input_tokens - cached_tokens - cache_write_tokens` and says "Do not add `cache_write_tokens` again after counting its two components". So a meter adds nothing to `prompt_tokens`; it prices the cached and written parts at their own rates (read 2026-11-26) | https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create, https://developers.openai.com/api/docs/guides/prompt-caching |
 
 ## Explicit breakpoints (GPT-5.6 and later only)
 
@@ -56,8 +57,18 @@ Used by the `generation-economy` rules. Prices are relative; the price card is o
 | Structured outputs | Responses `text.format: {type: "json_schema", strict: true, schema}`; Chat Completions `response_format` with `json_schema`. "Only Structured Outputs ensure schema adherence" (JSON mode only ensures valid JSON). Refusals come back in a `refusal` field. The first request with a new schema has extra latency | https://developers.openai.com/api/docs/guides/structured-outputs (first 100,000 of 152,792 characters read) |
 | Truncation as an exception | Python SDK structured helpers (`client.chat.completions.parse()`, `.stream()`): "If the completion completes with `finish_reason` set to `length` or `content_filter`, the `LengthFinishReasonError` / `ContentFilterFinishReasonError` errors will be raised." Both are `OpenAIError` subclasses, not HTTP status errors, so a filter written for status codes does not see them | https://github.com/openai/openai-python/blob/main/helpers.md, https://github.com/openai/openai-python/blob/main/src/openai/_exceptions.py |
 | SDK timeout and retries | Python SDK: default timeout 10 minutes; connection errors, 408, 409, 429 and 5xx retried 2 times with short exponential backoff; timed-out requests are retried twice by default | https://github.com/openai/openai-python/blob/main/README.md |
+| SDK timeout and retries, Node | Node SDK (`openai` on npm): "Certain errors will be automatically retried 2 times by default, with a short exponential backoff": connection errors, 408, 409, 429 and 500 and above. `maxRetries` on the client or per request (default 2, `0` disables). Default timeout 10 minutes, set with `timeout` in milliseconds; a timeout throws `APIConnectionTimeoutError`, and "requests which time out will be retried twice by default" (read 2026-11-26). So one call with the defaults can be sent three times, and an app-level retry around it multiplies that | https://github.com/openai/openai-node/blob/master/README.md |
 | Errors | 401 invalid authentication and 403 unsupported region: fix, not retry. 500: retry after a brief wait. 429 rate limit and 503 overloaded: retry, following `Retry-After`. 429 for exhausted credit, spend or usage limits: do not retry | https://developers.openai.com/api/docs/guides/error-codes |
 | Client disconnect | Whether closing the connection stops generation and billing on a direct OpenAI call: not stated on the pages above. Through OpenRouter, OpenAI is listed among providers whose streams stop on abort (`providers/openrouter.md`) | not stated (checked 2026-11-26) |
+
+## GPT-5.4 family (model pages, read 2026-11-26)
+
+| Model | Reasoning effort | Default effort | Context, max output | Price per 1M tokens (input, cached input, output) | Source |
+|---|---|---|---|---|---|
+| `gpt-5.4` | `none`, `low`, `medium`, `high`, `xhigh` | `none` ("Reasoning.effort supports: none (default), low, medium, high and xhigh") | 1,050,000 context, 128,000 output | $2.50, $0.25, $15 | https://developers.openai.com/api/docs/models/gpt-5.4 |
+| `gpt-5.4-mini` | `none`, `low`, `medium`, `high`, `xhigh` | `none` | 400,000 context, 128,000 output | $0.75, $0.075, $4.50 | https://developers.openai.com/api/docs/models/gpt-5.4-mini |
+
+A request that sends no effort to these models does no reasoning; an app that hard-codes an effort above `none` opts into reasoning tokens on every call, billed as output. For the same models on Azure, see [azure-openai.md](azure-openai.md).
 
 ## Prompt size facts (docs, checked 2026-11-26)
 
@@ -71,4 +82,4 @@ Used by the `prompt-diet` rules.
 
 ## Not stated in the docs
 
-- Cached-token price multiplier for the current model list: not stated on the caching page (checked 2026-11-26).
+- Cached-token price multiplier for the current model list: the caching guide says reads cost "0.1× the ordinary input rate on most of these models" (0.05x on GPT-6.2 Astra, GPT-6.2 Sol, GPT-6.1 Sol and GPT-6.1 Terra) and writes 1.25x for the 30-minute lifetime, 2.5x for 12 hours (read 2026-11-26). The GPT-5.4 model pages list cached input at a tenth of input (above). Other models: read the model's own page.

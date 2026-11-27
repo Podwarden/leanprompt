@@ -70,4 +70,4 @@ Pinning a route removes automatic fallbacks: keep error handling that moves the 
 
 ## Waste signal
 Measured: lowers E. kvsig says the prefix was seen before, the provider reports no read because the earlier request went to another model, route or key. Static: severity medium for a per-request model choice, per-request cache key or unpinned router on long sessions.
-<!-- leanprompt:generated v0.1.0-dev.13: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.14: written by npx leanprompt install; npx leanprompt update replaces local edits -->

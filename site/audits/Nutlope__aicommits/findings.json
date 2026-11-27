@@ -1,0 +1,175 @@
+{
+  "v": 1,
+  "unattended": true,
+  "average_call": {
+    "prompt_tokens": 4000,
+    "output_tokens": 300
+  },
+  "findings": [
+    {
+      "rule": "LP-GE-04",
+      "file": "src/feature/providers/base.ts",
+      "line": 238,
+      "saves": "both",
+      "severity": "high",
+      "share_prefill": 0.028,
+      "share_output": 0.008,
+      "status": "frequency-unknown",
+      "confirm": "how many runs on OpenAI, Anthropic, Groq, xAI, OpenRouter or a remote custom endpoint end with 'Commit generation timed out after 10000ms' after one or more model calls were already sent",
+      "tokens_per_1k": {
+        "prompt": 112500,
+        "output": 2250
+      },
+      "problem": "Hosted providers without their own default (OpenAI, Anthropic, Groq, xAI, OpenRouter, remote custom) get 10 seconds, and generate-commit-message.ts:146-169 uses that as one deadline for the whole generation, not per request. A diff over 30,000 characters on a non-agentic provider needs at least three sequential calls (chunks plus a combine) inside those 10 seconds. The README (line 405) still says the timeout is for network requests.",
+      "change": "Give hosted providers the same 60-second default Together AI already has (or scale the deadline with the number of planned calls), and update the README to say the timeout covers the whole generation.",
+      "why": "When the shared deadline fires, every chunk call already sent has been billed and the run ends with an error, so the user pays for the partial work and then runs it again with a higher timeout.",
+      "estimate": "about 112k prompt tokens per 1,000 calls sent on runs that then time out (estimate)",
+      "assumptions": "3% of calls belong to large-diff runs on a 10-second provider and half of those runs time out after two calls of about 7,500 prompt tokens each.",
+      "verify": "Stage a 90,000-character diff with provider groq or openrouter and no timeout set: before, the run fails with 'timed out after 10000ms' after two or three requests in the provider log; after, it completes.",
+      "id": "shared-deadline",
+      "known": {
+        "kind": "declined",
+        "url": "https://github.com/Nutlope/aicommits/pull/351",
+        "note": "By design: PR #351 set one shared wall-clock deadline per generation and provider-owned timeouts, raising only Together AI to 60 s after a 71 s chunked run; the tests assert 10 s for the other hosted providers."
+      }
+    },
+    {
+      "rule": "LP-GE-02",
+      "file": "src/commands/pr.ts",
+      "line": 179,
+      "saves": "both",
+      "severity": "medium",
+      "share_prefill": 0.019,
+      "share_output": 0,
+      "tokens_per_1k": {
+        "prompt": 76000
+      },
+      "problem": "aicommits pr sends the same branch diff (up to 30,000 characters) twice, once to ask for a title (pr.ts:179) and once for a body (pr.ts:189). The two calls start with different system prompts, so even an automatic prefix cache cannot reuse the diff on the second call.",
+      "change": "Ask for the title and the body in one call with a two-field structured output (the agent SDK path already uses JSON schemas, see agent-sdk.ts), or at least keep one identical system prompt and put the question after the diff.",
+      "why": "Each run prefills the diff twice at full price; the diff is about 7,500 tokens at the 30,000-character cap.",
+      "estimate": "about 76k prompt tokens per 1,000 calls (estimate)",
+      "assumptions": "pr runs are 2% of calls (10 runs, 20 calls per 1,000), each with a diff near the 30,000-character cap; the answer check (title under 72 characters, body with the three headings) must pass before keeping one call.",
+      "verify": "Run aicommits pr on a branch with a large diff: before, the provider log shows two requests each carrying the diff; after, one request with the diff once and both fields filled.",
+      "status": "frequency-unknown",
+      "confirm": "how many runs are aicommits pr (a beta command) rather than commit message runs"
+    },
+    {
+      "rule": "LP-GE-05",
+      "file": "src/feature/generate-commit-message.ts",
+      "line": 722,
+      "saves": "both",
+      "severity": "high",
+      "share_prefill": 0.02,
+      "share_output": 0.137,
+      "status": "frequency-unknown",
+      "confirm": "how often finishReason is 'length' on the one-shot call (Groq gpt-oss, OpenCode Go, custom reasoning models), from the provider logs or by logging result.finishReason",
+      "tokens_per_1k": {
+        "prompt": 80000,
+        "output": 41000
+      },
+      "problem": "The one-shot path retries up to three times when the answer is empty, ends in an ellipsis or lacks a body (generate-commit-message.ts:652-737), but never reads result.finishReason. An answer cut off at the 2,048-token limit, typically a reasoning model that spent the budget thinking, is sent again with the same limit twice more. The agentic path re-runs the whole agent once when nothing was submitted (lines 985-1001).",
+      "change": "After generateText, if result.finishReason is 'length', do not retry unchanged: retry once with a larger maxOutputTokens (or lower reasoning), or fail with a message that names the max-output-tokens setting.",
+      "why": "Each unchanged retry pays for the prompt again and usually stops at the same limit, so a cut-off run costs three full generations and still fails.",
+      "estimate": "about 41k output and 80k prompt tokens per 1,000 calls (estimate)",
+      "assumptions": "1% of one-shot calls end at the output limit, each retried twice with about 4,000 prompt tokens; the retry on an empty answer after a normal stop (tested at tests/specs/generate-commit-message.ts:912) is fine and stays.",
+      "verify": "With a mock model that returns finishReason 'length' and empty text, the one-shot path makes one call (or one call plus one with a larger limit) instead of three.",
+      "id": "cutoff-retry",
+      "known": {
+        "kind": "reported",
+        "url": "https://github.com/Nutlope/aicommits/pull/367",
+        "note": "PR #367 (merged) saw finish_reason length on Gemini 2.5 Flash and raised the limit from 512 to 2,048 tokens; PR #368 (landed on develop, adapted) made max-output-tokens configurable. Neither reads finishReason, so a cut-off answer is still retried unchanged."
+      }
+    },
+    {
+      "rule": "LP-GE-05",
+      "file": "src/commands/aicommits.ts",
+      "line": 183,
+      "saves": "both",
+      "severity": "medium",
+      "share_prefill": 0.005,
+      "share_output": 0.003,
+      "status": "frequency-unknown",
+      "confirm": "how many runs print 'Model ... failed. Retrying with ...' after a timeout, a login error or a plan-limit error",
+      "tokens_per_1k": {
+        "prompt": 20000,
+        "output": 900
+      },
+      "problem": "When a generation fails for any reason, the CLI re-runs the whole generation with the provider's fallback model (aicommits.ts:176-202; the Git hook does the same at prepare-commit-msg-hook.ts:90-97). That includes errors a new model cannot fix: 'Claude is not logged in', 'Claude plan limit reached' (claude-agent.ts:84-95) and the shared deadline timing out, where the second run redoes every chunk call with a larger model and a fresh deadline.",
+      "change": "Fall back to another model only for model errors (isModelUnavailableError, or the model producing no usable message); rethrow login, plan-limit and timeout errors directly.",
+      "why": "A re-run after a timeout pays for all the chunk calls again; a re-run after a login or plan error only delays the error.",
+      "estimate": "about 20k prompt tokens per 1,000 calls (estimate)",
+      "assumptions": "applies to Together AI, Claude Agent, Codex and OpenCode Go, which define fallbackModel; 0.5% of calls are part of a re-run after a timeout, about 4,000 prompt tokens each; login and plan errors cost no tokens.",
+      "verify": "With claude-agent logged out, aicommits prints the login error once and does not print 'Retrying with \"sonnet\"'.",
+      "id": "fallback-rerun"
+    },
+    {
+      "rule": "LP-GE-01",
+      "file": "src/commands/aicommits.ts",
+      "line": 147,
+      "saves": "prefill",
+      "severity": "low",
+      "share": 0.02,
+      "status": "frequency-unknown",
+      "confirm": "how many users set generate above 1",
+      "tokens_per_1k": {
+        "uncached": 80000
+      },
+      "problem": "With generate set to 2 to 5, the CLI starts that many complete, identical generations at the same moment (Promise.all at aicommits.ts:147-161), so none of them can read the prompt prefix the others are writing to the provider's cache.",
+      "change": "Start the first generation, and start the others once its first model request has returned, so the shared system prompt and diff are served from the automatic cache; the models used here have no usable n parameter.",
+      "why": "Each copy prefills the same instructions and diff at the uncached price.",
+      "estimate": "about 80k prompt tokens per 1,000 calls not served from cache (estimate)",
+      "assumptions": "2% of calls are extra copies from generate above 1 (default is 1, config-types.ts:101-110), about 4,000 prompt tokens each, on providers with automatic caching (OpenAI and most OpenAI-compatible hosts); trades a little latency for the saving.",
+      "verify": "With generate=3 on OpenAI, cached_tokens on the second and third first-step requests rises from 0 to about the prompt size."
+    },
+    {
+      "rule": "LP-PC-01",
+      "file": "src/feature/generate-commit-message.ts",
+      "line": 913,
+      "saves": "prefill",
+      "severity": "low",
+      "share": 0.004,
+      "tokens_per_1k": {
+        "uncached": 16500,
+        "cache_write": 16500
+      },
+      "problem": "The agentic loop on the Anthropic API sends no cache mark, so on a large diff the second step resends the tools, the instructions and the changed-file tree (about 3,300 tokens) uncached.",
+      "change": "Add an Anthropic cache mark on the first user message through providerOptions.anthropic.cacheControl when the provider is anthropic.",
+      "why": "Sonnet 5.5 caches prefixes from 512 tokens and the second step comes seconds after the first, so the mark pays back within one run.",
+      "estimate": "about 16k prompt tokens per 1,000 calls not served from cache (estimate)",
+      "assumptions": "Anthropic API is 5% of calls, half of them on Sonnet (the default claude-haiku-4-5 needs 4,096 tokens, more than this prefix), and 20% of those are the second step of a large-diff run.",
+      "verify": "On a large diff with claude-sonnet-5-5, the second step reports cache_read_input_tokens of about 3,300.",
+      "status": "frequency-unknown",
+      "confirm": "share of runs on the Anthropic API with a Sonnet model and a diff large enough for a second agent step"
+    }
+  ],
+  "notes": [
+    {
+      "title": "A cut-off answer is retried unchanged, and a cut-off body is committed as complete",
+      "file": "src/feature/generate-commit-message.ts",
+      "line": 725,
+      "finding": "cutoff-retry",
+      "problem": "runOneShot never reads result.finishReason. An answer that stopped at the 2,048-token limit is sent again with the same limit up to two more times when it is empty, and then fails with 'The model did not generate a commit message'. When it has a subject and part of a body, parseOneShotMessage accepts it, so a description cut off mid-sentence is committed as if whole.",
+      "change": "After generateText, treat finishReason 'length' as its own case: do not parse the partial text and do not retry with the same options; retry once with a larger maxOutputTokens, or fail with a message that names the max-output-tokens setting.",
+      "why": "A reasoning model that spent the budget thinking usually stops at the same place on every unchanged retry.",
+      "verify": "A MockLanguageModelV4 returning finishReason 'length' with empty text makes one call (or two with a larger limit) instead of three; one returning a subject, a partial body and finishReason 'length' is not returned as a commit message."
+    },
+    {
+      "title": "Claude Agent token usage leaves out cache reads and writes",
+      "rule": "LP-GE-11",
+      "severity": "low",
+      "file": "src/feature/subscriptions/claude-agent.ts",
+      "line": 105,
+      "problem": "The usage record copies result.usage.input_tokens only. On Anthropic that field counts only the tokens after the last cache breakpoint, so cache_read_input_tokens and cache_creation_input_tokens are dropped. Nothing displays usage today, but open PR #382 adds a token-usage line in interactive mode that reads this field.",
+      "change": "Add cache_read_input_tokens and cache_creation_input_tokens to inputTokens (or carry them in inputTokenDetails) before usage is shown.",
+      "verify": "For one Claude Agent run, the shown input total equals input_tokens plus both cache fields in the SDK result message."
+    },
+    {
+      "title": "The README says the timeout is per network request; it covers the whole generation",
+      "file": "README.md",
+      "line": 405,
+      "problem": "README.md says timeout is 'the timeout for network requests'. Since PR #351 it is one deadline for the whole generation (generate-commit-message.ts:146-169), shared by every chunk call and the combine call of a large diff, and the hosted providers other than Together AI keep 10 seconds for all of it.",
+      "change": "Say in the README that the timeout covers the whole generation, and suggest a larger value for large diffs on hosted providers.",
+      "verify": "The README's timeout section matches createGenerationBudget."
+    }
+  ]
+}

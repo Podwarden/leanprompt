@@ -38,4 +38,4 @@ Self-hosted engines take no cache markers; reuse is by token prefix. Through Ope
 
 - Served by vLLM, the thinking comes back in a separate `reasoning` field only when the server runs with a reasoning parser (`--reasoning-parser qwen3`); without one it arrives inside `content` as `<think>...</think>` before the answer. Check this before adding a JSON schema: see the structured-output rows in [providers/vllm.md](../providers/vllm.md) and LP-GE-10 (vLLM docs, checked 2026-11-26).
 - Other tool-calling and JSON quirks: not stated in the sources read for this table (checked 2026-11-26).
-<!-- leanprompt:generated v0.1.0-dev.13: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.14: written by leanprompt install; leanprompt update replaces local edits -->

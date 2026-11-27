@@ -1,0 +1,24 @@
+# Audited with leanprompt 0.1.0-dev.13, scored with 0.1.0-dev.14: unattended, on a clone of main;
+# findings converted to the 0.1.0-dev.14 format (static score 90 with 0.1.0-dev.13, 100 now). What
+# changed: both output-cap findings are recorded as reported upstream in issue #52, whose fix
+# retries an empty answer with a doubled cap, so they are left out of the score; the new item is
+# the note on answers cut off but not empty, which that fix does not cover. Issues #23 and #30
+# (making the model configurable, done) were checked and match no item here. No response from the
+# maintainers yet (checked 2026-11-27). The commit is the one audited.
+repo: https://github.com/wendy7756/AI-Video-Transcriber
+visibility: public
+commit: 7f1c6197766937adc98596a2641109477a1a8ee4
+leanprompt: 0.1.0-dev.14
+date: 2026-11-27
+status: notified
+summary: >-
+  A self-hosted transcriber that formats, translates and summarises videos through any OpenAI-compatible model, and already retries empty answers from reasoning models. An answer cut off at the output limit but not empty is still saved as if whole, with nothing logged. Figures are estimates from the code.
+maintainer:
+  issue: https://github.com/wendy7756/AI-Video-Transcriber/issues/58
+headline: "Cut-off translations are saved as if they were finished"
+subtitle: >-
+  A self-hosted video transcriber and translator that already retries empty answers from reasoning models.
+kind: Cut-off answer
+figure:
+  finding: "translation-caps"
+  label: "for translation chunks that do not fit a reasoning model's output limit"

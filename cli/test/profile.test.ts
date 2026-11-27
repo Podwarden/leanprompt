@@ -255,7 +255,7 @@ describe("parseProfile volume and prices (cost estimates)", () => {
       "{input: 1, source: x, checked: 2026-11-26}",
       "{input: -1, output: 2, source: x, checked: 2026-11-26}",
       "{input: 1, output: 2, source: x, checked: yesterday}",
-      "{input: 1, output: 2, source: x, checked: 2026-11-26, currency: EUR}",
+      "{input: 1, output: 2, source: x, checked: 2026-11-26, currency: euro}",
       "{input: 1, output: 2, cache_write: nope, source: x, checked: 2026-11-26}",
     ]) {
       expect(parseProfile(`prices:\n  m: ${p}\n`).errors.length, p).toBeGreaterThan(0);

@@ -49,6 +49,7 @@ Prefill rules first, then generation, then dead weight in the prompt, then self-
 | [LP-GE-08](../skills/generation-economy/rules/LP-GE-08.md) | Route trivially small calls to a small model | both |
 | [LP-GE-09](../skills/generation-economy/rules/LP-GE-09.md) | Predicted outputs for mostly unchanged text | generation |
 | [LP-GE-10](../skills/generation-economy/rules/LP-GE-10.md) | Structured output instead of parse-and-re-ask | generation |
+| [LP-GE-11](../skills/generation-economy/rules/LP-GE-11.md) | Meter every billed token, cached and unfinished ones too | none: a correctness rule, recorded as a note |
 | [LP-PD-01](../skills/prompt-diet/rules/LP-PD-01.md) | Offer each route only the tools it can use | prefill |
 | [LP-PD-02](../skills/prompt-diet/rules/LP-PD-02.md) | Say each instruction once | prefill |
 | [LP-PD-03](../skills/prompt-diet/rules/LP-PD-03.md) | Do not resend the same boilerplate on every turn | prefill |

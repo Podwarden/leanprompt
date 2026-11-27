@@ -187,6 +187,7 @@ describe("llm-call-audit report-template.md", () => {
       "What this costs you",
       "What's wrong and what to change",
       "Questions for the server's administrator",
+      "Already known to the project",
       "Other problems the audit found",
       "Fix it with your coding agent",
       "Score",

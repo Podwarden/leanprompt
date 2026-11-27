@@ -30,6 +30,23 @@ status: draft
 # path: src/llm
 # Optional: one or two neutral sentences for the audits list (at most 400 characters).
 # summary: ...
+# Required to publish: the top of the card and the page.
+# headline   the mistake in plain words, present tense, at most 80 characters. The mistake is the
+#            subject, never the people: no mocking words, no exclamation marks, no em dashes.
+# subtitle   one sentence: what the app is and something it already does well.
+# kind       one of: Cut-off answer, Retry loop, Cache never hits, Blind spend meter,
+#            Setting that does nothing, Runs again every night, Wrong text summarised
+# figure     the big number. Tokens per 1,000 calls of one finding (finding: its id or file:line;
+#            left out, the largest open finding), always shown as an estimate; or a count read
+#            from the project's own output (count: "66 of 558"), shown as counted. label says what
+#            the number measures; unit: runs when the findings count per run of a CLI or batch tool.
+# headline: "A timestamp at the top of the prompt means no call can reuse the cache"
+# subtitle: >-
+#   An example chat app that keeps its whole handbook in one system prompt.
+# kind: Cache never hits
+# figure:
+#   finding: src/agent/prompt.ts:12
+#   label: for a handbook the cache could have served
 # Optional: where the maintainers were told, and what they said.
 # maintainer:
 #   issue: https://github.com/<owner>/<repo>/issues/123

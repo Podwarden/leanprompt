@@ -3,7 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 import { loadRuleIds } from "../../cli/src/lint/rules.js";
-import { loadAudits, validateMeta } from "../src/audits.js";
+import { knownOf } from "../../cli/src/score/static.js";
+import { BADGES, KINDS, MOCKING, badgeOf, bigNumberOf, loadAudits, sortForIndex, validateMeta } from "../src/audits.js";
 import { CORRECTIONS_LINE, ESTIMATE_LABEL, buildSite, type Site } from "../src/build.js";
 import { BASE, LMWARDEN_PATHS, ORIGIN, siteHref, url } from "../src/paths.js";
 
@@ -127,7 +128,7 @@ describe("the site build", () => {
   });
 
   it("writes its own copy without em dashes or exclamation marks", () => {
-    for (const key of ["", "rules", "examples", "news", "audits", "audits/podwarden__leanprompt", "404"]) {
+    for (const key of ["", "rules", "examples", "news", "audits", ...site.pages.filter((p) => /^audits\/[^/]+$/.test(p.key)).map((p) => p.key), "404"]) {
       const f = site.pages.find((p) => p.key === key)!.file;
       const t = textOf(html.get(f)!);
       expect(t, key).not.toContain("—");
@@ -147,12 +148,78 @@ describe("the site build", () => {
   });
 });
 
+describe("the audits index", () => {
+  const audits = () => loadAudits(ROOT, loadRuleIds(ROOT));
+  const index = () => html.get("leanprompt/audits/index.html")!;
+
+  it("gives every published audit a headline, a subtitle, a kind from the list and a badge consistent with its links", () => {
+    for (const a of audits()) {
+      expect(a.meta.headline, a.slug).toBeTruthy();
+      expect(a.meta.headline!.length, a.slug).toBeLessThanOrEqual(80);
+      expect(a.meta.subtitle, a.slug).toBeTruthy();
+      expect(KINDS, a.slug).toContain(a.meta.kind);
+      const b = badgeOf(a);
+      expect(b, a.slug).toBeDefined();
+      if (b === "fixed") expect(a.meta.status, a.slug).toBe("fixed");
+      if (b === "demo") expect(a.meta.status, a.slug).toBe("demo");
+      if (b === "reported" || b === "fixed" || b === "planned") expect(a.meta.maintainer?.issue ?? a.meta.maintainer?.pr, a.slug).toBeTruthy();
+      expect(index(), a.slug).toContain(`badge badge-${b}">${BADGES[b!]}`);
+    }
+  });
+
+  it("never mocks: no mocking words, exclamation marks or em dashes in a headline or subtitle", () => {
+    for (const a of audits()) for (const t of [a.meta.headline!, a.meta.subtitle!]) {
+      expect(t, a.slug).not.toMatch(MOCKING);
+      expect(t, a.slug).not.toMatch(/[!\u2014]/);
+    }
+  });
+
+  it("labels every big number: an estimate for tokens, counted for a count", () => {
+    const h = index();
+    const bigs = [...h.matchAll(/<p class="big[^"]*">([\s\S]*?)<\/p>/g)].map((m) => m[1]!);
+    expect(bigs.length).toBe(audits().filter((a) => bigNumberOf(a)).length);
+    for (const b of bigs) {
+      if (b.includes("≈")) expect(b).toMatch(/tokens per 1,000 (calls|runs)[\s\S]*<span class="big-tag">estimate<\/span>$/);
+      else expect(b).toMatch(/<span class="big-tag">counted from their own output<\/span>$/);
+    }
+    for (const a of audits()) {
+      const page = html.get(`leanprompt/audits/${a.slug}/index.html`)!;
+      const b = /<p class="big big-page">([\s\S]*?)<\/p>/.exec(page)?.[1];
+      if (bigNumberOf(a)) expect(b, a.slug).toMatch(/<span class="big-tag">(estimate|counted from their own output)<\/span>$/);
+    }
+  });
+
+  it("lists fixed upstream first, then by the big number, the demonstration last", () => {
+    const order = [...index().matchAll(/<li class="audit-card">[\s\S]*?href="\/leanprompt\/audits\/([^/]+)\/"/g)].map((m) => m[1]);
+    const sorted = sortForIndex(audits());
+    expect(order).toEqual(sorted.map((a) => a.slug));
+    const rank = (b?: string) => (b === "fixed" ? 0 : b === "demo" ? 2 : 1);
+    for (let i = 1; i < sorted.length; i++) {
+      const [x, y] = [sorted[i - 1]!, sorted[i]!];
+      expect(rank(badgeOf(x)), `${x.slug} before ${y.slug}`).toBeLessThanOrEqual(rank(badgeOf(y)));
+      if (rank(badgeOf(x)) === rank(badgeOf(y))) {
+        const [bx, by] = [bigNumberOf(x), bigNumberOf(y)];
+        const v = (b: typeof bx) => (b?.kind === "tokens" ? b.value : -1);
+        expect(v(bx), `${x.slug} before ${y.slug}`).toBeGreaterThanOrEqual(v(by));
+      }
+    }
+  });
+
+  it("keeps the estimates line, the tell-the-maintainers line and the corrections line, under a summary strip", () => {
+    const t = textOf(index()).replace(/\s+/g, " ");
+    expect(t).toMatch(/\d+ open-source apps audited \d+ problems found \d+ fixed upstream \d+ reported to the maintainers/);
+    expect(t).toContain("The figures are estimates from reading the code, not measurements.");
+    expect(t).toContain("We tell the maintainers before an audit is published.");
+    expect(t).toContain(CORRECTIONS_LINE);
+  });
+});
+
 describe("audit pages", () => {
   const page = () => textOf(html.get("leanprompt/audits/podwarden__leanprompt/index.html")!).replace(/\s+/g, " ");
 
   it("are dated, name the commit and the version, and label every figure as an estimate", () => {
     const t = page();
-    expect(t).toContain("Where leanprompt could save tokens");
+    expect(t).toContain("A timestamp at the top of the prompt means no call can reuse the cache");
     expect(t).toContain("Audited 2026-11-26 with leanprompt 0.1.0-dev.12");
     expect(t).toContain("67e1586");
     expect(t).toContain(ESTIMATE_LABEL);
@@ -181,8 +248,15 @@ describe("audit pages", () => {
       expect(h, a.slug).toContain(`/blob/main/site/audits/${a.folder}/findings.json`);
       expect(existsSync(join(ROOT, "site", "audits", a.folder, "findings.json")), a.folder).toBe(true);
       for (const f of a.findings) if (f.file !== "<external>") expect(h, `${a.slug} ${f.file}`).toContain(`${a.meta.repo}/blob/${a.meta.commit}/${f.file}#L${f.line}`);
-      expect(t.split("Already planned.").length - 1, a.slug).toBe(a.findings.filter((f) => f.planned && !f.fixed).length);
-      expect(t.split("how often is assumed").length - 1, a.slug).toBe(a.findings.filter((f) => f.status === "frequency-unknown").length);
+      expect(t.split("Already planned.").length - 1, a.slug).toBe(a.findings.filter((f) => !f.fixed && knownOf(f)?.kind === "planned").length);
+      expect(t.split("Declined by the project").length - 1, a.slug).toBe(
+        (a.findings.some((f) => !f.fixed && knownOf(f)?.kind === "declined") ? 1 : 0) + (a.notes ?? []).filter((n) => n.known?.kind === "declined").length,
+      );
+      // A declined finding is listed only with its link, so its flags are not shown.
+      const shown = a.findings.filter((f) => knownOf(f)?.kind !== "declined");
+      expect(t.split("size is assumed").length - 1, a.slug).toBe(shown.filter((f) => f.status === "size-unknown").length);
+      if (a.unattended) expect(t, a.slug).toContain("Unattended audit");
+      expect(t.split("how often is assumed").length - 1, a.slug).toBe(shown.filter((f) => f.status === "frequency-unknown").length);
       if (a.findings.some((f) => f.fixed)) expect(t, a.slug).toContain("Already fixed");
       for (const n of a.notes ?? []) {
         expect(t, a.slug).toContain(n.title.replace(/['"&<>]/g, " "));
@@ -202,6 +276,11 @@ commit: ${"a".repeat(40)}
 leanprompt: 0.1.0
 date: 2026-12-01
 status: published
+headline: "A timestamp at the top of the prompt means no call can reuse the cache"
+subtitle: An example app that keeps its whole handbook in one system prompt.
+kind: Cache never hits
+figure:
+  label: for a handbook the cache could have served
 `;
 
   it("accept a complete meta.yaml", () => {
@@ -221,8 +300,33 @@ status: published
     ["a disputed audit with no response", good.replace("published", "disputed") + "maintainer:\n  issue: https://github.com/acme/widget/issues/1\n", /quote the maintainer's response/],
     ["notified with no link", good.replace("published", "notified"), /needs maintainer.issue/],
     ["an unknown key", good + "score: 12\n", /unknown keys score/],
+    ["no headline", good.replace(/^headline:.*\n/m, ""), /headline is required/],
+    ["a headline over 80 characters", good.replace(/^headline:.*$/m, `headline: ${"x".repeat(81)}`), /at most 80 characters/],
+    ["a mocking headline", good.replace(/^headline:.*$/m, "headline: A lazy retry loop"), /not mock it: remove "lazy"/],
+    ["an exclamation mark", good.replace(/^headline:.*$/m, "headline: The cache never hits!"), /plain statement/],
+    ["a wasted-as-fact subtitle", good.replace(/^subtitle:.*$/m, "subtitle: A chat app that wasted tokens."), /not mock it/],
+    ["no subtitle", good.replace(/^subtitle:.*\n/m, ""), /subtitle is required/],
+    ["an unknown kind", good.replace("kind: Cache never hits", "kind: Bad code"), /kind must be one of/],
+    ["no figure", good.replace(/^figure:\n.*\n/m, ""), /figure is required/],
+    ["a figure with finding and count", good.replace("figure:\n", "figure:\n  count: 3 of 9\n  finding: a.ts:1\n"), /finding or count, not both/],
+    ["a malformed count", good.replace("figure:\n", "figure:\n  count: many\n"), /figure.count must be/],
+    ["a figure unit other than calls or runs", good.replace("figure:\n", "figure:\n  unit: days\n"), /figure.unit must be calls or runs/],
   ])("refuse %s", (_name, text, re) => {
     expect(validateMeta(text, "acme__widget").errors.join("\n")).toMatch(re);
+  });
+
+  it("accept a draft without the headline fields", () => {
+    const draft = good.replace("published", "draft").replace(/^(headline|subtitle|kind):.*\n/gm, "").replace(/^figure:\n.*\n/m, "");
+    expect(validateMeta(draft, "acme__widget").errors).toEqual([]);
+  });
+
+  it("refuse a figure that names no finding", () => {
+    const root = mkdtempSync(join(tmpdir(), "lp-site-"));
+    const dir = join(root, "site", "audits", "acme__widget");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "meta.yaml"), good.replace("figure:\n", "figure:\n  finding: nope\n"));
+    writeFileSync(join(dir, "findings.json"), '{"v":1,"findings":[]}');
+    expect(() => loadAudits(root, loadRuleIds(ROOT))).toThrow(/figure.finding nope names no finding/);
   });
 
   it("refuse a folder that does not match the repository", () => {

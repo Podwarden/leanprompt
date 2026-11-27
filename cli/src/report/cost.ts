@@ -1,10 +1,33 @@
 import { profileTargets, type Price, type Profile } from "../profile.js";
-import { isOpenQuestion, isServerFinding, type AverageCall, type Finding } from "../score/static.js";
+import { isKnownFinding, isOpenQuestion, isServerFinding, overlapGroups, type AverageCall, type Finding } from "../score/static.js";
 
-/** Which part of the page a finding belongs to: the app's findings, its open questions, the server's administrator, or fixed. */
-export type Group = "open" | "question" | "server" | "fixed";
-export const groupOf = (f: Finding): Group => (f.fixed ? "fixed" : isServerFinding(f) ? "server" : isOpenQuestion(f) ? "question" : "open");
-const GROUP_ORDER: Record<Group, number> = { open: 0, question: 1, server: 2, fixed: 3 };
+/**
+ * Which part of the page a finding belongs to: the app's findings, its open questions, the server's administrator,
+ * the findings the project already knows about (planned, in progress, declined or reported), or fixed.
+ */
+export type Group = "open" | "question" | "server" | "known" | "fixed";
+export const groupOf = (f: Finding): Group =>
+  f.fixed ? "fixed" : isKnownFinding(f) ? "known" : isServerFinding(f) ? "server" : isOpenQuestion(f) ? "question" : "open";
+const GROUP_ORDER: Record<Group, number> = { open: 0, question: 1, server: 2, known: 3, fixed: 4 };
+
+/**
+ * A finding that costs no tokens: every share it gives is 0 and it has no token estimate above 0 (a prompt below the
+ * provider's minimum, a change not recommended). It stays on the page but is not counted as a place that wastes tokens.
+ */
+export function costsNothing(f: Finding): boolean {
+  const shares = [f.share, f.share_prefill, f.share_output].filter((v): v is number => v !== undefined);
+  if (shares.length === 0 || shares.some((v) => v > 0)) return false;
+  const t = f.tokens_per_1k;
+  return !t || (t.prompt ?? 0) + (t.uncached ?? 0) + (t.output ?? 0) === 0;
+}
+
+/**
+ * The sum of `value` over rows, counting each group of overlapping findings once: its largest value.
+ * Overlapping findings lose some of the same tokens, so adding them would count those tokens twice.
+ */
+export function sumOverlapping<T extends { finding: Finding }>(rows: readonly T[], value: (r: T) => number | undefined): number {
+  return overlapGroups(rows.map((r) => r.finding)).reduce((n, g) => n + Math.max(0, ...g.map((i) => value(rows[i]!) ?? 0)), 0);
+}
 
 /**
  * What the findings cost, from the audit's token estimates and the user's own volume and dated prices
@@ -31,11 +54,17 @@ export interface CostSummary {
   question_tokens_per_1k: number;
   /** Open findings for the server's administrator, with tokens: never in the app's totals. */
   server_tokens_per_1k: number;
+  /** Findings the project already knows about, with tokens: never in the totals. */
+  known_tokens_per_1k: number;
+  /** Whether some findings in the totals overlap, so the totals count each overlapping group once. */
+  overlaps: boolean;
   with_tokens: number;
   measured: boolean;
   /** Smallest number of calls behind a measured figure, when `measured`. */
   measured_calls?: number;
   money?: {
+    /** ISO 4217 code of every price used; absent means US dollars. Figures are shown as given, never converted. */
+    currency?: string;
     calls_per_month: number;
     volume_source?: string;
     lost_per_month: number;
@@ -77,7 +106,7 @@ function throughput(p: Profile | null): number | undefined {
   return all.size === 1 ? [...all][0] : undefined;
 }
 
-/** US dollars per 1,000 calls for one finding at one price, or a reason it cannot be priced. */
+/** Money per 1,000 calls for one finding at one price (in the price's currency), or a reason it cannot be priced. */
 function dollarsPer1k(f: Finding, price: Price): number | string {
   const t = f.tokens_per_1k ?? {};
   if ((t.uncached ?? 0) > 0 && price.cached_input === undefined) return "cached_input";
@@ -125,14 +154,18 @@ export function costSummary(findings: readonly Finding[], profile: Profile | nul
     }
     rows.push(row);
   }
-  // The table's order: the app's findings, then its open questions, then the server's, each largest first.
+  // The table's order: the app's findings, then its open questions, then the server's, then the known ones, each largest first.
   rows.sort((a, b) => GROUP_ORDER[a.group] - GROUP_ORDER[b.group] || b.tokens - a.tokens);
 
   const open = rows.filter((r) => r.group === "open");
   const questions = rows.filter((r) => r.group === "question");
   const server = rows.filter((r) => r.group === "server");
+  const known = rows.filter((r) => r.group === "known");
   const fixed = rows.filter((r) => r.group === "fixed");
-  const sum = (rs: CostRow[], k: "tokens" | "dollars_per_month" | "gpu_hours_per_month") => rs.reduce((n, r) => n + (r[k] ?? 0), 0);
+  // Overlapping findings count once per group, the largest (0.1.0-dev.14).
+  const sum = (rs: CostRow[], k: "tokens" | "dollars_per_month" | "gpu_hours_per_month") => sumOverlapping(rs, (r) => r[k]);
+  // What the open questions add on top of the findings, overlaps counted once across both.
+  const added = (k: "tokens" | "dollars_per_month") => sum([...open, ...questions], k) - sum(open, k);
   const scored = rows.filter((r) => !r.finding.fixed);
   const measuredCalls = scored.map((r) => r.finding.tokens_per_1k!.measured_calls);
   const measured = scored.length > 0 && measuredCalls.every((n) => n !== undefined);
@@ -140,8 +173,10 @@ export function costSummary(findings: readonly Finding[], profile: Profile | nul
   const out: CostSummary = {
     rows,
     tokens_per_1k: sum(open, "tokens"),
-    question_tokens_per_1k: sum(questions, "tokens"),
+    question_tokens_per_1k: added("tokens"),
     server_tokens_per_1k: sum(server, "tokens"),
+    known_tokens_per_1k: sum(known, "tokens"),
+    overlaps: [...open, ...questions].some((r) => (r.finding.overlaps?.length ?? 0) > 0),
     with_tokens: open.length,
     measured,
     missing: [],
@@ -151,11 +186,13 @@ export function costSummary(findings: readonly Finding[], profile: Profile | nul
 
   if (!volume) missing.add("volume: {calls_per_month: N}\thow many calls the app makes a month (with targets:, on each entry)");
   if (models.length === 0 && !tps) {
-    missing.add("prices\tper model: input, cached_input and output in US dollars per 1M tokens, with source and checked date (or, self-hosted, engine: {prefill_tokens_per_second: N})");
+    missing.add("prices\tper model: input, cached_input and output per 1M tokens (US dollars, or set currency), with source and checked date (or, self-hosted, engine: {prefill_tokens_per_second: N})");
   }
 
   const openPriced = open.filter((r) => r.dollars_per_month !== undefined);
-  if (volume && openPriced.length > 0 && openPriced.length === open.length) {
+  const currencies = new Set([...usedPrices.values()].map((p) => p.currency ?? "USD"));
+  if (currencies.size > 1) missing.add(`prices.*.currency\tone currency for every model: the prices are in ${[...currencies].join(" and ")}, and leanprompt does not convert between them`);
+  if (volume && openPriced.length > 0 && openPriced.length === open.length && currencies.size <= 1) {
     const lost = sum(open, "dollars_per_month");
     const money: NonNullable<CostSummary["money"]> = {
       calls_per_month: volume.calls_per_month,
@@ -164,8 +201,10 @@ export function costSummary(findings: readonly Finding[], profile: Profile | nul
       prices: [...usedPrices].map(([model, price]) => ({ model, price })),
     };
     if (volume.source) money.volume_source = volume.source;
+    const cur = [...currencies][0];
+    if (cur && cur !== "USD") money.currency = cur;
     if (fixed.some((r) => r.dollars_per_month !== undefined)) money.saved_by_fixes = sum(fixed, "dollars_per_month");
-    if (questions.some((r) => r.dollars_per_month !== undefined)) money.questions_per_month = sum(questions, "dollars_per_month");
+    if (questions.some((r) => r.dollars_per_month !== undefined)) money.questions_per_month = added("dollars_per_month");
     if (server.some((r) => r.dollars_per_month !== undefined)) money.server_per_month = sum(server, "dollars_per_month");
     if (average_call && usedPrices.size === 1) {
       const p = [...usedPrices.values()][0]!;
@@ -191,8 +230,37 @@ export function formatTokens(n: number): string {
   return `${Math.round(n)}`;
 }
 
-/** $0.48, $12, $1,235 */
-export function formatDollars(n: number): string {
-  if (n < 10) return `$${n.toFixed(2)}`;
-  return `$${Math.round(n).toLocaleString("en-US")}`;
+/** $0.48, $12, $1,235; with a currency other than USD, its code before the figure: CNY 0.48, CNY 1,235. */
+export function formatDollars(n: number, currency?: string): string {
+  const body = n < 10 ? n.toFixed(2) : Math.round(n).toLocaleString("en-US");
+  return currency && currency !== "USD" ? `${currency} ${body}` : `$${body}`;
+}
+
+/** A unit price as written: $0.15, or CNY 0.15 for another currency. */
+export function formatPrice(v: number, currency?: string): string {
+  const body = v.toFixed(Math.max(2, (String(v).split(".")[1] ?? "").length));
+  return currency && currency !== "USD" ? `${currency} ${body}` : `$${body}`;
+}
+
+/** One question only the owner can answer, with how to answer it (Markdown: code in backticks). */
+export interface OwnerQuestion {
+  label: string;
+  text: string;
+}
+
+/**
+ * The questions only the owner can answer that are still open: priority, volume and prices. Shown under
+ * "Questions for the owner" on the page and in the Markdown report, the same list in both.
+ */
+export function ownerQuestions(p: Profile | null, cost: CostSummary, priority: string | undefined): OwnerQuestion[] {
+  const q: OwnerQuestion[] = [];
+  if (priority === undefined) {
+    q.push({ label: "Priority", text: "which matters most for this app, cost, speed or quality (or weights)? Not set, so the advice uses equal weights. Answer with `priority:` in `leanprompt.yaml`." });
+  }
+  const hasVolume = !!p && (p.volume !== undefined || (p.targets?.length ? p.targets.every((t) => t.volume) : false));
+  if (!hasVolume) q.push({ label: "Volume", text: "how many calls does the app make a month? Answer with `volume: {calls_per_month: N, source: \"...\"}` in `leanprompt.yaml`." });
+  if (!p?.prices && !cost.gpu) {
+    q.push({ label: "Prices", text: "what does each model cost (input, cached input, output per 1M tokens, with the source and the date it was read, and the currency if not US dollars)? Answer with `prices:` in `leanprompt.yaml`." });
+  }
+  return q;
 }

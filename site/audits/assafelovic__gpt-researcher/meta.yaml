@@ -1,14 +1,27 @@
 # Audited with leanprompt 0.1.0-dev.11; findings converted to the 0.1.0-dev.13 format
-# (planned, frequency-unknown, notes) and re-scored with 0.1.0-dev.13. The commit is the one audited.
+# (planned, frequency-unknown, notes), then to the 0.1.0-dev.14 format, and re-scored with
+# 0.1.0-dev.14. The commit is the one audited.
+# Re-scored with 0.1.0-dev.14 (2026-11-27): the two findings marked `planned` were the audit's own
+# (they continue the closed issue #2251 and the merged #2260, and the open pull request #2381 came
+# from this audit), not work the project had planned. 0.1.0-dev.14 leaves planned work out of the
+# score, so the field is removed; the context stays in each finding's text. Static score
+# unchanged at 78 (it would have read 98 with the old field). The two metering notes now name
+# LP-GE-11, the new correctness rule. The run was unattended, now recorded as such.
 # Left out on purpose: retrying a timed-out call up to 10 times, which the project documents as
 # deliberate (docs/docs/gpt-researcher/gptr/config.md, "LLM Timeouts").
 repo: https://github.com/assafelovic/gpt-researcher
 visibility: public
 commit: 9d39a2f86d55e264f69dfeff2365f27fad3c1144
-leanprompt: 0.1.0-dev.13
+leanprompt: 0.1.0-dev.14
 date: 2026-11-26
 status: notified
 summary: >-
-  A research agent that already meters every attempt and tracks its costs closely; a standard report is three calls. The largest finding, a cut-off empty answer resent unchanged, continues the project's own issue #2251; pull request #2381, opened with this audit, proposes the fix. Audited with leanprompt 0.1.0-dev.11, re-scored with 0.1.0-dev.13.
+  A research agent that already meters every attempt and tracks its costs closely; a standard report is three calls. The largest finding, a cut-off empty answer resent unchanged, continues the project's own issue #2251; pull request #2381, opened with this audit, proposes the fix. Audited with leanprompt 0.1.0-dev.11, re-scored with 0.1.0-dev.14.
 maintainer:
   pr: https://github.com/assafelovic/gpt-researcher/pull/2381
+headline: "The same empty, cut-off request is sent up to ten times, unchanged"
+subtitle: >-
+  A research agent that already meters every attempt and keeps a standard report to three calls.
+kind: Retry loop
+figure:
+  label: "for empty, cut-off answers asked for again unchanged"

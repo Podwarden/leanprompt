@@ -75,4 +75,4 @@ A fixed setting changes the turns that used to differ. If hard turns needed thin
 
 ## Waste signal
 Measured: the prefill side lowers S on every turn after a change. The generation side (E11) is not part of G; it shows as more output tokens per task in a before/after run (the `measure-loop` skill). Static: severity high, counted on both the prefill and the generation side (`saves: both`).
-<!-- leanprompt:generated v0.1.0-dev.13: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.14: written by leanprompt install; leanprompt update replaces local edits -->

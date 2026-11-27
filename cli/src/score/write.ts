@@ -4,11 +4,11 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { optionsFor } from "../help.js";
 import { loadCacheFacts } from "../facts.js";
-import { loadRuleIds, loadRules, type RuleInfo } from "../lint/rules.js";
+import { loadNoteRuleIds, loadRuleIds, loadRules, type RuleInfo } from "../lint/rules.js";
 import { parseUsageLog } from "../log/record.js";
 import { effectiveFacts, loadProfile, type Profile } from "../profile.js";
 import { measuredScore, MIN_CALLS, type MeasuredScore, type UnmeasuredReason } from "./measured.js";
-import { isServerFinding, parseFindings, staticScore, type Finding, type Weights } from "./static.js";
+import { isServerFinding, knownOf, parseFindings, staticScore, type Finding, type Weights } from "./static.js";
 
 export type Kind = "measured" | "static";
 
@@ -87,12 +87,12 @@ export function ghEscape(s: string, property = false): string {
 }
 
 /**
- * One `::warning` line per open finding (not fixed, not on the ignore list), for GitHub Actions to show
+ * One `::warning` line per open finding (not fixed, not declined by the project, not on the ignore list), for GitHub Actions to show
  * on the file and line. An `<external>` finding, or one with no line, is annotated without them.
  */
 export function githubAnnotations(findings: Finding[], rules: Map<string, RuleInfo>): string[] {
   return findings
-    .filter((f) => f.fixed !== true)
+    .filter((f) => f.fixed !== true && knownOf(f)?.kind !== "declined")
     .map((f) => {
       const props: string[] = [];
       if (f.file !== "<external>") {
@@ -103,8 +103,10 @@ export function githubAnnotations(findings: Finding[], rules: Map<string, RuleIn
       props.push(`title=${ghEscape(`leanprompt ${f.rule}${title ? `: ${title}` : ""}`, true)}`);
       const where = f.file === "<external>" ? ` (${f.where ?? "outside the repository"})` : "";
       const question = f.status === "needs-facts" ? ` Open question: ${f.confirm ?? "confirm before fixing"}` : "";
+      const k = knownOf(f);
+      const known = k ? ` Already known to the project (${k.kind}${k.url ? `: ${k.url}` : ""}); not in the score.` : "";
       const server = isServerFinding(f) ? " For the server's administrator, not in the app's score." : "";
-      const msg = `${f.problem ?? title ?? f.rule}${where}${f.estimate ? ` Estimate: ${f.estimate}.` : ""}${question}${server}`;
+      const msg = `${f.problem ?? title ?? f.rule}${where}${f.estimate ? ` Estimate: ${f.estimate}.` : ""}${question}${server}${known}`;
       return `::warning ${props.join(",")}::${ghEscape(msg)}`;
     });
 }
@@ -188,7 +190,7 @@ export async function scoreCommand(args: string[]): Promise<number> {
     kind = "static";
     const file = staticPath!;
     if (!existsSync(file)) throw new Error(`${file}: no such file`);
-    const parsed = parseFindings(readFileSync(file, "utf8"), loadRuleIds(PACKAGE_ROOT));
+    const parsed = parseFindings(readFileSync(file, "utf8"), loadRuleIds(PACKAGE_ROOT), loadNoteRuleIds(PACKAGE_ROOT));
     if (parsed.errors.length > 0) throw new Error(`${file}: ${parsed.errors.join("; ")}`);
     const findings = filterIgnored(parsed.findings, profile);
     const w = loadWeights(join(dir, WEIGHTS_FILE));
@@ -198,8 +200,18 @@ export async function scoreCommand(args: string[]): Promise<number> {
     inputs = s.inputs;
     weights = s.weights;
     evidence = {
-      diagnostics: { default_shares: s.default_shares.used, findings: s.default_shares.of, ...(s.server_findings > 0 ? { server_findings: s.server_findings } : {}) },
+      diagnostics: {
+        default_shares: s.default_shares.used,
+        findings: s.default_shares.of,
+        ...(s.server_findings > 0 ? { server_findings: s.server_findings } : {}),
+        ...(s.known_findings > 0 ? { known_findings: s.known_findings } : {}),
+      },
     };
+    if (s.known_findings > 0) {
+      // The figure with the findings the project already knows about counted, as 0.1.0-dev.13 scored them.
+      const all = staticScore(findings, w ?? undefined, { includeServer: withServer, includeKnown: true });
+      evidence.known = { findings: s.known_findings, with_known_score: all.score, with_known_inputs: all.inputs };
+    }
     if (s.server_findings > 0) {
       // The other figure, so the app score and the one with the server's findings can both be read from the file.
       const other = withServer ? staticScore(findings, w ?? undefined) : staticScore(findings, w ?? undefined, { includeServer: true });
@@ -240,6 +252,12 @@ export async function scoreCommand(args: string[]): Promise<number> {
     } else if (sv) {
       process.stdout.write(`  server: ${d.server_findings} finding${d.server_findings === 1 ? "" : "s"} for the server's administrator counted (app only: ${sv.app_score})\n`);
     }
+    const kn = evidence.known as { findings: number; with_known_score: number } | undefined;
+    if (kn) {
+      process.stdout.write(
+        `  known: ${kn.findings} finding${kn.findings === 1 ? "" : "s"} the project already knows about (planned, in progress, declined or reported) left out (with them: ${kn.with_known_score})\n`,
+      );
+    }
     if (d.findings > 0 && d.default_shares === d.findings) {
       process.stdout.write(`  note: every share is a severity default, so this score says little about this app; give each finding a share from the audit's estimate (skills/llm-call-audit/SKILL.md, "The findings file")\n`);
     }
@@ -256,7 +274,7 @@ export async function scoreCommand(args: string[]): Promise<number> {
     const file = staticPath ?? join(dir, FINDINGS_FILE);
     let open: string[] = [];
     if (existsSync(file)) {
-      const parsed = parseFindings(readFileSync(file, "utf8"), loadRuleIds(PACKAGE_ROOT));
+      const parsed = parseFindings(readFileSync(file, "utf8"), loadRuleIds(PACKAGE_ROOT), loadNoteRuleIds(PACKAGE_ROOT));
       if (parsed.errors.length > 0) throw new Error(`${file}: ${parsed.errors.join("; ")}`);
       open = githubAnnotations(filterIgnored(parsed.findings, profile), loadRules(PACKAGE_ROOT));
     }

@@ -11,6 +11,7 @@ Status: documented. The gpt-oss template facts are observed, not documented by O
 ## Reasoning effort (docs, checked 2026-11-26)
 
 - Values are model-dependent and can include `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. The page warns that defaults are "model-dependent rather than universal".
+- GPT-5.4 and GPT-5.4 mini default to `none` (their model pages, read 2026-11-26; table in `providers/openai.md`, "GPT-5.4 family"). An app that sends an effort to them has chosen reasoning; one that sends none gets none.
 - Defaults stated: `medium` for GPT-5.5, GPT-5.6 (both modes), GPT-6.1 Sol, GPT-6 Sol, GPT-6 Luna. GPT-6.1 Sol does not support `none` or `minimal`. GPT-6 Astra rejects `none` with HTTP 400 and no default is stated; GPT-6.2 Astra and GPT-6.2 Sol reject `none` with no default stated.
 - Reasoning tokens occupy context and are billed as output tokens. The page recommends reserving at least 25,000 tokens for reasoning and output when starting out. Hitting `max_output_tokens` can end the response as `incomplete` before any visible output.
 - Summaries are opt-in through `summary`; `auto` is "equivalent to `detailed` for most reasoning models today".
@@ -33,4 +34,4 @@ Observed 2026-09-04 in the model's chat_template.jinja: default reasoning level 
 ## Not stated in the docs
 
 - JSON-output quirks for these models: not stated on the page read (checked 2026-11-26).
-<!-- leanprompt:generated v0.1.0-dev.13: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.14: written by npx leanprompt install; npx leanprompt update replaces local edits -->

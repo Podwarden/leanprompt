@@ -73,4 +73,4 @@ If the app removed old images so the model would look only at the latest one, ke
 
 ## Waste signal
 Measured: lowers S on every turn that moves or re-encodes an attachment. Static: severity medium for a per-call presign, re-encode or re-upload, or for attachments removed from older messages each turn.
-<!-- leanprompt:generated v0.1.0-dev.13: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.14: written by leanprompt install; leanprompt update replaces local edits -->

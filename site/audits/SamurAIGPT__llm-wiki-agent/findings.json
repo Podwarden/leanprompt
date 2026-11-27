@@ -1,0 +1,241 @@
+{
+  "v": 1,
+  "unattended": true,
+  "average_call": {
+    "prompt_tokens": 7230,
+    "output_tokens": 1905
+  },
+  "findings": [
+    {
+      "rule": "LP-GE-06",
+      "file": "tools/heal.py",
+      "line": 35,
+      "saves": "both",
+      "severity": "medium",
+      "share_prefill": 0.017,
+      "share_output": 0.0105,
+      "status": "frequency-unknown",
+      "confirm": "how many missing entities have multi-word names (count [[links]] with a space that lint lists as missing)",
+      "tokens_per_1k": {
+        "prompt": 120000,
+        "output": 20000
+      },
+      "problem": "heal.py saves a page for a missing entity such as [[Andrej Karpathy]] as entities/Andrej_Karpathy.md, because sanitize_filename turns spaces into underscores. The missing-entity check compares the link text with file names as they are, so the entity is still missing next time and is generated again on every run.",
+      "change": "Keep spaces in the file name (drop the underscore join at line 35; the path checks already prevent traversal), or compare names after the same normalisation in lint.find_missing_entities.",
+      "why": "The documented nightly job runs heal.py every night, so each multi-word entity costs one call per night forever, and the link stays broken.",
+      "estimate": "about 0.12M prompt and 20k output tokens per 1,000 calls (estimate)",
+      "assumptions": "heal is 5% of calls at about 3,000 prompt and 500 output tokens; 80% of its calls are repeats for multi-word names. The underscore join came in with PR #56.",
+      "verify": "Run heal.py twice: the second run reports no missing entities, and lint no longer lists the healed names.",
+      "id": "heal-rename"
+    },
+    {
+      "rule": "LP-GE-06",
+      "file": "tools/refresh.py",
+      "line": 147,
+      "saves": "both",
+      "severity": "medium",
+      "share_prefill": 0.1,
+      "share_output": 0.13,
+      "status": "frequency-unknown",
+      "confirm": "how often refresh.py is run without --force (from shell history or a scheduler)",
+      "tokens_per_1k": {
+        "prompt": 750000,
+        "output": 250000
+      },
+      "problem": "refresh.py compares a 16-character hash (line 72) with the hash it stores after a refresh, which is the full 64-character hash (line 147). They never match, so every plain run re-ingests every source page that has a source_file, as if all were stale.",
+      "change": "Store the same form that is compared: sha256(raw_content, truncate=16) at line 147 (or compare full hashes at line 72).",
+      "why": "Each source re-ingested for nothing is a full ingest call (about 15k prompt tokens and up to 8k output), and it adds a duplicate entry to index.md each time.",
+      "estimate": "about 0.75M prompt and 0.25M output tokens per 1,000 calls (estimate)",
+      "assumptions": "one in six ingest calls comes from refresh.py runs over unchanged sources; same call mix and ingest sizes as above. The mismatch came in with the shared sha256() helper (PR #52); before it refresh.py hashed both sides to 16 characters.",
+      "verify": "Run refresh.py twice with no change under raw/: the second run prints 'All source pages are up to date.' and makes no calls.",
+      "id": "refresh-hash",
+      "overlaps": [
+        "nightly-reingest"
+      ]
+    },
+    {
+      "rule": "LP-GE-06",
+      "file": "docs/automated-sync.md",
+      "line": 41,
+      "saves": "both",
+      "severity": "medium",
+      "share_prefill": 0.21,
+      "share_output": 0.26,
+      "status": "frequency-unknown",
+      "confirm": "whether the nightly job from docs/automated-sync.md is in use, and how many of the files it ingests were unchanged since the previous night (compare raw/ hashes with the previous run's log)",
+      "tokens_per_1k": {
+        "prompt": 1500000,
+        "output": 500000
+      },
+      "problem": "The documented nightly job runs tools/ingest.py on every .md file under raw/ every night, whether or not the file changed since it was last ingested. Each run is a full ingest call.",
+      "change": "Ingest only new or changed files: keep a hash per raw file (ingest.py already computes one at line 199) and skip files whose hash is unchanged, or have the job call tools/refresh.py once its hash bug is fixed.",
+      "why": "An ingest call sends the schema, the wiki context and the whole source (about 15k tokens) and asks for up to 8,192 tokens back. Re-ingesting an unchanged file pays for all of it again and also adds a duplicate index line.",
+      "estimate": "about 1.5M prompt and 0.5M output tokens per 1,000 calls (estimate)",
+      "assumptions": "ingest is 30% of calls at about 15k prompt and 5k output tokens; one third of all ingests are nightly re-runs of unchanged files. Call mix assumed: 300 ingest, 500 graph, 100 query, 50 heal, 50 lint per 1,000.",
+      "verify": "Run the job twice with no change under raw/: the second run makes zero ingest calls.",
+      "id": "nightly-reingest",
+      "overlaps": [
+        "refresh-hash"
+      ]
+    },
+    {
+      "rule": "LP-GE-05",
+      "file": "tools/ingest.py",
+      "line": 241,
+      "saves": "both",
+      "severity": "high",
+      "share_prefill": 0.031,
+      "share_output": 0.065,
+      "status": "frequency-unknown",
+      "confirm": "how often ingest prints 'Error parsing API response' with a /tmp/ingest_debug.txt that ends mid-JSON",
+      "tokens_per_1k": {
+        "prompt": 225000,
+        "output": 123000
+      },
+      "problem": "Ingest asks for one JSON object holding the full source page, the full rewritten overview and every entity and concept page, capped at 8,192 output tokens. When the answer stops at the cap the JSON is cut off, parsing fails, the whole answer is discarded and the program exits; the next run (or the nightly job) sends the same request with the same cap.",
+      "change": "Check the finish reason: if it is length, do not resend unchanged; raise the cap or split the request (source page first, then entity pages), and say so to the user.",
+      "why": "A cut-off ingest pays for the full prompt and 8,192 output tokens and keeps nothing, and the overview it must rewrite grows with every source, so the same file fails again.",
+      "estimate": "about 0.12M output and 0.23M prompt tokens per 1,000 calls (estimate)",
+      "assumptions": "5% of ingest calls reach the 8,192 cap; each failed attempt is re-run once unchanged.",
+      "verify": "Ingest a long source on a small cap: the tool reports the truncation and does not resend the same request."
+    },
+    {
+      "rule": "LP-GE-05",
+      "file": "tools/build_graph.py",
+      "line": 272,
+      "saves": "both",
+      "severity": "medium",
+      "share_prefill": 0.011,
+      "share_output": 0.013,
+      "status": "frequency-unknown",
+      "confirm": "how often build_graph prints '[WARN] Invalid JSON' for the same page on two consecutive runs",
+      "tokens_per_1k": {
+        "prompt": 81000,
+        "output": 25600
+      },
+      "problem": "Edge inference is capped at 1,024 output tokens. A page with many relationships gets a cut-off JSON, which fails to parse; the page is not checkpointed, so every later build sends the same request with the same cap and fails the same way.",
+      "change": "Check the finish reason; on length, retry once with a higher cap or ask for at most N edges, and checkpoint the result.",
+      "why": "Each failing page costs a full call on every build and never gets its edges.",
+      "estimate": "about 26k output and 81k prompt tokens per 1,000 calls (estimate)",
+      "assumptions": "5% of inference calls hit the cap; graph calls are 50% of the mix at about 3,250 prompt tokens.",
+      "verify": "On a page that used to fail, the next build records its edges and the build after that skips it."
+    },
+    {
+      "rule": "LP-PC-02",
+      "file": "tools/build_graph.py",
+      "line": 238,
+      "saves": "prefill",
+      "severity": "high",
+      "share": 0.19,
+      "tokens_per_1k": {
+        "uncached": 1375000
+      },
+      "problem": "In the relationship-inference loop, each prompt starts with the page being analysed and only then lists all wiki pages, the extracted edges and the rules, which are the same for every page in the run. The shared part comes after the part that changes, so no provider can reuse it.",
+      "change": "Put the instructions, the page list and the edge summary first and the page id and content last, so every call in a run shares one long prefix.",
+      "why": "For a 200-page wiki the shared part is about 2,750 of 3,250 prompt tokens per call, recomputed at full price on each of the hundreds of calls in one build.",
+      "estimate": "about 1.4M prompt tokens per 1,000 calls not served from cache (estimate)",
+      "assumptions": "graph inference is 50% of calls; 200 pages, about 10 tokens per page entry, 30 edges at 15 tokens, 300 tokens of rules. Cached reads need OpenAI or Gemini automatic caching, or on Anthropic a cache mark (finding below) and a model whose minimum is at or below the prefix (1,024 on Sonnet 4.6, 4,096 on Haiku 4.5, so a 200-page wiki is too small on Haiku 4.5).",
+      "verify": "On an OpenAI model, the second inference call of a run reports cached_tokens of about the page-list size; before the change it reports 0.",
+      "status": "needs-facts",
+      "confirm": "which provider and model the graph build runs on: OpenAI or Gemini automatic caching, or Anthropic with a cache mark and a model whose minimum cacheable size is at or below the shared part (about 2,750 tokens for 200 pages)"
+    },
+    {
+      "rule": "LP-PC-01",
+      "file": "tools/_utils.py",
+      "line": 69,
+      "saves": "prefill",
+      "severity": "high",
+      "share": 0.055,
+      "status": "frequency-unknown",
+      "confirm": "how often ingests run in batches (a directory or the nightly job) on an Anthropic model",
+      "tokens_per_1k": {
+        "uncached": 400000,
+        "cache_write": 200000
+      },
+      "problem": "Every call goes through one helper that sends a single user message with no cache mark. The tools default to Anthropic models, and Anthropic only reuses a prompt that carries a mark, so batch ingests resend the 2,000-token schema in full each time.",
+      "change": "Let call_llm take a stable prefix and send it as its own content block with cache_control: {type: ephemeral} (litellm passes it through for Anthropic); pass the schema there in ingest.py and the shared part in build_graph.py.",
+      "why": "In a batch, each ingest starts with the same schema, and with the reordering above every graph call starts with the same page list. Without a mark Anthropic bills all of it as new input every time.",
+      "estimate": "about 0.4M prompt tokens per 1,000 calls not served from cache, net of about 0.2M written (estimate)",
+      "assumptions": "two thirds of ingests run in batches, the next call arriving within the 5-minute lifetime (an ingest that writes 5k tokens takes about a minute); schema 7,856 characters, about 2,000 tokens. The graph-loop part is counted in the reordering finding, not here.",
+      "verify": "On the second ingest of a two-file batch, usage shows cache_read_input_tokens of about 2,000."
+    },
+    {
+      "rule": "LP-GE-10",
+      "file": "tools/ingest.py",
+      "line": 222,
+      "saves": "generation",
+      "severity": "medium",
+      "share": 0.016,
+      "status": "frequency-unknown",
+      "confirm": "how often ingest fails to parse an answer that was not cut off",
+      "tokens_per_1k": {
+        "output": 30000
+      },
+      "problem": "Ingest asks for JSON in the prompt text only and parses it with regular expressions. An answer with a stray quote or prose around it is discarded and the program exits.",
+      "change": "Request JSON mode or a JSON schema through litellm's response_format on models that support it, and keep the local repair as a fallback.",
+      "why": "A discarded ingest answer is up to 8k output tokens paid for nothing.",
+      "estimate": "about 30k output tokens per 1,000 calls (estimate)",
+      "assumptions": "2% of ingest answers that are not cut off still fail to parse.",
+      "verify": "Over a batch of ingests, no 'Error parsing API response' lines for answers that ended normally."
+    }
+  ],
+  "notes": [
+    {
+      "title": "A healed multi-word entity is still missing, so its links stay broken",
+      "file": "tools/lint.py",
+      "line": 76,
+      "finding": "heal-rename",
+      "problem": "heal.py saves [[Andrej Karpathy]] as entities/Andrej_Karpathy.md (sanitize_filename joins words with underscores, heal.py:35, since PR #56). find_missing_entities compares the link text with file stems unchanged, so 'andrej karpathy' never matches 'andrej_karpathy': lint keeps listing the entity as missing, keeps telling the user to run heal.py, and the [[links]] stay broken in Obsidian.",
+      "change": "Keep spaces in the file name (drop the underscore join at heal.py:35; the separator and null-byte removal and the resolved-path check already keep the file inside wiki/entities/).",
+      "verify": "With [[Some Person]] on three pages and no page for it, run heal.py twice: the second run finds no missing entities and lint.py no longer lists it."
+    },
+    {
+      "title": "The default models are retired, so every tool fails unless LLM_MODEL is set",
+      "file": "tools/_utils.py",
+      "line": 50,
+      "problem": "call_llm defaults to claude-3-5-sonnet-latest and heal, query and build_graph default to claude-3-5-haiku-latest (heal.py:89, query.py:100, build_graph.py:272). Anthropic retired Sonnet 3.5 on 2025-10-28 and Haiku 3.5 on 2026-02-19; requests to retired models return 404. README.md:296 says the scripts need only ANTHROPIC_API_KEY.",
+      "change": "Default to current models, for example claude-sonnet-4-6 and claude-haiku-4-5, and document LLM_MODEL and LLM_MODEL_FAST in the README.",
+      "verify": "With only ANTHROPIC_API_KEY set, python tools/query.py 'test' returns an answer instead of a not_found_error."
+    },
+    {
+      "title": "An ingest failure ends a whole refresh run and its progress is not saved",
+      "file": "tools/refresh.py",
+      "line": 91,
+      "problem": "ingest() calls sys.exit(1) on a parse failure (ingest.py:248). refresh_page catches only Exception, and SystemExit is not one, so the loop stops and save_refresh_cache (line 152) never runs; sources already refreshed in that run are refreshed again next time.",
+      "change": "Have ingest raise an exception instead of exiting (and exit only in __main__), or catch SystemExit in refresh_page; save the cache after each page.",
+      "verify": "With one source that fails to parse, refresh.py continues to the next source and the cache keeps the ones that succeeded."
+    },
+    {
+      "title": "One bad answer stops a batch ingest",
+      "file": "tools/ingest.py",
+      "line": 248,
+      "problem": "In batch mode (directory or several files, lines 398-399) a single parse failure calls sys.exit(1), so the remaining files are never ingested and the nightly log shows only the first failure.",
+      "change": "Raise from ingest() and let the batch loop log the failure and continue.",
+      "verify": "A batch with one malformed answer ingests the other files and reports one failure."
+    },
+    {
+      "title": "Edge inference is told the edges listed come from this page, but gets the first 30 of the whole wiki",
+      "file": "tools/build_graph.py",
+      "line": 229,
+      "problem": "existing_edge_summary is the first 30 extracted edges of all pages, built once, and the prompt labels it 'Already-extracted edges from this page'. The model cannot avoid repeating this page's own wikilinks, and about 450 tokens of unrelated edges ride on every call.",
+      "change": "Build the summary per page from the edges whose 'from' is the current page.",
+      "verify": "For a page with explicit links, the prompt lists exactly those links and the answer no longer returns them as INFERRED."
+    },
+    {
+      "title": "heal.py ignores LLM_MODEL_FAST",
+      "file": "tools/heal.py",
+      "line": 89,
+      "problem": "heal intends the fast model (default haiku) but reads LLM_MODEL, so anyone who sets LLM_MODEL to a large model runs heal on it, unlike query.py:100 and build_graph.py:272, which read LLM_MODEL_FAST.",
+      "change": "Pass 'LLM_MODEL_FAST' as model_env.",
+      "verify": "With LLM_MODEL and LLM_MODEL_FAST set to different models, heal uses the fast one."
+    },
+    {
+      "title": "Cut-off answers are printed and saved as complete",
+      "file": "tools/query.py",
+      "line": 135,
+      "problem": "query answers (4,096 cap) and the lint report (lint.py:298, 3,000 cap) are used without checking the finish reason; with --save a cut-off answer is written to wiki/syntheses and indexed as if whole.",
+      "change": "Check response.choices[0].finish_reason in call_llm and warn or raise when it is length.",
+      "verify": "A query forced to a small cap prints a truncation warning and is not saved silently."
+    }
+  ]
+}

@@ -59,4 +59,4 @@ Used by the `prompt-diet` rules.
 - Step or granularity of implicit reuse other than the 2,050-token rule above: not stated in the docs (checked 2026-11-26).
 - Through OpenRouter only the last `cache_control` breakpoint is used on Gemini (OpenRouter docs); see `providers/openrouter.md`.
 - kvsig cannot identify Gemini's native request dialect, so these requests are reported as unmeasured by the CLI.
-<!-- leanprompt:generated v0.1.0-dev.13: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.14: written by npx leanprompt install; npx leanprompt update replaces local edits -->

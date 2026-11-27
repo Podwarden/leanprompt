@@ -1,0 +1,23 @@
+# Audited with leanprompt 0.1.0-dev.13, unattended, on a shallow clone of the dev branch, where
+# development happens (main had the same src/ at the time); findings converted to the 0.1.0-dev.14
+# format and re-scored with 0.1.0-dev.14. Static score 80 with both versions. What changed: the two
+# fixed reasoning-effort findings are marked size-unknown (every answer is affected; only the
+# tokens a lower effort saves are assumed), and the note on the admin max tokens setting links to
+# the finding it is the visible face of. The commit is the one audited.
+repo: https://github.com/Azure-Samples/chat-with-your-data-solution-accelerator
+visibility: public
+commit: f71c9c8c4a97e068f5953b8f52af4107931a8d5e
+leanprompt: 0.1.0-dev.14
+date: 2026-11-27
+status: notified
+summary: >-
+  A RAG sample on Azure OpenAI with two orchestrators, clean provider registries and a reasoning panel. On the default reasoning deployment every answer runs at a fixed medium effort with no output limit, and the admin page's max tokens setting is not sent. The token figures are estimates from the code; the reasoning tokens saved are assumed.
+maintainer:
+  issue: https://github.com/Azure-Samples/chat-with-your-data-solution-accelerator/issues/2413
+headline: "The admin page's max tokens setting does nothing on the default model"
+subtitle: >-
+  A RAG sample on Azure OpenAI with two orchestrators, clean provider registries and a reasoning panel.
+kind: Setting that does nothing
+figure:
+  finding: "effort-langgraph"
+  label: "if a lower reasoning effort saves about 500 tokens per answer"

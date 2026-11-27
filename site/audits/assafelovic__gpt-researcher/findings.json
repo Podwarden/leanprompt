@@ -26,8 +26,7 @@
       "assumptions": "Call mix: 80% of runs are standard reports (3 calls), 15% deep research (about 33 calls), 5% detailed; so about 60% of calls are deep research. After PR #2260, 2% of result-analysis calls (8,000 limit) and 10% of plan calls and 2% of query calls (4,000 limit) still come back empty from truncation, and when they do the 9 retries also come back empty. Issue #2251 measured 202 empty responses in 13 runs before the fix. Each retry also resends the prompt, about 6k tokens on average, so the prompt side is about 0.06 of prompt tokens; the share recorded is the larger output side.",
       "verify": "Mock a provider whose response metadata has finish_reason 'length' and empty content: before the fix get_chat_response is awaited 10 times, after it at most 2 times and the second call has a larger max_tokens.",
       "status": "frequency-unknown",
-      "confirm": "How often a call still comes back empty because the output limit was reached after #2260: count 'Empty response' warnings, with the provider's finish reason, in a deep-research run log.",
-      "planned": "Issue #2251 (closed) proposed retrying a cut-off empty answer once with a larger limit; pull request #2260 (merged) fixed the result-analysis call and the metering. Pull request #2381 (from this audit, open) proposes the rest."
+      "confirm": "How often a call still comes back empty because the output limit was reached after #2260: count 'Empty response' warnings, with the provider's finish reason, in a deep-research run log."
     },
     {
       "rule": "LP-GE-03",
@@ -46,8 +45,7 @@
       "why": "A cut-off plan returns empty after spending the whole 4,000-token budget, and then falls into the unchanged retry above.",
       "estimate": "about 13k output tokens per 1,000 calls (estimate), first attempts only; the retries are counted in the empty-answer finding",
       "assumptions": "About 18 plan calls and 74 query calls per 1,000 app calls; 10% of plan calls and 2% of query calls are cut off at 4,000 tokens.",
-      "verify": "In a deep run with LOG_LEVEL=DEBUG, the count of empty-response warnings from these two calls drops to zero; existing test tests/test_deep_research_reasoning_budget.py extended to the two calls.",
-      "planned": "Issue #2251 (closed) proposed retrying a cut-off empty answer once with a larger limit; pull request #2260 (merged) fixed the result-analysis call and the metering. Pull request #2381 (from this audit, open) proposes the rest."
+      "verify": "In a deep run with LOG_LEVEL=DEBUG, the count of empty-response warnings from these two calls drops to zero; existing test tests/test_deep_research_reasoning_budget.py extended to the two calls."
     },
     {
       "rule": "LP-PC-02",
@@ -135,6 +133,8 @@
   "notes": [
     {
       "title": "Cached OpenAI input is priced at half the input rate for every model",
+      "rule": "LP-GE-11",
+      "severity": "low",
       "file": "gpt_researcher/utils/costs.py",
       "line": 24,
       "problem": "OPENAI_CACHED_INPUT_DISCOUNT = 0.5 applies to every OpenAI model (used at lines 306-313). OpenAI's pricing page (read 2026-11-26) lists cached input at a tenth of the input price for the three default models, so their cached tokens are reported at five times their price. The tests use gpt-4o, where 0.5 is right. The comment at lines 18-23 says to revisit this when a model has a different ratio.",
@@ -167,11 +167,14 @@
     },
     {
       "title": "Chat and multi-agent calls are not metered",
+      "rule": "LP-GE-11",
+      "severity": "medium",
       "file": "backend/chat/chat.py",
       "line": 155,
       "problem": "The chat path calls create_chat_completion_with_tools without cost_callback, so chat costs are never counted, and the multi-agent mode has cost_callback commented out (multi_agents/agents/utils/llms.py:30).",
       "change": "Pass cost_callback on both paths.",
       "verify": "After one chat turn, get_costs() is above zero."
     }
-  ]
+  ],
+  "unattended": true
 }

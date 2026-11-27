@@ -63,4 +63,4 @@ kvsig gives each request keyed ids: `sys` (system prompt), `tools` (tool list), 
 ## What this skill does not do
 
 It does not change how much the model generates (that is `generation-economy`), it does not cut dead weight from what each call sends (that is `prompt-diet`), it does not tune engine settings or replica routing on a self-hosted server (that is `lmwarden`), and it does not promise a saving for an app it has not measured.
-<!-- leanprompt:generated v0.1.0-dev.13: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.14: written by leanprompt install; leanprompt update replaces local edits -->

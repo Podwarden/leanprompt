@@ -20,12 +20,12 @@ import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseDoc } from "../../cli/src/frontmatter.js";
-import { loadRuleIds } from "../../cli/src/lint/rules.js";
-import { formatTokens } from "../../cli/src/report/cost.js";
-import { loadRules, rankFindings, renderReport, type ScoreFile } from "../../cli/src/report/html.js";
-import { isServerFinding, parseFindings, staticScore, type Finding, type Note } from "../../cli/src/score/static.js";
+import { loadNoteRuleIds, loadRuleIds } from "../../cli/src/lint/rules.js";
+import { costsNothing, formatTokens } from "../../cli/src/report/cost.js";
+import { KNOWN_LABEL, loadRules, rankFindings, renderReport, UNATTENDED_LINE, type ScoreFile } from "../../cli/src/report/html.js";
+import { isKnownFinding, isServerFinding, knownOf, parseFindings, staticScore, type Finding, type Note } from "../../cli/src/score/static.js";
 import { badgeColor } from "../../cli/src/score/write.js";
-import { STATUS_TEXT, loadAudits, type Audit } from "./audits.js";
+import { BADGES, STATUS_TEXT, badgeOf, bigNumberOf, loadAudits, sortForIndex, type Audit } from "./audits.js";
 import { page, type AssetUrl, type PageSpec } from "./layout.js";
 import { clip, escapeHtml as e, plain, renderMarkdown } from "./markdown.js";
 import { loadPosts, loadReleases } from "./news.js";
@@ -39,7 +39,7 @@ export interface Site {
 }
 
 const SKILL_ORDER = ["prefill-cache", "generation-economy", "prompt-diet", "lmwarden"];
-const SAVES_TEXT: Record<string, string> = { prefill: "Prefill", generation: "Generation", both: "Prefill and generation" };
+const SAVES_TEXT: Record<string, string> = { prefill: "Prefill", generation: "Generation", both: "Prefill and generation", none: "No tokens: a correctness rule, recorded as a note" };
 export const ESTIMATE_LABEL = "Every figure on this page is an estimate from reading the code, not a measurement of the app in use.";
 export const CORRECTIONS_LINE = `Corrections and takedown: email ${CONTACT} or open an issue.`;
 
@@ -132,6 +132,7 @@ export function buildSite(root: string): Site {
   // --- Rules
   const rules = loadRules(root);
   const ruleIds = loadRuleIds(root);
+  const noteRuleIds = loadNoteRuleIds(root);
   const rulePages: RulePage[] = [];
   const skillInfo = new Map<string, { lede: string; title: string }>();
   for (const skill of SKILL_ORDER) {
@@ -163,7 +164,7 @@ export function buildSite(root: string): Site {
   // --- Home
   const releases = loadReleases(read("docs/CHANGELOG.md"));
   const posts = loadPosts(root);
-  const audits = loadAudits(root, ruleIds);
+  const audits = loadAudits(root, ruleIds, noteRuleIds);
   const news = [
     ...posts.map((p) => ({ date: p.date, title: p.title, href: url(`news/${p.slug}`), text: p.description })),
     ...releases.map((r) => ({ date: r.date, title: `leanprompt ${r.version}`, href: `${url("news/changelog")}#${r.anchor}`, text: r.summary })),
@@ -171,7 +172,7 @@ export function buildSite(root: string): Site {
 
   const installCmd = "npx leanprompt install";
   const exampleScore = (form: string) =>
-    staticScore(parseFindings(read(`site/examples/dated-chat/${form}.findings.json`), ruleIds).findings).score;
+    staticScore(parseFindings(read(`site/examples/dated-chat/${form}.findings.json`), ruleIds, noteRuleIds).findings).score;
   const [scoreBefore, scoreAfter] = [exampleScore("before"), exampleScore("after")];
   const skillCount = (s: string) => rulePages.filter((r) => r.skill === s).length;
   emit({
@@ -355,7 +356,7 @@ ${exampleNames
 `;
       for (const form of pair) {
         const findingsText = read(`site/examples/${n}/${form}.findings.json`);
-        const parsed = parseFindings(findingsText, ruleIds);
+        const parsed = parseFindings(findingsText, ruleIds, noteRuleIds);
         if (parsed.errors.length) throw new Error(`site/examples/${n}/${form}.findings.json: ${parsed.errors.join("; ")}`);
         const html = renderReport({
           findings: parsed.findings,
@@ -411,21 +412,44 @@ ${news.map((n) => `<li><time datetime="${n.date}">${n.date}</time><div><a href="
   files.set("leanprompt/news/feed.xml", atom(news));
 
   // --- Audits
+  const auditOrder = sortForIndex(audits);
+  const real = audits.filter((a) => a.meta.status !== "demo");
+  const problems = real.reduce(
+    (n, a) => n + a.findings.filter((f) => knownOf(f)?.kind !== "declined").length + (a.notes ?? []).filter((x) => x.known?.kind !== "declined").length,
+    0,
+  );
+  const fixedUpstream = real.reduce((n, a) => n + a.findings.filter((f) => f.fixed).length, 0);
+  const reported = real.filter((a) => badgeOf(a) === "reported").length;
+  const planned = real.filter((a) => badgeOf(a) === "planned").length;
+  const stat = (n: number, label: string) => `<li><span class="stat-n">${n}</span> <span class="stat-l">${e(label)}</span></li>`;
+  const strip = `<ul class="audit-strip" aria-label="All audits at a glance">
+${stat(real.length, real.length === 1 ? "open-source app audited" : "open-source apps audited")}
+${stat(problems, problems === 1 ? "problem found" : "problems found")}
+${stat(fixedUpstream, "fixed upstream")}
+${stat(reported, "reported to the maintainers")}${planned ? `\n${stat(planned, "already planned by the maintainers")}` : ""}
+</ul>`;
+  const auditCard = (a: Audit) => {
+    const m = a.meta;
+    return `<li class="audit-card">
+<h2><a href="${url(`audits/${a.slug}`)}">${e(m.headline ?? auditTitle(a))}</a></h2>
+<p class="audit-tags">${auditTags(a)}</p>
+${m.subtitle ? `<p class="audit-sub">${e(m.subtitle)}</p>` : ""}
+${bigNumber(a)}
+<p class="audit-foot"><span>${e(m.owner)}/${e(m.name)}</span> · <time datetime="${m.date}">${m.date}</time></p>
+</li>`;
+  };
   emit({
     key: "audits",
     title: "Audits",
-    description: "Audits of public repositories: where each app’s LLM calls could save tokens, estimated from the code, dated, with the maintainers’ response.",
+    description: "Audits of public repositories: what each app’s LLM calls get wrong and what it costs, estimated from the code, dated, with the maintainers’ response.",
     section: "audits",
     crumbs: [],
     body: article(
       "Audits",
-      `<p class="lede">What a leanprompt audit finds in public repositories. Each audit names the commit and the leanprompt version it ran on, and links the maintainers’ issue and response. The figures are estimates from reading the code, not measurements.</p>
+      `${audits.length ? strip : ""}
+<p class="lede">What a leanprompt audit finds in public repositories. Each audit names the commit and the leanprompt version it ran on, and links the maintainers’ issue and response. The figures are estimates from reading the code, not measurements.</p>
 <p>We tell the maintainers before an audit is published. ${CORRECTIONS_LINE.replace("open an issue", `<a href="${REPO}/issues/new" rel="noopener">open an issue</a>`).replace(CONTACT, `<a href="mailto:${CONTACT}">${CONTACT}</a>`)}</p>
-${
-  audits.length
-    ? `<ul class="cards">\n${audits.map((a) => `<li><h2><a href="${url(`audits/${a.slug}`)}">${e(auditTitle(a))}</a></h2><p class="small"><time datetime="${a.meta.date}">${a.meta.date}</time> · ${((n) => `${n} open ${n === 1 ? "finding" : "findings"}`)(a.findings.filter((f) => !f.fixed).length)} · leanprompt ${e(a.meta.leanprompt)} · ${e(STATUS_TEXT[a.meta.status])}</p>${a.meta.summary ? `<p>${e(a.meta.summary)}</p>` : ""}</li>`).join("\n")}\n</ul>`
-    : "<p>No audits yet.</p>"
-}`,
+${audits.length ? `<ul class="audit-cards">\n${auditOrder.map(auditCard).join("\n")}\n</ul>` : "<p>No audits yet.</p>"}`,
     ),
   });
   for (const a of audits) {
@@ -437,11 +461,19 @@ ${
     const m = a.meta;
     const short = m.commit.slice(0, 7);
     const ranked = rankFindings(a.findings);
-    const open = ranked.filter((f) => !f.fixed && !isServerFinding(f));
-    const server = ranked.filter((f) => !f.fixed && isServerFinding(f));
+    const known = ranked.filter((f) => isKnownFinding(f));
+    const open = ranked.filter((f) => !f.fixed && !isKnownFinding(f) && !isServerFinding(f));
+    const server = ranked.filter((f) => !f.fixed && !isKnownFinding(f) && isServerFinding(f));
     const fixed = ranked.filter((f) => f.fixed);
     const notes = a.notes ?? [];
-    const planned = open.filter((f) => f.planned).length;
+    const places = open.filter((f) => !costsNothing(f)).length;
+    const zero = open.length - places;
+    const knownLive = known.filter((f) => knownOf(f)!.kind !== "declined");
+    const declined = known.filter((f) => knownOf(f)!.kind === "declined");
+    // Finding numbers by id, for overlaps and notes.
+    const numById = new Map<string, number>();
+    [...open, ...server, ...knownLive, ...fixed].forEach((f, i) => f.id !== undefined && numById.set(f.id, i + 1));
+    const linkify = (t: string) => e(t).replace(/https:\/\/github\.com\/[\w./#-]+/g, (u) => `<a href="${u}" rel="noopener">${u}</a>`);
     const score = scoreOf(a.findings, m.date, m.leanprompt);
     const where = (f: Finding) =>
       f.file === "<external>"
@@ -459,14 +491,15 @@ ${
     };
     const card = (f: Finding, i: number) => `<li class="finding" id="f${i + 1}">
 <h3><a href="${ruleUrl(f.rule)}"><code>${f.rule}</code></a> ${e(rules.get(f.rule)?.title ?? "")}</h3>
-<p class="small">${where(f)} · severity ${e(f.severity)} · saves ${e((SAVES_TEXT[f.saves] ?? f.saves).toLowerCase())}${f.status === "needs-facts" ? " · needs a fact to confirm" : f.status === "frequency-unknown" ? " · how often is assumed" : ""}</p>
+<p class="small">${where(f)} · severity ${e(f.severity)} · saves ${e((SAVES_TEXT[f.saves] ?? f.saves).toLowerCase())}${f.status === "needs-facts" ? " · needs a fact to confirm" : f.status === "frequency-unknown" ? " · how often is assumed" : f.status === "size-unknown" ? " · size is assumed" : ""}${costsNothing(f) ? " · costs no tokens today" : ""}</p>
 ${f.problem ? `<p><b>What happens.</b> ${e(f.problem)}</p>` : ""}
 ${f.change ? `<p><b>The change.</b> ${e(f.change)}</p>` : ""}
 ${f.why ? `<p><b>Why it helps.</b> ${e(f.why)}</p>` : ""}
-${f.planned ? `<p class="planned"><b>Already planned.</b> ${e(f.planned).replace(/https:\/\/github\.com\/[\w./#-]+/g, (u) => `<a href="${u}" rel="noopener">${u}</a>`)}</p>` : ""}
+${knownOf(f) ? `<p class="planned"><b>${e(KNOWN_LABEL[knownOf(f)!.kind])}.</b> ${linkify([knownOf(f)!.note, knownOf(f)!.url].filter(Boolean).join(" "))}</p>` : ""}
+${(f.overlaps ?? []).filter((id) => numById.has(id)).length ? `<p class="small"><b>Overlaps.</b> Finding ${(f.overlaps ?? []).filter((id) => numById.has(id)).map((id) => `<a href="#f${numById.get(id)}">${numById.get(id)}</a>`).join(", ")} loses some of the same tokens; the totals count the larger once.</p>` : ""}
 ${f.estimate ? `<p class="estimate"><span class="est-tag">Estimate</span> ${e(f.estimate)}</p>` : tokens(f)}
 ${f.assumptions ? `<p class="small"><b>Assumptions.</b> ${e(f.assumptions)}</p>` : ""}
-${f.confirm ? `<p class="small"><b>${f.status === "frequency-unknown" ? "How often." : "To confirm."}</b> ${e(f.confirm)}</p>` : ""}
+${f.confirm ? `<p class="small"><b>${f.status === "frequency-unknown" ? "How often." : f.status === "size-unknown" ? "How big." : "To confirm."}</b> ${e(f.confirm)}</p>` : ""}
 </li>`;
     const noteWhere = (n: Note) =>
       n.file === "<external>"
@@ -474,9 +507,9 @@ ${f.confirm ? `<p class="small"><b>${f.status === "frequency-unknown" ? "How oft
         : `<a href="${m.repo}/blob/${m.commit}/${n.file.split("/").map(encodeURIComponent).join("/")}#L${n.line}" rel="noopener"><code>${e(n.file)}:${n.line}</code></a>`;
     const noteCard = (n: Note) => `<li class="note">
 <h3>${e(n.title)}</h3>
-<p class="small">${noteWhere(n)}</p>
-<p><b>What happens.</b> ${e(n.problem)}</p>
-<p><b>The change.</b> ${e(n.change)}</p>
+<p class="small">${noteWhere(n)}${n.rule ? ` · <a href="${ruleUrl(n.rule)}"><code>${e(n.rule)}</code></a> ${e(rules.get(n.rule)?.title ?? "")}${n.severity ? ` · severity ${e(n.severity)}` : ""}` : ""}${n.finding !== undefined && numById.has(n.finding) ? ` · the same problem as <a href="#f${numById.get(n.finding)}">finding ${numById.get(n.finding)}</a>` : ""}</p>
+${n.known?.kind === "declined" ? `<p><b>${e(KNOWN_LABEL.declined)}.</b> ${linkify([n.known.note, n.known.url].filter(Boolean).join(" "))}</p>` : `<p><b>What happens.</b> ${e(n.problem)}</p>
+<p><b>The change.</b> ${e(n.change)}</p>${n.known ? `\n<p class="planned"><b>${e(KNOWN_LABEL[n.known.kind])}.</b> ${linkify([n.known.note, n.known.url].filter(Boolean).join(" "))}</p>` : ""}`}
 ${n.why ? `<p><b>Why it matters.</b> ${e(n.why)}</p>` : ""}
 ${n.verify ? `<p class="small"><b>To check.</b> ${e(n.verify)}</p>` : ""}
 </li>`;
@@ -487,7 +520,10 @@ ${n.verify ? `<p class="small"><b>To check.</b> ${e(n.verify)}</p>` : ""}
     const links = [mt?.issue ? `<a href="${mt.issue}" rel="noopener">${mt.issue.includes("#issuecomment-") ? "the comment" : "the issue"}</a>` : "", mt?.pr ? `<a href="${mt.pr}" rel="noopener">the pull request</a>` : ""].filter(Boolean).join(" and ");
     const scope = m.path ? `<code>${e(m.path)}/</code> in ` : "";
     const corrections = `<p class="corrections">${CORRECTIONS_LINE.replace(CONTACT, `<a href="mailto:${CONTACT}">${CONTACT}</a>`).replace("open an issue", `<a href="${REPO}/issues/new" rel="noopener">open an issue</a>`)}</p>`;
-    const body = `<p class="dateline">Audited <time datetime="${m.date}">${m.date}</time> with leanprompt ${e(m.leanprompt)}</p>
+    const body = `<p class="audit-tags">${auditTags(a)}</p>
+${m.subtitle ? `<p class="audit-sub lede">${e(m.subtitle)}</p>` : ""}
+${bigNumber(a, true)}
+<p class="dateline">Audited <time datetime="${m.date}">${m.date}</time> with leanprompt ${e(m.leanprompt)}</p>
 <p class="notice"><b>Estimates, not measurements.</b> ${ESTIMATE_LABEL}</p>
 <dl class="facts">
 <div><dt>Repository</dt><dd><a href="${m.repo}" rel="noopener">${e(m.owner)}/${e(m.name)}</a></dd></div>
@@ -497,24 +533,26 @@ ${m.path ? `<div><dt>Folder</dt><dd><a href="${m.repo}/tree/${m.commit}/${m.path
 <div><dt>Audit date</dt><dd><time datetime="${m.date}">${m.date}</time></dd></div>
 <div><dt>Status</dt><dd>${e(STATUS_TEXT[m.status])}</dd></div>
 ${links ? `<div><dt>Maintainers</dt><dd>${links}</dd></div>` : ""}
+${a.unattended ? `<div><dt>How it ran</dt><dd>${e(UNATTENDED_LINE)}</dd></div>` : ""}
 </dl>
-${m.summary ? `<p class="lede">${e(m.summary)}</p>` : ""}
-<p>leanprompt read ${scope}the code at commit <code>${short}</code> and found ${open.length} ${open.length === 1 ? "place" : "places"} where its LLM calls could use fewer tokens${planned ? ` (${planned} of them already planned)` : ""}${fixed.length ? `, and ${fixed.length} already fixed` : ""}${notes.length ? `, plus ${notes.length} other ${notes.length === 1 ? "problem" : "problems"} outside the rules, not scored` : ""}. Static score: ${score.score} of 100 (an estimate from the findings). The code may have changed since.</p>
+${m.summary ? `<p>${e(m.summary)}</p>` : ""}
+<p>leanprompt read ${scope}the code at commit <code>${short}</code> and found ${places} ${places === 1 ? "place" : "places"} where its LLM calls could use fewer tokens${zero ? `, ${zero} more that ${zero === 1 ? "costs" : "cost"} no tokens today` : ""}${known.length ? `, ${known.length} the project already knows about` : ""}${fixed.length ? `, and ${fixed.length} already fixed` : ""}${notes.length ? `, plus ${notes.length} other ${notes.length === 1 ? "problem" : "problems"}, not scored` : ""}. Static score: ${score.score} of 100 (an estimate from the findings${known.length ? ", leaving out what the project already knows about" : ""}). The code may have changed since.</p>
 <h2 id="findings">Findings</h2>
 ${open.length ? `<ol class="findings">\n${open.map(card).join("\n")}\n</ol>` : "<p>No open findings.</p>"}
-${server.length ? `<h2 id="server">Questions for the server’s administrator</h2>\n<p>Settings of the server or engine the app calls, not of the app’s code; left out of the static score.</p>\n<ol class="findings">\n${server.map((f, i) => card(f, open.length + i)).join("\n")}\n</ol>` : ""}
-${fixed.length ? `<h2 id="fixed">Already fixed</h2>\n<ol class="findings">\n${fixed.map((f, i) => card(f, open.length + server.length + i)).join("\n")}\n</ol>` : ""}
-${notes.length ? `<h2 id="notes">Other problems the audit found</h2>\n<p>Problems read in the code that no leanprompt rule covers, such as a cost meter or an error path. Not scored.</p>\n<ol class="notes">\n${notes.map(noteCard).join("\n")}\n</ol>` : ""}
+${server.length ? `<h2 id="server">Questions for the server’s administrator</h2>\n<p>Settings of the server or engine the app calls, not of the app’s code; left out of the static score.</p>\n<ol class="findings" start="${open.length + 1}">\n${server.map((f, i) => card(f, open.length + i)).join("\n")}\n</ol>` : ""}
+${known.length ? `<h2 id="known">Already known to the project</h2>\n<p>The project’s own issues, pull requests or docs already cover these, so they are not counted above and are left out of the static score.</p>\n${knownLive.length ? `<ol class="findings" start="${open.length + server.length + 1}">\n${knownLive.map((f, i) => card(f, open.length + server.length + i)).join("\n")}\n</ol>` : ""}${declined.length ? `\n<h3>Declined by the project</h3>\n<ul class="declined">\n${declined.map((f) => `<li>${e(f.problem ? (/^(.+?[.?])(\s|$)/.exec(f.problem)?.[1] ?? f.problem) : (rules.get(f.rule)?.title ?? f.rule))} ${where(f)} ${linkify(knownOf(f)!.url ?? "")}</li>`).join("\n")}\n</ul>` : ""}` : ""}
+${fixed.length ? `<h2 id="fixed">Already fixed</h2>\n<ol class="findings" start="${open.length + server.length + knownLive.length + 1}">\n${fixed.map((f, i) => card(f, open.length + server.length + knownLive.length + i)).join("\n")}\n</ol>` : ""}
+${notes.length ? `<h2 id="notes">Other problems the audit found</h2>\n<p>Problems read in the code that cost no tokens of their own, such as a cost meter or an error path. Not scored.</p>\n<ol class="notes">\n${notes.map(noteCard).join("\n")}\n</ol>` : ""}
 <h2 id="response">The maintainers’ response</h2>
 ${response}
 <h2 id="method">How this was made</h2>
 <p>The <a href="${url("how-it-works")}">llm-call-audit</a> skill read the code and wrote <a href="${REPO}/blob/main/site/audits/${a.folder}/findings.json" rel="noopener">findings.json</a>; nothing was run against the project’s providers. <a href="${url(`${key}/report`)}">The full audit page</a> is what <code>leanprompt report --html</code> writes from the same findings.</p>
 ${corrections}`;
     emit(
-      { key, title: auditTitle(a), description: clip(`Where ${m.name} could save tokens in its LLM calls, estimated from the code at commit ${short} with leanprompt ${m.leanprompt} on ${m.date}.`), section: "audits", crumbs: [["Audits", "audits"]], crumbLabel: `${m.owner}/${m.name}`, ogType: "article", published: m.date, body: article(e(auditTitle(a)), body) },
+      { key, title: auditTitle(a), description: clip(`${m.headline ? `${m.headline}. ` : ""}An audit of ${m.owner}/${m.name}'s LLM calls, estimated from the code at commit ${short} with leanprompt ${m.leanprompt} on ${m.date}.`), section: "audits", crumbs: [["Audits", "audits"]], crumbLabel: `${m.owner}/${m.name}`, ogType: "article", published: m.date, body: article(e(m.headline ?? auditTitle(a)), body, undefined, { h1Class: "audit-h1" }) },
       m.date,
     );
-    const html = renderReport({ findings: a.findings, score, rules, project: `${m.owner}/${m.name}`, version: m.leanprompt, ...(a.average_call ? { average_call: a.average_call } : {}), ...(a.kvsig ? { kvsig: a.kvsig } : {}), ...(a.notes ? { notes: a.notes } : {}) });
+    const html = renderReport({ findings: a.findings, score, rules, project: `${m.owner}/${m.name}`, version: m.leanprompt, ...(a.average_call ? { average_call: a.average_call } : {}), ...(a.kvsig ? { kvsig: a.kvsig } : {}), ...(a.notes ? { notes: a.notes } : {}), ...(a.unattended ? { unattended: true } : {}) });
     emitReport(`${key}/report`, html, {
       title: `${auditTitle(a)}: the full audit page`,
       description: `The page leanprompt report --html writes for ${m.owner}/${m.name} at commit ${short}. Estimates from the code, not measurements.`,
@@ -574,8 +612,25 @@ function firstSentence(t: string): string {
   return (m ? m[0] : t).replace(/:$/, ".");
 }
 
+/** The page title: the repository and the headline (older audits without one: the neutral title). */
 export function auditTitle(a: Audit): string {
-  return `Where ${a.meta.name} could save tokens`;
+  return a.meta.headline ? `${a.meta.name}: ${a.meta.headline}` : `Where ${a.meta.name} could save tokens`;
+}
+
+/** The kind label and the status badge, above an audit's headline. */
+function auditTags(a: Audit): string {
+  const b = badgeOf(a);
+  return [a.meta.kind ? `<span class="kind">${e(a.meta.kind)}</span>` : "", b ? `<span class="badge badge-${b}">${e(BADGES[b])}</span>` : ""].filter(Boolean).join(" ");
+}
+
+/** The big number: a finding's tokens, always labelled an estimate, or a count read from the project's output. */
+function bigNumber(a: Audit, onPage = false): string {
+  const b = bigNumberOf(a);
+  if (!b) return "";
+  const cls = onPage ? "big big-page" : "big";
+  if (b.kind === "count")
+    return `<p class="${cls}"><span class="big-n">${e(b.text)}</span> <span class="big-u">${e(b.label)}</span> <span class="big-tag">counted from their own output</span></p>`;
+  return `<p class="${cls}"><span class="big-n">≈ ${b.text}</span> <span class="big-u">tokens per 1,000 ${b.unit}, ${e(b.label)}</span> <span class="big-tag">estimate</span></p>`;
 }
 
 function scoreOf(findings: Finding[], date: string, version: string): ScoreFile {
@@ -587,18 +642,19 @@ function scoreOf(findings: Finding[], date: string, version: string): ScoreFile 
     inputs: s.inputs,
     message: `${s.score} static`,
     color: badgeColor(s.score, "static"),
-    diagnostics: { default_shares: s.default_shares.used, findings: s.default_shares.of },
+    diagnostics: { default_shares: s.default_shares.used, findings: s.default_shares.of, ...(s.known_findings ? { known_findings: s.known_findings } : {}) },
+    ...(s.known_findings ? { known: { findings: s.known_findings, with_known_score: staticScore(findings, undefined, { includeKnown: true }).score } } : {}),
     ...(date ? { date } : {}),
     leanprompt: version,
   };
 }
 
 /** The body of an article page: its h1, its content and, for a page made from a file, where to edit it. */
-function article(titleHtml: string, inner: string, sourceFile?: string): string {
+function article(titleHtml: string, inner: string, sourceFile?: string, o: { h1Class?: string } = {}): string {
   const src = sourceFile ? `\n      <p class="source"><a href="${REPO}/blob/main/${sourceFile}" rel="noopener">Edit this page on GitHub</a></p>` : "";
   return `  <article class="sec article">
     <div class="wrap prose">
-      <h1>${titleHtml}</h1>
+      <h1${o.h1Class ? ` class="${o.h1Class}"` : ""}>${titleHtml}</h1>
 ${inner}${src}
     </div>
   </article>`;

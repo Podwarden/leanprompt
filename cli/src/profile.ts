@@ -21,8 +21,14 @@ export interface Volume {
   source?: string;
 }
 
-/** Prices for one model, in US dollars per 1M tokens, with where they came from and when they were checked. */
+/**
+ * Prices for one model, per 1M tokens, with where they came from and when they were checked. In US dollars unless
+ * `currency` names another currency (an ISO 4217 code such as CNY or EUR); leanprompt shows the figure as given and
+ * never converts it.
+ */
 export interface Price {
+  /** ISO 4217 code, upper case; absent means USD. */
+  currency?: string;
   input: number;
   output: number;
   cached_input?: number;
@@ -64,7 +70,7 @@ const KEYS = ["target", "targets", "engine", "priority", "ignore", "volume", "pr
 const TARGET_KEYS = ["provider", "engine", "model_family", "context_tokens"];
 const TARGETS_ENTRY_KEYS = [...TARGET_KEYS, "files", "engine_facts", "volume"];
 const ENGINE_KEYS = ["block_tokens", "match_unit_tokens", "speculative", "kv_memory_gb", "prefill_tokens_per_second"];
-const PRICE_KEYS = ["input", "output", "cached_input", "cache_write", "source", "checked"];
+const PRICE_KEYS = ["input", "output", "cached_input", "cache_write", "currency", "source", "checked"];
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const PRIORITIES = ["cost", "speed", "quality"] as const;
 
@@ -145,12 +151,20 @@ function parsePrices(raw: unknown, errors: string[]): Record<string, Price> | un
       const v = p[k];
       if (v === undefined) {
         if (k === "input" || k === "output") {
-          errors.push(`${at}.${k} is required (US dollars per 1M tokens)`);
+          errors.push(`${at}.${k} is required (per 1M tokens, in US dollars unless currency is set)`);
           ok = false;
         }
       } else if (isNum(v) && v >= 0) price[k] = v;
       else {
-        errors.push(`${at}.${k} must be a number >= 0 (US dollars per 1M tokens)`);
+        errors.push(`${at}.${k} must be a number >= 0 (per 1M tokens, in US dollars unless currency is set)`);
+        ok = false;
+      }
+    }
+    if (p.currency !== undefined) {
+      if (typeof p.currency === "string" && /^[A-Z]{3}$/.test(p.currency)) {
+        if (p.currency !== "USD") price.currency = p.currency;
+      } else {
+        errors.push(`${at}.currency must be a three-letter ISO 4217 code in capitals, such as USD, CNY or EUR`);
         ok = false;
       }
     }

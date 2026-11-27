@@ -15,7 +15,8 @@ export interface LintIssue {
 export const REQUIRED_SECTIONS = ["Rule", "Why", "Detect in code", "Fix", "Don't break meaning", "Verify", "Waste signal"];
 const SKILL_CODES: Record<string, string> = { PC: "prefill-cache", GE: "generation-economy", PD: "prompt-diet", LW: "lmwarden" };
 const ID_RE = /^LP-(PC|GE|PD|LW)-\d{2}$/;
-const SAVES = ["prefill", "generation", "both"];
+// `none`: a correctness rule (a spend meter that undercounts): no tokens lost, so the audit records it as a note.
+const SAVES = ["prefill", "generation", "both", "none"];
 const SEVERITY = ["high", "medium", "low"];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -44,7 +45,7 @@ export function ruleFiles(root: string): string[] {
   return out;
 }
 
-export type RuleInfo = { title: string; skill: string };
+export type RuleInfo = { title: string; skill: string; saves?: string };
 
 /** Rule id -> title and skill, from the frontmatter of skills/*\/rules/*.md. */
 export function loadRules(root: string): Map<string, RuleInfo> {
@@ -52,7 +53,9 @@ export function loadRules(root: string): Map<string, RuleInfo> {
   for (const file of ruleFiles(root)) {
     try {
       const m = parseDoc(readFileSync(join(root, file), "utf8")).meta;
-      if (typeof m.id === "string" && typeof m.title === "string" && typeof m.skill === "string") out.set(m.id, { title: m.title, skill: m.skill });
+      if (typeof m.id === "string" && typeof m.title === "string" && typeof m.skill === "string") {
+        out.set(m.id, { title: m.title, skill: m.skill, ...(typeof m.saves === "string" ? { saves: m.saves } : {}) });
+      }
     } catch {
       /* lint:rules reports it */
     }
@@ -71,6 +74,13 @@ export function loadRuleIds(root: string): Set<string> {
       /* lintRules reports it */
     }
   }
+  return ids;
+}
+
+/** Ids of the correctness rules (`saves: none`): the audit records a match as a note that names the rule, never as a scored finding. */
+export function loadNoteRuleIds(root: string): Set<string> {
+  const ids = new Set<string>();
+  for (const [id, r] of loadRules(root)) if (r.saves === "none") ids.add(id);
   return ids;
 }
 

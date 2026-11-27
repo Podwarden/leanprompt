@@ -1,0 +1,191 @@
+{
+  "v": 1,
+  "unattended": true,
+  "average_call": {
+    "prompt_tokens": 20000,
+    "output_tokens": 800
+  },
+  "findings": [
+    {
+      "id": "gateway-caching",
+      "rule": "LP-PC-01",
+      "file": "apps/web/src/app/api/chat/route.ts",
+      "line": 1370,
+      "saves": "prefill",
+      "severity": "high",
+      "share": 0.4,
+      "status": "needs-facts",
+      "confirm": "In the AI Gateway logs (or usage.inputTokenDetails.cacheReadTokens), cached input tokens on the second turn of a Base model chat sent within 5 minutes of the first. 0 confirms the finding.",
+      "tokens_per_1k": {
+        "uncached": 8000000,
+        "cache_write": 1500000
+      },
+      "problem": "The only cache marks the chat sends are Anthropic ones (providerOptions.anthropic, lib/ai/prompt-cache.ts:17). The default Base model is alibaba/qwen3.6-plus (lib/ai/models.ts:76), which Alibaba lists for explicit cache only, and AI Gateway's caching option is not set, so the default model's chats are probably never cached.",
+      "change": "Add providerOptions.gateway.caching = 'auto' to the chat streamText call (and the other multi-turn calls), next to the existing Anthropic marks, or add Alibaba cache marks for Alibaba models.",
+      "why": "Every turn and every tool step re-sends the tools, the system prompt and the history at full input price instead of the cached price (10% of input on Alibaba explicit cache).",
+      "estimate": "about 8M prompt tokens per 1,000 calls not served from cache (estimate)",
+      "assumptions": "half of chat calls use the Base model; an average chat call sends 20k prompt tokens of which 16k repeat from the previous call; Alibaba docs (2026-11-24) list qwen3.6-plus for explicit cache only; AI Gateway docs (2026-09-11) list Alibaba as an explicit-caching provider and say requests pass through unchanged when caching is not set. Whether the gateway translates Anthropic marks for Alibaba is not stated.",
+      "verify": "Two turns of one Base model chat a minute apart: cacheReadTokens on the second turn rises from 0 to about the size of the first turn's prompt."
+    },
+    {
+      "id": "anthropic-loop",
+      "rule": "LP-PC-01",
+      "file": "apps/web/src/app/api/chat/route.ts",
+      "line": 1392,
+      "saves": "prefill",
+      "severity": "medium",
+      "share": 0.0225,
+      "status": "frequency-unknown",
+      "confirm": "Share of chat calls on Anthropic models and the average step count per turn, from the gateway logs or the [chat] step=N log lines.",
+      "tokens_per_1k": {
+        "uncached": 450000
+      },
+      "problem": "Inside one turn the tool loop runs up to 10 steps, but the last cache mark stays on the user's message (withTrailingCacheBreakpoint before streamText). prepareStep never moves it, so on Anthropic every step re-reads the earlier steps' tool calls and results at full price.",
+      "change": "In prepareStep, return the messages with a cache mark on the last loop message (reuse withTrailingCacheBreakpoint on the step's messages), or rely on gateway caching 'auto', which marks the last message of each request.",
+      "why": "Anthropic caches only up to a mark; everything after the last mark is billed as new input on each step.",
+      "estimate": "about 450k prompt tokens per 1,000 calls not served from cache (estimate)",
+      "assumptions": "15% of chat calls on Anthropic models; multi-step turns average 3 steps with about 3k tokens of tool output per step.",
+      "verify": "A 3-step tool turn on claude-sonnet-5: cacheReadTokens on step 3 covers steps 1 and 2, not only the head and history.",
+      "overlaps": [
+        "gateway-caching"
+      ]
+    },
+    {
+      "rule": "LP-PD-05",
+      "file": "apps/web/src/lib/db/pg/repositories/chat-repository.pg.ts",
+      "line": 158,
+      "saves": "prefill",
+      "severity": "medium",
+      "share": 0.125,
+      "status": "frequency-unknown",
+      "confirm": "How many chat requests come from threads with more than 50 messages (count of chat_message rows per thread at request time).",
+      "tokens_per_1k": {
+        "uncached": 2500000
+      },
+      "problem": "Each turn sends the newest 50 messages (CHAT_MESSAGE_WINDOW, lib/const.ts:12). Once a thread passes 50 messages the window slides by two messages every turn, so the first message of the history changes on every turn and the provider can reuse nothing after the system prompt.",
+      "change": "Move the window in steps: start it at a multiple of, say, 20 messages, so it stays byte-stable for 10 turns and then drops 20 at once; or compact past a size threshold.",
+      "why": "On threads past 50 messages every turn re-pays the whole history at full price, and on Anthropic also writes it to the cache at 1.25x, a write that is never read.",
+      "estimate": "about 2.5M prompt tokens per 1,000 calls not served from cache (estimate)",
+      "assumptions": "10% of chat calls come from threads past 50 messages; such a history is about 25k tokens after slimming. The stepped window sends up to 20 more old messages, so it needs an answer check on long threads.",
+      "verify": "Turns 30 and 31 of one long thread: cacheReadTokens on turn 31 covers the history, not only the tools and system prompt."
+    },
+    {
+      "rule": "LP-PC-06",
+      "file": "apps/web/src/app/api/chat/chat/slim-history.ts",
+      "line": 124,
+      "saves": "prefill",
+      "severity": "medium",
+      "share": 0.05,
+      "status": "frequency-unknown",
+      "confirm": "Share of turns that follow, two turns later, a turn with a tool result or document preview over 2,000 characters.",
+      "tokens_per_1k": {
+        "uncached": 1000000
+      },
+      "problem": "slimHistoryForModel keeps the last 2 user turns whole and truncates older bulky parts. A turn's large tool result is sent in full for two turns and truncated on the third, which rewrites history at that turn, so the cache misses from there to the end once per bulky turn.",
+      "change": "Truncate the bulky part once when it is stored for later turns (or move the keep-recent boundary in steps), so each old message has one form after it is first sent.",
+      "why": "The rewrite makes the last two turns, including their full tool results, prefill again at full price.",
+      "estimate": "about 1M prompt tokens per 1,000 calls not served from cache (estimate)",
+      "assumptions": "a bulky part ages out on 1 turn in 6; the two recent turns hold about 6k tokens. The slimming still saves tokens on long threads, so this is a timing change, not a removal.",
+      "verify": "Turns 3 and 4 after a web search turn: cacheReadTokens on turn 4 does not drop to the head size."
+    },
+    {
+      "rule": "LP-PC-03",
+      "file": "apps/web/src/app/api/chat/temporary/route.ts",
+      "line": 88,
+      "saves": "prefill",
+      "severity": "medium",
+      "share": 0.0075,
+      "status": "frequency-unknown",
+      "confirm": "Share of chat requests that go to the temporary chat route.",
+      "tokens_per_1k": {
+        "uncached": 150000
+      },
+      "problem": "Temporary chat puts the current date and time (to the minute) at the end of the system prompt and sends no cache marks. The main chat route moved the clock out of the system prompt for exactly this reason (retrieval-context.ts:24-29).",
+      "change": "Build the request like the main route: system as a message with the cache mark, withTrailingCacheBreakpoint on the messages, and the date through appendRetrievalContext.",
+      "why": "Each new minute changes the system prompt, so the whole history after it is a cache miss on most turns, and Anthropic or Alibaba models cache nothing without marks.",
+      "estimate": "about 150k prompt tokens per 1,000 calls not served from cache (estimate)",
+      "assumptions": "3% of chat calls are temporary chats with about 5k tokens of reusable prompt.",
+      "verify": "Two temporary-chat turns two minutes apart: cacheReadTokens on the second covers the system prompt and the first turn.",
+      "known": {
+        "kind": "reported",
+        "url": "https://github.com/keinsaasforever/better-chatbot/pull/371",
+        "note": "Open pull request #371 (2026-02-21, an outside contributor, against the layout before 2.0) separates the static system prompt from the date and time, temporary chat included. The team's 2.0 work superseded it for the main chat route, not for temporary chat."
+      }
+    },
+    {
+      "rule": "LP-GE-10",
+      "file": "apps/web/src/lib/ai/resilient-object.ts",
+      "line": 98,
+      "saves": "both",
+      "severity": "medium",
+      "share_prefill": 0.0025,
+      "share_output": 0.0094,
+      "status": "frequency-unknown",
+      "confirm": "How often the 'strict parse failed, trying text repair' warning is logged per project-brain run.",
+      "tokens_per_1k": {
+        "prompt": 50000,
+        "output": 7500
+      },
+      "problem": "When strict generateObject fails to parse, the model's text is thrown away and the same prompt is sent again with generateText, to run extractJsonObject on the new answer. The failed answer was usually the same JSON inside a code fence.",
+      "change": "Pass experimental_repairText to the first generateObject call and run extractJsonObject on the text it receives; keep the second call only for when that fails.",
+      "why": "Each parse failure pays for a second full call: the whole source text and payload again, and the whole answer again.",
+      "estimate": "about 50k prompt and 7.5k output tokens per 1,000 calls (estimate)",
+      "assumptions": "project-brain calls are 10% of all calls, 5% of them fail strict parsing, a call sends 10k prompt tokens and returns 1.5k.",
+      "verify": "Unit test: a mocked model returns fenced JSON once; the result arrives via primary with one model call instead of two."
+    },
+    {
+      "rule": "LP-GE-05",
+      "file": "apps/web/src/lib/ai/resilient-object.ts",
+      "line": 141,
+      "saves": "both",
+      "severity": "medium",
+      "share_prefill": 0.0025,
+      "share_output": 0.0094,
+      "status": "frequency-unknown",
+      "confirm": "How often 'fallback model failed' or 'recovered via fallback model' is logged.",
+      "tokens_per_1k": {
+        "prompt": 50000,
+        "output": 7500
+      },
+      "problem": "All four project-brain callers pass fallbackModel: customModelProvider.getModel(), which with no argument returns the Base model, the same id as projectBrainModelId (models.ts:337-339). So layer 3 repeats layer 1 exactly: same model, same system, same prompt.",
+      "change": "Skip layer 3 when the fallback equals the primary model, or pass a different model (for example one with reliable structured output) as the fallback.",
+      "why": "An identical request that just failed to parse is sent again with the full prompt and a full answer.",
+      "estimate": "about 50k prompt and 7.5k output tokens per 1,000 calls (estimate)",
+      "assumptions": "same as the text-repair finding; this applies when both earlier layers fail.",
+      "verify": "Unit test: with primary and fallback equal and both layers failing, the model is called 2 times, not 3."
+    },
+    {
+      "rule": "LP-PC-03",
+      "file": "apps/web/src/lib/project-brain/prompts.ts",
+      "line": 11,
+      "saves": "prefill",
+      "severity": "low",
+      "share": 0,
+      "tokens_per_1k": {},
+      "problem": "The project-brain system prompts start with the current date and time to the minute, so they differ between runs.",
+      "change": "Move the date into the user content if these prompts grow.",
+      "why": "A per-minute value at the top stops the provider reusing the rest of the prompt.",
+      "estimate": "0 today (estimate)",
+      "assumptions": "the extraction prompt is under about 800 tokens, below the 1,024-token minimum cacheable size, and the user content is unique per source, so nothing is lost now.",
+      "verify": "Only relevant if the system prompt passes 1,024 tokens."
+    }
+  ],
+  "notes": [
+    {
+      "title": "Chat gives the model the server's clock without a time zone",
+      "file": "apps/web/src/lib/ai/prompts.ts",
+      "line": 94,
+      "problem": "buildCurrentDateTimePrompt formats new Date() with date-fns format, which uses the server's zone (UTC on Vercel and in most containers) and does not name it. Voice already uses Europe/Berlin for this reason (prompts.ts:243). Chat, temporary chat and project brain tell the model a UTC time as if local.",
+      "change": "Format with the same Intl.DateTimeFormat in Europe/Berlin (or the user's zone) and name the zone in the sentence.",
+      "verify": "Unit test with TZ=UTC at 23:30 UTC: the prompt shows the next day in Berlin and names the zone."
+    },
+    {
+      "title": "Temporary chat describes tools it never passes",
+      "file": "apps/web/src/app/api/chat/temporary/route.ts",
+      "line": 86,
+      "problem": "Temporary chat sends buildUserSystemPrompt, whose tool_usage block (prompts.ts:165-179) tells the model to search the web, run python-execution and draw charts, but the streamText call has no tools. The model can promise a search it cannot run.",
+      "change": "Leave out the tool_usage block when no tools are bound, as the main route does with buildToolCallUnsupportedModelSystemPrompt.",
+      "verify": "Ask temporary chat for today's weather: it says it cannot search instead of announcing a search."
+    }
+  ]
+}

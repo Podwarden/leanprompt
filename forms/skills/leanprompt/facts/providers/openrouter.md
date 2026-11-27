@@ -64,4 +64,4 @@ Used by the `generation-economy` rules. What a routed request supports depends o
 
 - Cache TTL on the OpenRouter side: not applicable; only the 60-minute sticky-routing timer is stated (checked 2026-11-26).
 - The provider routing page was read to character 100,000 of 132,066; the rest was not read.
-<!-- leanprompt:generated v0.1.0-dev.13: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.14: written by npx leanprompt install; npx leanprompt update replaces local edits -->

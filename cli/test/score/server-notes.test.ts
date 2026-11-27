@@ -74,7 +74,7 @@ describe("status: needs-facts and frequency-unknown", () => {
     expect(isOpenQuestion(fu)).toBe(false);
     expect(parseFindings(doc([{ ...f(), status: "frequency-unknown" }]), IDS).errors[0]).toMatch(/frequency-unknown finding needs `confirm`/);
     expect(parseFindings(doc([fu]), IDS).findings[0]!.status).toBe("frequency-unknown");
-    expect(parseFindings(doc([{ ...f(), status: "maybe", confirm: "x" }]), IDS).errors[0]).toMatch(/needs-facts or frequency-unknown/);
+    expect(parseFindings(doc([{ ...f(), status: "maybe", confirm: "x" }]), IDS).errors[0]).toMatch(/needs-facts, frequency-unknown or size-unknown/);
   });
 });
 

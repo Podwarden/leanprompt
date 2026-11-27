@@ -74,4 +74,4 @@ The field the model needs is sometimes the one you would cut. Choose the fields 
 
 ## Waste signal
 Measured: the drop in `prompt_tokens` per turn times the turns after each tool call; the score does not count it, the report shows it as `tokens_per_1k.prompt`. Static: severity high for raw API responses, HTML pages or `SELECT *` results put whole into an agent loop's history; medium for retrieval with no cap on chunks or length; low for a few unused fields.
-<!-- leanprompt:generated v0.1.0-dev.13: written by leanprompt install; leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.14: written by leanprompt install; leanprompt update replaces local edits -->

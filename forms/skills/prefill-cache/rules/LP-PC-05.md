@@ -67,4 +67,4 @@ More tools in view can change which tool the model picks, so run the app's tool-
 
 ## Waste signal
 Measured: each tool change lowers S on the turn where it happens; per-turn filtering lowers it on most turns. Static: severity medium for an on-demand load, a prepend or a re-sort, and for per-turn filtering or a per-turn `tool_choice` switch.
-<!-- leanprompt:generated v0.1.0-dev.13: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.14: written by npx leanprompt install; npx leanprompt update replaces local edits -->

@@ -11,11 +11,11 @@ The first release.
 - `leanprompt`: the entry point; `/leanprompt` lists the commands (init, audit, fix, measure, score, report, lesson) and routes each to the skill that does the work.
 - `llm-call-audit`: finds every LLM call in an app, checks it against the rules, ranks the findings and writes `leanprompt-report.md` and `.leanprompt/findings.json`; asks before editing code, installing a package or running billed requests.
 - `prefill-cache`: rules LP-PC-01 to LP-PC-12 for prompts a provider's prefix cache can reuse.
-- `generation-economy`: rules LP-GE-01 to LP-GE-10 for calls and output that are not wasted.
+- `generation-economy`: rules LP-GE-01 to LP-GE-10 for calls and output that are not wasted, and LP-GE-11, a correctness rule for apps that meter their own spend.
 - `prompt-diet`: rules LP-PD-01 to LP-PD-06 for dead weight in what each call sends; every trim carries an answer check.
 - `measure-loop`: the usage logger, the stable-head CI test (vitest and pytest templates on kvsig ids), replay before and after, and the score.
 - `lmwarden`: rules LP-LW-01 to LP-LW-03 for self-hosted engines, and reading engine facts from LM Warden. Prompt Lens is described as planned.
-- Dated provider tables (Anthropic, OpenAI, Gemini, OpenRouter, DeepInfra, vLLM, SGLang) and per-model notes (Qwen, OpenAI reasoning, Anthropic thinking), each with a `checked:` date and a source.
+- Dated provider tables (Anthropic, OpenAI, Azure OpenAI, Gemini, OpenRouter, Vercel AI Gateway, DeepInfra, Alibaba Model Studio, vLLM, SGLang) and per-model notes (Qwen, OpenAI reasoning, Anthropic thinking), each with a `checked:` date and a source.
 - The evidence table, `docs/evidence.md` (rows E1 to E12, with sources and limits).
 
 ### CLI (`npx leanprompt`)
@@ -41,7 +41,37 @@ The first release.
 - `npm run check:numbers`: every number with a unit in the README, the public docs and the skills cites an evidence row or a measured result.
 - Apache-2.0 for code, CC BY 4.0 for the skills and docs; README, CONTRIBUTING, GOVERNANCE and SECURITY (the last three under `.github/`).
 
-## Unreleased
+## 0.1.0-dev.14 – 2026-11-27
+
+Lessons from real audits of public repositories and one run by an app's own team: a prior-art check, a rule for apps that meter their own spend, more provider facts, and a page that counts more honestly.
+
+### Score change
+
+- Findings the project already knows about are left out of the static score. The audit records them in a new `known` field (planned, in progress, reported or declined, with the link); the older `planned` text field counts as planned. A findings file with such findings can score higher than it did in 0.1.0-dev.13; `score.json` keeps the old figure under `known.with_known_score`. Details in [score.md](score.md#what-the-project-already-knows-and-overlapping-findings).
+- Findings linked by `overlaps` count once per group: on each side, the largest share in the group. A file without `overlaps` scores the same as before.
+- Re-scored site audits: anything-llm 74 to 90 (its three findings planned in the maintainers' own issue are now known and left out); the other site audits are unchanged.
+
+### Added
+
+- **A prior-art step in the audit.** Before it writes the findings, the audit searches the project's open and closed issues and pull requests, its docs and its decision records for each candidate finding, and records what it finds in `known` (`{kind, url, note}`, kind `planned`, `in-progress`, `reported` or `declined`). Known findings keep their estimates but are not counted among the places, not in the totals and not in the score; the page and the Markdown report list them under "Already known to the project". A declined finding is shown only as "Declined by the project" with its link, and is left out of the hand-off block and of any issue the audit drafts. The skill has tips for busy trackers and says to audit the branch the project develops on.
+- **LP-GE-11, meter every billed token.** A correctness rule for apps that meter their own spend from usage fields: count cache reads and writes at their own prices (Anthropic's `input_tokens` leaves them out; OpenAI's `prompt_tokens` already includes `cached_tokens`), and count the calls that did not finish. It has a severity and no token share, so the audit records a match as a note that names the rule (`"rule": "LP-GE-11"`, `severity`). Rules may now declare `saves: none` for such correctness rules; a finding cannot use one.
+- **Provider tables** for Vercel AI Gateway (its `caching: 'auto'` option, pass-through without it, the providers it marks for), Alibaba Model Studio (explicit and implicit cache, which Qwen models support which, write and hit prices, usage fields) and Azure OpenAI (caching by model family and deployment type, reasoning effort values and defaults, `max_output_tokens`, cut-off replies, and where it differs from OpenAI). `providers/openai.md` gains the Node SDK's retry and timeout defaults, how cached tokens add up in the usage fields, and the GPT-5.4 family's reasoning defaults and prices.
+- **Overlapping findings:** an optional `id` on a finding and `overlaps: [ids]`; the totals count each group once, the largest, and the page says so.
+- **`size-unknown`**, next to `frequency-unknown`: the code shows the problem and how often, and only the tokens it costs each time are assumed. Marked "size is assumed" on the page.
+- **Notes** can name a correctness rule and its severity, the `finding` they are another face of (linked on the page), and `known`.
+- **Unattended runs** are recorded with `"unattended": true` in `findings.json`, and the page and the Markdown report say so. The page now shows the same "Questions for the owner" section as the Markdown report.
+- **Prices in another currency:** `currency` on a `prices:` entry (an ISO code such as `CNY`); the page shows the figures in it as given and never converts. Models priced in different currencies are not added together.
+- **A private npm registry:** `docs/install.md` and the audit skill say how to run `npx leanprompt` with `npm_config_registry` when a project's `.npmrc` points at a private feed.
+- **Contribution policy and one complete post:** "Auditing someone else's repository" in `presenting.md` lists the checks before reporting upstream (rules on AI-generated contributions, a CLA, issue first, labels reserved for the core team, the branch to target) and asks for one complete post: no follow-up offers, one disclosure line.
+- Six more audit pages on the site: better-chatbot, chat-with-your-data-solution-accelerator, agents-radar, aicommits, AI-Video-Transcriber and llm-wiki-agent.
+- **Audit headlines.** Each audit's `meta.yaml` now has a `headline` (the mistake in plain words, at most 80 characters), a `subtitle` (what the app is and what it does well), a `kind` from a fixed list and a `figure` (one finding's tokens per 1,000 calls, always labelled an estimate, or a count read from the project's output). The audits index opens with a summary strip and shows each audit as a card with its headline, big number and status badge (Fixed upstream, Reported, Already planned by the maintainers); fixed audits come first, then the rest by the size of the number. The build refuses a headline over 80 characters, a kind outside the list and mocking words.
+
+### Changed
+
+- The headline counts only findings that cost tokens: a finding whose shares and tokens are all 0 stays on the page, marked as costing no tokens today, and is not counted as a place.
+- The headline names the largest open question when it is larger than the largest finding.
+- LP-PC-01 detects the reverse of missing marks: marks keyed to one provider sent to another explicit-cache provider, which ignores them.
+- `score --github` leaves out findings the project has declined.
 
 ### Fixed
 
