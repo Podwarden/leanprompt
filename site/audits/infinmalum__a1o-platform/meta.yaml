@@ -14,6 +14,10 @@ date: 2026-11-27
 status: published
 no_channel: >-
   The repository has issues and discussions turned off, so there was no public channel to report this. The maintainers can reach us at info@podwarden.com.
+maintainer:
+  response: >-
+    The maintainer wrote to us privately after the audit was published and said the report was useful. They also explained the agent SDK's history: Norma-e is their fork of the Norma SDK, written by the developer of ARTEX, with multimodal support added.
+  response_date: 2026-11-27
 summary: >-
   A self-hosted LLM gateway that converts between the OpenAI, Anthropic and Gemini formats and bills a per-user quota from provider usage, with a built-in agent, Studio. Its billing prices cache reads as ordinary input, and requests it converts for Claude carry no cache mark. Figures are estimates from the code. leanprompt is made by the LM Warden Team, whose LM Warden is in the same market.
 headline: "A gateway that keeps your cache marks, then bills cached tokens at full price"
