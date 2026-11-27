@@ -191,8 +191,8 @@ function pluginReadme(version: string): string {
     "",
     "## Licence",
     "",
-    "The skills and this README are licensed under CC BY 4.0 (LICENSE-DOCS); code is licensed under",
-    "Apache-2.0 (LICENSE). See NOTICE.",
+    "The skills and this README are licensed under CC BY 4.0 (LICENSE-DOCS.md); code is licensed under",
+    "Apache-2.0 (LICENSE). See NOTICE.md.",
     "",
   ].join("\n");
 }
@@ -322,7 +322,11 @@ export function buildForms(root: string): Map<string, string> {
     }),
   );
   out.set("plugin/README.md", pluginReadme(version));
-  for (const f of ["LICENSE", "LICENSE-DOCS", "NOTICE"]) out.set(`plugin/${f}`, lf(readFileSync(join(root, f), "utf8")));
+  // LICENSE keeps its name (the directory accepts a licence); the other two texts get .md, since the
+  // directory refuses extensionless files it does not recognise from organizations that are not Verified.
+  for (const [f, to] of [["LICENSE", "LICENSE"], ["LICENSE-DOCS", "LICENSE-DOCS.md"], ["NOTICE", "NOTICE.md"]]) {
+    out.set(`plugin/${to}`, lf(readFileSync(join(root, f), "utf8")));
+  }
 
   // Cursor reads .cursor-plugin/plugin.json at the repository root; `skills` points it at the
   // same self-contained skills (links outside the skills tree are pinned GitHub URLs).

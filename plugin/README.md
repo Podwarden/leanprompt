@@ -50,5 +50,5 @@ from that repository for version 0.1.0-dev.12.
 
 ## Licence
 
-The skills and this README are licensed under CC BY 4.0 (LICENSE-DOCS); code is licensed under
-Apache-2.0 (LICENSE). See NOTICE.
+The skills and this README are licensed under CC BY 4.0 (LICENSE-DOCS.md); code is licensed under
+Apache-2.0 (LICENSE). See NOTICE.md.

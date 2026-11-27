@@ -126,11 +126,11 @@ describe("buildForms", () => {
     for (const k of keys) {
       const rest = k.slice("plugin/".length);
       expect(
-        ["README.md", "LICENSE", "LICENSE-DOCS", "NOTICE", ".claude-plugin/plugin.json"].includes(rest) || rest.startsWith("skills/"),
+        ["README.md", "LICENSE", "LICENSE-DOCS.md", "NOTICE.md", ".claude-plugin/plugin.json"].includes(rest) || rest.startsWith("skills/"),
         k,
       ).toBe(true);
       // Only Markdown, JSON, images and the licence texts: the directory refuses code files.
-      expect(/\.(md|json)$/.test(rest) || ["LICENSE", "LICENSE-DOCS", "NOTICE"].includes(rest), k).toBe(true);
+      expect(/\.(md|json)$/.test(rest) || rest === "LICENSE", k).toBe(true);
     }
     const code = /\.(ts|py)$/;
     for (const [k, v] of built) {

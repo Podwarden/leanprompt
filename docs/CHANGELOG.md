@@ -48,6 +48,7 @@ Passes the plugin directory's checks.
 ### Changed
 
 - `plugin/`: the two test templates of `measure-loop` ship as Markdown with the code in one fenced block (`templates/*.template.ts.md`, `templates/stable_head_template.py.md`), because the directory accepts only Markdown, text, JSON, YAML and images from organizations that are not Verified. The npm package, `forms/` and `npx leanprompt install` keep the plain `.ts` and `.py` files.
+- `plugin/`: `LICENSE-DOCS` and `NOTICE` are `LICENSE-DOCS.md` and `NOTICE.md` there, because the directory refuses extensionless files it does not recognise as a licence.
 - The plugin README and `docs/registries.md` give the two-step plugin install (`/plugin marketplace add`, then `/plugin install leanprompt@leanprompt`), and the runbook says to submit the `plugin` folder URL so the portal does not validate the whole repository.
 
 ## 0.1.0-dev.11 – 2026-11-26
