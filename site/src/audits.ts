@@ -10,7 +10,10 @@
 //   an estimate, or a count read from the project's own output, labelled as such;
 // - the maintainer's issue, pull request and response are linked when there is one; an audit of a
 //   repository with no public channel (issues and discussions off) says so in `no_channel` instead;
-// - every page carries the corrections and takedown line.
+// - every page carries the corrections and takedown line;
+// - every published audit (the demonstration too) carries an illustration: meta.yaml
+//   `illustration: {scene, alt}` and, in its folder, illustration.webp (1408x736) and og.jpg
+//   (1200x630), made by scripts/audit-illustrations.mjs from the scene (see site/audits/README.md).
 // A folder whose name starts with "_" (the template) is skipped, and so is an audit whose status
 // is `draft` or `withdrawn`. Any other problem fails the build with the folder and the reason.
 
@@ -67,6 +70,28 @@ export interface Figure {
   unit: "calls" | "runs";
 }
 
+/** The picture beside an audit's headline: what was drawn (the prompt, kept so a re-run reproduces it) and its alt text. */
+export interface Illustration {
+  /** What the picture shows, objects only: the prompt the illustration service drew (10 to 1500 characters). */
+  scene: string;
+  /** One plain sentence describing the picture for screen readers (at most 250 characters). */
+  alt: string;
+}
+
+/** The two image files every published audit folder holds, and their exact sizes in pixels. */
+export const ILLUSTRATION_FILES = {
+  card: { file: "illustration.webp", type: "webp", width: 1408, height: 736 },
+  og: { file: "og.jpg", type: "jpeg", width: 1200, height: 630 },
+} as const;
+
+/**
+ * Audits whose illustration files have not been rendered yet: the build lets a named folder
+ * through without illustration.webp and og.jpg (their scene and alt are still required). A test
+ * fails as soon as an entry's files exist, and the release checklist (site/audits/README.md)
+ * requires this list to be empty.
+ */
+export const ILLUSTRATIONS_PENDING: readonly string[] = [];
+
 export interface AuditMeta {
   repo: string;
   owner: string;
@@ -91,6 +116,8 @@ export interface AuditMeta {
    * repository has issues and discussions turned off, say). Shown as the page's status.
    */
   no_channel?: string;
+  /** Required to publish: the illustration's scene and alt text. */
+  illustration?: Illustration;
 }
 
 export interface Audit {
@@ -106,6 +133,45 @@ export interface Audit {
   notes?: Note[];
   /** The audit ran unattended (findings.json `unattended: true`); the page says so. */
   unattended?: boolean;
+  /** The illustration files, read from the folder (absent only for an entry in ILLUSTRATIONS_PENDING). */
+  images?: { card: Buffer; og: Buffer };
+}
+
+/** The type and size of a PNG, JPEG or WebP image, read from its header; undefined when it is none of them, or truncated. */
+export function imageInfo(b: Buffer): { type: "png" | "jpeg" | "webp"; width: number; height: number } | undefined {
+  if (b.length >= 4 && b[0] === 0xff && b[1] === 0xd8) {
+    // JPEG: walk the marker segments to the frame header (baseline, extended or progressive); the file must end with EOI.
+    if (b[b.length - 2] !== 0xff || b[b.length - 1] !== 0xd9) return undefined;
+    let i = 2;
+    while (i + 4 <= b.length) {
+      if (b[i] !== 0xff) return undefined;
+      const m = b[i + 1]!;
+      if (m === 0xff) { i++; continue; }
+      if (m === 0xc0 || m === 0xc1 || m === 0xc2) {
+        if (i + 9 > b.length) return undefined;
+        return { type: "jpeg", width: b.readUInt16BE(i + 7), height: b.readUInt16BE(i + 5) };
+      }
+      if (m === 0xd8 || m === 0x01 || (m >= 0xd0 && m <= 0xd7)) { i += 2; continue; }
+      if (m === 0xda || m === 0xd9) return undefined;
+      i += 2 + b.readUInt16BE(i + 2);
+    }
+    return undefined;
+  }
+  if (b.length >= 33 && b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) && b.toString("latin1", 12, 16) === "IHDR") {
+    if (b.toString("latin1", b.length - 8, b.length - 4) !== "IEND") return undefined;
+    return { type: "png", width: b.readUInt32BE(16), height: b.readUInt32BE(20) };
+  }
+  if (b.length >= 30 && b.toString("latin1", 0, 4) === "RIFF" && b.toString("latin1", 8, 12) === "WEBP") {
+    if (b.readUInt32LE(4) + 8 !== b.length) return undefined;
+    const chunk = b.toString("latin1", 12, 16);
+    if (chunk === "VP8 " && b[23] === 0x9d && b[24] === 0x01 && b[25] === 0x2a) return { type: "webp", width: b.readUInt16LE(26) & 0x3fff, height: b.readUInt16LE(28) & 0x3fff };
+    if (chunk === "VP8L" && b[20] === 0x2f) {
+      const bits = b.readUInt32LE(21);
+      return { type: "webp", width: (bits & 0x3fff) + 1, height: ((bits >> 14) & 0x3fff) + 1 };
+    }
+    if (chunk === "VP8X") return { type: "webp", width: b.readUIntLE(24, 3) + 1, height: b.readUIntLE(27, 3) + 1 };
+  }
+  return undefined;
 }
 
 const GITHUB_REPO = /^https:\/\/github\.com\/([A-Za-z0-9-]{1,39})\/([A-Za-z0-9._-]{1,100})$/;
@@ -220,7 +286,27 @@ export function validateMeta(text: string, slug: string): { meta?: AuditMeta; er
     if (status !== "published") errors.push("no_channel goes only with status: published (an audit with a maintainer thread links it instead)");
     if (maintainer?.issue || maintainer?.pr) errors.push("no_channel and a maintainer.issue or maintainer.pr contradict each other");
   }
-  const known = ["repo", "visibility", "commit", "leanprompt", "date", "status", "path", "summary", "headline", "subtitle", "kind", "figure", "maintainer", "no_channel"];
+  let illustration: Illustration | undefined;
+  if (m.illustration !== undefined && m.illustration !== null) {
+    if (typeof m.illustration !== "object" || Array.isArray(m.illustration)) errors.push("illustration must be a mapping with scene and alt");
+    else {
+      const im = m.illustration as Record<string, unknown>;
+      const scene = typeof im.scene === "string" ? im.scene.trim() : undefined;
+      const alt = typeof im.alt === "string" ? im.alt.trim() : undefined;
+      if (!scene) errors.push("illustration.scene is required: what the picture shows, objects only (the prompt the illustration service draws)");
+      else if (scene.length < 10 || scene.length > 1500) errors.push(`illustration.scene must be 10 to 1500 characters, not ${scene.length}`);
+      if (!alt) errors.push("illustration.alt is required: one plain sentence describing the picture for screen readers");
+      else {
+        if (alt.length > 250) errors.push(`illustration.alt must be at most 250 characters, not ${alt.length}`);
+        if (/\n/.test(alt) || !/^[A-Z].*[.]$/.test(alt) || /[.?!]\s+[A-Z]/.test(alt)) errors.push("illustration.alt must be one plain sentence: a capital letter first, a full stop last");
+        if (/^(an? )?(image|picture|illustration|photo) of\b/i.test(alt)) errors.push('illustration.alt describes the picture itself: drop "image of" or "picture of"');
+      }
+      const extra = Object.keys(im).filter((k) => !["scene", "alt"].includes(k));
+      if (extra.length) errors.push(`illustration: unknown keys ${extra.join(", ")}`);
+      if (scene && alt) illustration = { scene, alt };
+    }
+  } else if (publishable) errors.push("illustration is required: {scene, alt}; see site/audits/README.md");
+  const known = ["repo", "visibility", "commit", "leanprompt", "date", "status", "path", "summary", "headline", "subtitle", "kind", "figure", "maintainer", "no_channel", "illustration"];
   const unknown = Object.keys(m).filter((k) => !known.includes(k));
   if (unknown.length) errors.push(`unknown keys ${unknown.join(", ")}`);
   if (errors.length) return { errors };
@@ -243,6 +329,7 @@ export function validateMeta(text: string, slug: string): { meta?: AuditMeta; er
       ...(figure ? { figure } : {}),
       ...(maintainer && Object.keys(maintainer).length ? { maintainer } : {}),
       ...(noChannel ? { no_channel: noChannel } : {}),
+      ...(illustration ? { illustration } : {}),
     },
   };
 }
@@ -281,6 +368,26 @@ export function loadAudits(root: string, ruleIds: ReadonlySet<string>, noteRuleI
       if (f.tokens_per_1k?.measured_calls !== undefined)
         problems.push(`${at}/findings.json: findings[${i}] has measured_calls; a published audit states estimates from the code only`);
     }
+    let images: Audit["images"];
+    {
+      const read = (k: keyof typeof ILLUSTRATION_FILES) => {
+        const want = ILLUSTRATION_FILES[k];
+        const f = join(dir, slug, want.file);
+        if (!existsSync(f)) return { missing: want.file };
+        const b = readFileSync(f);
+        const info = imageInfo(b);
+        if (!info || info.type !== want.type) return { error: `${want.file} is not a valid ${want.type.toUpperCase()} image` };
+        if (info.width !== want.width || info.height !== want.height) return { error: `${want.file} must be ${want.width}x${want.height}, not ${info.width}x${info.height}` };
+        return { b };
+      };
+      const card = read("card");
+      const og = read("og");
+      const missing = [card.missing, og.missing].filter(Boolean);
+      for (const x of [card.error, og.error]) if (x) problems.push(`${at}: ${x}`);
+      if (missing.length && !ILLUSTRATIONS_PENDING.includes(slug))
+        problems.push(`${at}: ${missing.join(" and ")} missing: run npm run illustrations -- --only ${slug} (see site/audits/README.md)`);
+      if (card.b && og.b) images = { card: card.b, og: og.b };
+    }
     const fig = meta.figure?.finding;
     if (fig !== undefined && !parsed.findings.some((f) => f.id === fig || `${f.file}:${f.line}` === fig))
       problems.push(`${at}/meta.yaml: figure.finding ${fig} names no finding in findings.json (use its id or file:line)`);
@@ -293,6 +400,7 @@ export function loadAudits(root: string, ruleIds: ReadonlySet<string>, noteRuleI
       ...(parsed.kvsig ? { kvsig: parsed.kvsig } : {}),
       ...(parsed.notes?.length ? { notes: parsed.notes } : {}),
       ...(parsed.unattended ? { unattended: true } : {}),
+      ...(images ? { images } : {}),
     });
   }
   if (problems.length) throw new Error(`audits:\n  ${problems.join("\n  ")}`);

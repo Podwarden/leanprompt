@@ -21,3 +21,6 @@ subtitle: >-
 kind: Cache never hits
 figure:
   label: "for default-model chats, if the gateway does not cache them"
+illustration:
+  scene: "a well-stocked storage cabinet with its doors closed and covered in dust, while a small delivery cart drives past it to fetch the same supplies from a distant warehouse"
+  alt: "A dusty storage cabinet full of boxes stands unused while a small delivery cart drives past it."

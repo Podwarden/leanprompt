@@ -23,3 +23,6 @@ kind: Wrong text summarised
 figure:
   count: "66 of 558"
   label: "highlights checked over one month of Telegram and Feishu digests"
+illustration:
+  scene: "a very long scroll of paper running behind a wall, only its first short section visible through a small window in the wall, a typewriter in front of the wall writing a headline from that small glimpse"
+  alt: "A long paper scroll runs along a wall and vanishes through a small window, while a typewriter in front of it writes from the short part it can see."

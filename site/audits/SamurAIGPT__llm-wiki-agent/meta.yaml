@@ -26,3 +26,6 @@ kind: Runs again every night
 figure:
   finding: "nightly-reingest"
   label: "if the documented nightly job ingests files that did not change"
+illustration:
+  scene: "a small printing press at night under a crescent moon in a window, printing a stack of pages identical to the tall stack of identical pages already beside it, a coin dropping into the press's coin slot"
+  alt: "Under a crescent moon in a night window, a small printing press fed with coins prints another page beside a tall stack of identical pages."

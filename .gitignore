@@ -7,3 +7,8 @@ __pycache__/
 .worktrees/
 python/uv.lock
 site-dist/
+
+# Local secrets (for example IMGEN_API_TOKEN for scripts/audit-illustrations.mjs). Never commit.
+.env
+.env.*
+!.env.example

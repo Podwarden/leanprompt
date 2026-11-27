@@ -26,3 +26,6 @@ kind: Cache never hits
 figure:
   finding: "server/utils/AiProviders/openAi/index.js:125"
   label: "for chat history the cache could have served"
+illustration:
+  scene: "a row of blank cards standing on a long sliding rail, the whole row shifted one place to the left so the leftmost card drops off the end, a fixed stencil frame hanging above the rail no longer lined up with the cards beneath it"
+  alt: "A row of blank cards on a sliding rail has shifted one place, so the first card tips off the end and the frame hanging above no longer lines up with the cards."

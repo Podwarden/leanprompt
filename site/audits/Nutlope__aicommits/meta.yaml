@@ -24,3 +24,6 @@ kind: Cut-off answer
 figure:
   finding: "cutoff-retry"
   label: "for a cut-off answer sent again with the same output limit"
+illustration:
+  scene: "a small desktop machine feeding out three identical long paper strips side by side, a guillotine blade slicing every strip off at exactly the same point, the cut-off ends falling into a wastebasket"
+  alt: "A cream desktop machine feeds out three paper strips side by side while a steel blade cuts every strip off at the same point."

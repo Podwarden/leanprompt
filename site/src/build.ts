@@ -25,7 +25,7 @@ import { costsNothing, formatTokens } from "../../cli/src/report/cost.js";
 import { KNOWN_LABEL, loadRules, rankFindings, renderReport, UNATTENDED_LINE, type ScoreFile } from "../../cli/src/report/html.js";
 import { isKnownFinding, isServerFinding, knownOf, parseFindings, staticScore, type Finding, type Note } from "../../cli/src/score/static.js";
 import { badgeColor } from "../../cli/src/score/write.js";
-import { BADGES, STATUS_TEXT, badgeOf, bigNumberOf, loadAudits, sortForIndex, type Audit } from "./audits.js";
+import { BADGES, ILLUSTRATION_FILES, STATUS_TEXT, badgeOf, bigNumberOf, loadAudits, sortForIndex, type Audit } from "./audits.js";
 import { page, type AssetUrl, type PageSpec } from "./layout.js";
 import { clip, escapeHtml as e, plain, renderMarkdown } from "./markdown.js";
 import { loadPosts, loadReleases } from "./news.js";
@@ -428,10 +428,23 @@ ${stat(problems, problems === 1 ? "problem found" : "problems found")}
 ${stat(fixedUpstream, "fixed upstream")}
 ${stat(reported, "reported to the maintainers")}${planned ? `\n${stat(planned, "already planned by the maintainers")}` : ""}
 </ul>`;
-  const auditCard = (a: Audit) => {
+  // The illustrations ship with the site, beside each audit page: /leanprompt/audits/<slug>/illustration.webp and og.jpg.
+  for (const a of audits) {
+    if (!a.images) continue;
+    files.set(`leanprompt/audits/${a.slug}/${ILLUSTRATION_FILES.card.file}`, a.images.card);
+    files.set(`leanprompt/audits/${a.slug}/${ILLUSTRATION_FILES.og.file}`, a.images.og);
+  }
+  /** The illustration's <img>: lazy unless it is in the first screen (the first row of cards, or the page header). */
+  const auditImg = (a: Audit, eager: boolean, cls: string) => {
+    if (!a.images || !a.meta.illustration) return "";
+    const c = ILLUSTRATION_FILES.card;
+    return `<img class="${cls}" src="${url(`audits/${a.slug}`)}${c.file}?v=${hash(a.images.card)}" width="${c.width}" height="${c.height}" alt="${e(a.meta.illustration.alt)}"${eager ? "" : ' loading="lazy"'} decoding="async">`;
+  };
+  const auditCard = (a: Audit, i: number) => {
     const m = a.meta;
+    // Two cards to a row on a desktop: the first two images load at once, the rest when scrolled to.
     return `<li class="audit-card">
-<h2><a href="${url(`audits/${a.slug}`)}">${e(m.headline ?? auditTitle(a))}</a></h2>
+<div class="audit-head"><h2><a href="${url(`audits/${a.slug}`)}">${e(m.headline ?? auditTitle(a))}</a></h2>${auditImg(a, i < 2, "audit-art")}</div>
 <p class="audit-tags">${auditTags(a)}</p>
 ${m.subtitle ? `<p class="audit-sub">${e(m.subtitle)}</p>` : ""}
 ${bigNumber(a)}
@@ -549,7 +562,18 @@ ${response}
 <p>The <a href="${url("how-it-works")}">llm-call-audit</a> skill read the code and wrote <a href="${REPO}/blob/main/site/audits/${a.folder}/findings.json" rel="noopener">findings.json</a>; nothing was run against the project’s providers. <a href="${url(`${key}/report`)}">The full audit page</a> is what <code>leanprompt report --html</code> writes from the same findings.</p>
 ${corrections}`;
     emit(
-      { key, title: auditTitle(a), description: clip(`${m.headline ? `${m.headline}. ` : ""}An audit of ${m.owner}/${m.name}'s LLM calls, estimated from the code at commit ${short} with leanprompt ${m.leanprompt} on ${m.date}.`), section: "audits", crumbs: [["Audits", "audits"]], crumbLabel: `${m.owner}/${m.name}`, ogType: "article", published: m.date, body: article(e(m.headline ?? auditTitle(a)), body, undefined, { h1Class: "audit-h1" }) },
+      {
+        key,
+        title: auditTitle(a),
+        description: clip(`${m.headline ? `${m.headline}. ` : ""}An audit of ${m.owner}/${m.name}'s LLM calls, estimated from the code at commit ${short} with leanprompt ${m.leanprompt} on ${m.date}.`),
+        section: "audits",
+        crumbs: [["Audits", "audits"]],
+        crumbLabel: `${m.owner}/${m.name}`,
+        ogType: "article",
+        published: m.date,
+        ...(a.images && m.illustration ? { ogImage: { url: canonical(key) + ILLUSTRATION_FILES.og.file, width: ILLUSTRATION_FILES.og.width, height: ILLUSTRATION_FILES.og.height, alt: m.illustration.alt } } : {}),
+        body: article(e(m.headline ?? auditTitle(a)), body, undefined, { h1Class: "audit-h1", beside: auditImg(a, true, "audit-art audit-art-page") }),
+      },
       m.date,
     );
     const html = renderReport({ findings: a.findings, score, rules, project: `${m.owner}/${m.name}`, version: m.leanprompt, ...(a.average_call ? { average_call: a.average_call } : {}), ...(a.kvsig ? { kvsig: a.kvsig } : {}), ...(a.notes ? { notes: a.notes } : {}), ...(a.unattended ? { unattended: true } : {}) });
@@ -650,11 +674,13 @@ function scoreOf(findings: Finding[], date: string, version: string): ScoreFile 
 }
 
 /** The body of an article page: its h1, its content and, for a page made from a file, where to edit it. */
-function article(titleHtml: string, inner: string, sourceFile?: string, o: { h1Class?: string } = {}): string {
+function article(titleHtml: string, inner: string, sourceFile?: string, o: { h1Class?: string; beside?: string } = {}): string {
   const src = sourceFile ? `\n      <p class="source"><a href="${REPO}/blob/main/${sourceFile}" rel="noopener">Edit this page on GitHub</a></p>` : "";
+  const h1 = `<h1${o.h1Class ? ` class="${o.h1Class}"` : ""}>${titleHtml}</h1>`;
+  // A picture beside the headline comes after it in the markup, so the headline is read first.
   return `  <article class="sec article">
     <div class="wrap prose">
-      <h1${o.h1Class ? ` class="${o.h1Class}"` : ""}>${titleHtml}</h1>
+      ${o.beside ? `<div class="audit-head audit-head-page">${h1}${o.beside}</div>` : h1}
 ${inner}${src}
     </div>
   </article>`;

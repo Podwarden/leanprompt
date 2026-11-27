@@ -17,3 +17,6 @@ kind: Retry loop
 figure:
   finding: "book_maker/translator/chatgptapi_translator.py:1811"
   label: "for a cut-off batch sent twice more, before the fix"
+illustration:
+  scene: "an open book on a desk with one torn page, three identical coins stacked beside the torn page, and a small wrench lying on the page next to a neat fresh stitch that repairs the tear"
+  alt: "An open book with a neatly stitched tear down one page, with stacked coins and a small wrench lying on it."

@@ -28,6 +28,8 @@ export interface PageSpec {
   noindex?: boolean;
   /** Extra class on <main>. */
   mainClass?: string;
+  /** The page's own Open Graph and Twitter image (an absolute URL); the site's default otherwise. */
+  ogImage?: { url: string; width: number; height: number; alt: string };
 }
 
 export type Section = "how-it-works" | "rules" | "score" | "examples" | "install" | "news" | "audits";
@@ -94,7 +96,11 @@ function crumbs(spec: PageSpec): string {
 export function page(spec: PageSpec, asset: AssetUrl): string {
   const fullTitle = spec.key === "" ? spec.title : `${spec.title} | leanprompt`;
   const canon = canonical(spec.key);
-  const ogImage = canonical("") + "assets/og-image.png";
+  const ogImage = spec.ogImage?.url ?? canonical("") + "assets/og-image.png";
+  const ogImageMeta = spec.ogImage
+    ? `\n  <meta property="og:image:width" content="${spec.ogImage.width}">\n  <meta property="og:image:height" content="${spec.ogImage.height}">\n  <meta property="og:image:alt" content="${e(spec.ogImage.alt)}">`
+    : "";
+  const twImageAlt = spec.ogImage ? `\n  <meta name="twitter:image:alt" content="${e(spec.ogImage.alt)}">` : "";
   const robots = spec.noindex ? '  <meta name="robots" content="noindex">\n' : "";
   const canonLink = spec.noindex ? "" : `  <link rel="canonical" href="${canon}">\n  <meta property="og:url" content="${canon}">\n`;
   const published = spec.published ? `  <meta property="article:published_time" content="${e(spec.published)}">\n` : "";
@@ -109,10 +115,11 @@ ${robots}${canonLink}  <meta property="og:type" content="${spec.ogType ?? "websi
   <meta property="og:site_name" content="LM Warden">
   <meta property="og:title" content="${e(fullTitle)}">
   <meta property="og:description" content="${e(spec.description)}">
-  <meta property="og:image" content="${ogImage}">
+  <meta property="og:image" content="${ogImage}">${ogImageMeta}
 ${published}  <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="${e(fullTitle)}">
   <meta name="twitter:description" content="${e(spec.description)}">
+  <meta name="twitter:image" content="${ogImage}">${twImageAlt}
   <meta name="theme-color" content="#1C1409">
   <meta name="color-scheme" content="dark light">
   <link rel="icon" href="${asset("icon.svg")}" type="image/svg+xml">

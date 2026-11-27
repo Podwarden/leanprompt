@@ -277,6 +277,23 @@ td.a-right,th.a-right{text-align:right}
 .badge-demo{color:var(--ink-2)}
 .prose>.audit-tags{margin:0 0 16px}
 .prose h1.audit-h1{font-size:clamp(1.75rem,1.35rem + 1.7vw,2.625rem);line-height:1.12;max-width:min(100%,52rem);margin-bottom:18px;text-wrap:balance}
+/* The illustration: beside the headline on wider screens, above it on a phone. The headline comes
+   first in the markup either way; the picture's own dark ground sits in a hairline frame. */
+.audit-head{display:flex;flex-direction:column-reverse;gap:14px;margin:0 0 10px}
+.audit-card .audit-head h2{margin:0}
+.audit-art{display:block;width:100%;height:auto;aspect-ratio:1408/736;border-radius:var(--r);border:1px solid var(--rule);background:#1C1409}
+@media (min-width:560px){
+  .audit-card .audit-head{flex-direction:row-reverse;align-items:flex-start;gap:18px}
+  .audit-card .audit-head h2{flex:1 1 0;min-width:0}
+  .audit-card .audit-art{flex:none;width:clamp(132px,34%,200px)}
+}
+.prose>.audit-head-page{max-width:min(100%,74rem);margin:0 0 18px;gap:18px}
+.prose .audit-head-page h1.audit-h1{margin:0}
+@media (min-width:900px){
+  .prose>.audit-head-page{flex-direction:row;align-items:center;gap:40px}
+  .audit-head-page h1{flex:1 1 0;min-width:0}
+  .audit-head-page .audit-art-page{flex:none;width:clamp(260px,26vw,340px)}
+}
 .big{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;margin:16px 0 0 !important;max-width:none !important}
 .big-n{font-size:clamp(1.75rem,1.5rem + 1vw,2.25rem);font-weight:700;font-stretch:95%;line-height:1.05;letter-spacing:-.015em;font-variant-numeric:tabular-nums;color:var(--ink);white-space:nowrap}
 .big-u{font-size:var(--t-small);color:var(--ink-2);line-height:1.4;flex:1 1 14rem}

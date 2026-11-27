@@ -20,7 +20,8 @@
     "build:forms": "tsx scripts/build-forms.ts",
     "build:diffs": "tsx scripts/readme-diffs.ts",
     "check:numbers": "tsx cli/src/lint/numbers.ts",
-    "build:site": "tsx scripts/build-site.ts"
+    "build:site": "tsx scripts/build-site.ts",
+    "illustrations": "node --env-file-if-exists=.env scripts/audit-illustrations.mjs"
   },
   "dependencies": {
     "@kvsig/core": "0.1.0",

@@ -21,3 +21,6 @@ kind: Setting that does nothing
 figure:
   finding: "effort-langgraph"
   label: "if a lower reasoning effort saves about 500 tokens per answer"
+illustration:
+  scene: "a large rotary control knob mounted on a panel, its cable cut and dangling loose with the plug lying on the floor, while the machine beside it keeps running at full output"
+  alt: "A large control knob on its own panel, its cable unplugged and lying on the floor, beside a machine that keeps running."

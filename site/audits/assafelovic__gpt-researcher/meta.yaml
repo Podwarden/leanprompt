@@ -25,3 +25,6 @@ subtitle: >-
 kind: Retry loop
 figure:
   label: "for empty, cut-off answers asked for again unchanged"
+illustration:
+  scene: "a row of ten identical empty open envelopes on a conveyor belt, each one being fed back into the same mail chute again and again"
+  alt: "A row of identical empty, open envelopes rides a grey conveyor belt, one after another."

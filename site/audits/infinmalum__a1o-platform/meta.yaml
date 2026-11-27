@@ -23,3 +23,6 @@ kind: Blind spend meter
 figure:
   finding: "responses-claude-no-marks"
   label: "billed uncached on Studio's agent legs to Claude, which carry no cache mark (call mix assumed)"
+illustration:
+  scene: "an old brass cash register on a counter pushing out a long blank paper tape, beside it a small stack of parcels that each wear a large round green paid stamp, a full coin tray open under the register, no writing on anything"
+  alt: "An old brass cash register pushes out a long paper tape over a full coin tray, next to parcels that already wear a green paid stamp."
