@@ -1,3 +1,8 @@
+# stable-head.template.ts
+
+Save the code below as a file in the project's tests (the skill says which name), after the user says yes.
+
+```ts
 // The helper for a CI test that fails when the stable head of your requests changes.
 // Install: npm i -D @kvsig/core@0.1.0 (kvsig/1 and loose/1 ids; never assert on loose/2).
 // Copy this file into your tests under a name of your own (for example test/stable-head.ts) and
@@ -35,4 +40,5 @@ export function assertStableHead<T>(build: (input: T) => Built, inputs: [T, T], 
     if (a.nodes[i] !== b.nodes[i]) { bad.push(`\`nodes[${i}]\` differs: the prompt up to message ${i} changed (a history message was rewritten, or the head above changed)`); break; }
   if (bad.length) throw new Error(`The stable head changed between the two inputs:\n- ${bad.join("\n- ")}`);
 }
-// leanprompt:generated v0.1.0-dev.11: written by npx leanprompt install; npx leanprompt update replaces local edits
+// leanprompt:generated v0.1.0-dev.12: written by npx leanprompt install; npx leanprompt update replaces local edits
+```

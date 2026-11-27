@@ -156,13 +156,12 @@ function pluginReadme(version: string): string {
     "",
     "## Install",
     "",
-    "In Claude Code (2.1.275 or later), inside a session:",
+    "In Claude Code, inside a session:",
     "",
     "```",
-    "/plugin install leanprompt --marketplace Podwarden/leanprompt",
+    "/plugin marketplace add Podwarden/leanprompt",
+    "/plugin install leanprompt@leanprompt",
     "```",
-    "",
-    "On older versions: `/plugin marketplace add Podwarden/leanprompt`, then `/plugin install leanprompt@leanprompt`.",
     "",
     "## Use",
     "",
@@ -175,7 +174,7 @@ function pluginReadme(version: string): string {
     "",
     "## What it runs, sends and fetches",
     "",
-    "- The plugin is instructions only: Markdown skills and two small test templates. It has no hooks, no MCP",
+    "- The plugin is instructions only: Markdown skills, two of them small test templates as code blocks. It has no hooks, no MCP",
     "  servers and no executables, and it runs no code on its own.",
     "- Nothing is sent anywhere. The skills ask before editing code, installing a package, or running anything",
     "  that sends billed requests to a model provider.",
@@ -281,8 +280,32 @@ export function buildForms(root: string): Map<string, string> {
 
   // plugin/: the small folder submitted to Anthropic's plugin directory and installed by the
   // marketplace above. Only a manifest, a README, the licences and the shared skills form.
+  // The directory takes Markdown, text, JSON, YAML and images only from organizations that are
+  // not Verified, so the two code templates ship there as Markdown with one fenced block each.
+  const codeLang: Record<string, string> = { ".ts": "ts", ".py": "python" };
+  const asMd = (p: string) => Object.keys(codeLang).some((e) => p.endsWith(e));
+  const renamed = [...out.keys()].filter((p) => p.startsWith("forms/skills/") && asMd(p)).map((p) => p.split("/").pop()!);
   for (const [path, text] of [...out]) {
-    if (path.startsWith("forms/skills/")) out.set(`plugin/${path.slice("forms/".length)}`, text);
+    if (!path.startsWith("forms/skills/")) continue;
+    const dest = `plugin/${path.slice("forms/".length)}`;
+    if (asMd(path)) {
+      const name = path.split("/").pop()!;
+      const lang = codeLang[name.slice(name.lastIndexOf("."))];
+      out.set(`${dest}.md`, [
+        `# ${name}`,
+        "",
+        `Save the code below as a file in the project's tests (the skill says which name), after the user says yes.`,
+        "",
+        "```" + lang,
+        text.replace(/\n$/, ""),
+        "```",
+        "",
+      ].join("\n"));
+    } else {
+      let t = text;
+      for (const n of renamed) t = t.split(`](templates/${n})`).join(`](templates/${n}.md)`);
+      out.set(dest, t);
+    }
   }
   out.set(
     "plugin/.claude-plugin/plugin.json",

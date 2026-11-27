@@ -129,9 +129,22 @@ describe("buildForms", () => {
         ["README.md", "LICENSE", "LICENSE-DOCS", "NOTICE", ".claude-plugin/plugin.json"].includes(rest) || rest.startsWith("skills/"),
         k,
       ).toBe(true);
-      if (rest.startsWith("skills/")) expect(built.get(k)).toBe(built.get(`forms/${rest}`));
+      // Only Markdown, JSON, images and the licence texts: the directory refuses code files.
+      expect(/\.(md|json)$/.test(rest) || ["LICENSE", "LICENSE-DOCS", "NOTICE"].includes(rest), k).toBe(true);
     }
-    for (const [k, v] of built) if (k.startsWith("forms/skills/")) expect(built.get(`plugin/${k.slice(6)}`)).toBe(v);
+    const code = /\.(ts|py)$/;
+    for (const [k, v] of built) {
+      if (!k.startsWith("forms/skills/")) continue;
+      const rest = k.slice("forms/".length);
+      if (code.test(k)) {
+        // Shipped as Markdown, the code intact inside one fenced block.
+        expect(built.has(`plugin/${rest}`), k).toBe(false);
+        expect(built.get(`plugin/${rest}.md`)!).toContain(v.replace(/\n$/, ""));
+      } else {
+        const p = built.get(`plugin/${rest}`)!;
+        expect(p.replace(/\]\(templates\/([^)]+?)\.md\)/g, "](templates/$1)")).toBe(v);
+      }
+    }
     // Anthropic's directory: under 512 files, nothing over 256 KiB but images, no package.json.
     expect(keys.length + BINARY_COPIES.length).toBeLessThan(512);
     for (const k of keys) expect(Buffer.byteLength(built.get(k)!), k).toBeLessThanOrEqual(256 * 1024);

@@ -15,7 +15,7 @@ evidence:
 When you compact a long conversation, keep the system prompt and the tool list byte-identical and put the summary in the messages after them, and run the summarising call as a continuation of the same prompt.
 
 ## Why
-Compaction replaces the history with a summary, so the message part is recomputed once whatever you do. If the compaction also rewrites the system prompt (appending "Summary of the conversation so far: ..." to it) or rebuilds the tool list, the head is lost too, on every compaction. On Anthropic, tools and system render before messages, so an unchanged head stays cached across the compaction ([providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.11/providers/anthropic.md)). Documented, not yet measured here.
+Compaction replaces the history with a summary, so the message part is recomputed once whatever you do. If the compaction also rewrites the system prompt (appending "Summary of the conversation so far: ..." to it) or rebuilds the tool list, the head is lost too, on every compaction. On Anthropic, tools and system render before messages, so an unchanged head stays cached across the compaction ([providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/anthropic.md)). Documented, not yet measured here.
 
 The summarising call itself is the second cost. Sent with its own system prompt ("You are a summariser") over the full history, it pays for the whole history again. Sent as the same head and history plus a final instruction to summarise, it reads the cache that the last turn wrote.
 
@@ -52,7 +52,7 @@ system = BASE_PROMPT                                    # unchanged, byte for by
 history = [{"role": "user", "content": "Summary of the conversation so far:\n" + text_of(summary)}]
 ```
 
-Keep the tools exactly as they were (same list, same order, same serialisation). To stop the summarising call from calling a tool, say so in the instruction rather than changing `tool_choice`: on OpenAI `"none"` drops the tools from the rendered prompt, and on Anthropic a `tool_choice` change invalidates the message blocks ([providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.11/providers/openai.md), [providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.11/providers/anthropic.md)).
+Keep the tools exactly as they were (same list, same order, same serialisation). To stop the summarising call from calling a tool, say so in the instruction rather than changing `tool_choice`: on OpenAI `"none"` drops the tools from the rendered prompt, and on Anthropic a `tool_choice` change invalidates the message blocks ([providers/openai.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/openai.md), [providers/anthropic.md](https://github.com/Podwarden/leanprompt/blob/v0.1.0-dev.12/providers/anthropic.md)).
 
 One way to keep this checkable, if the user wants it (optional, not part of the fix): a test in the app that builds a request before and after a compaction and asserts their kvsig `head` ids are equal (`conv` is expected to change) catches a compaction that rewrites the system prompt or the tools. [measure-loop](../../measure-loop/SKILL.md) ("The stable-head test") has a short example in TypeScript and Python and a helper; propose the test as its own small diff and add it only after the user says yes.
 
@@ -66,4 +66,4 @@ The summary must still be read as context: label it ("Summary of the conversatio
 
 ## Waste signal
 Measured: compaction starts a new `conv`, so the score's S does not see it; it shows as a new `sys` right after a long conversation where the same `sys` was expected, and as a summarising call with a short shared prefix. Static: severity medium for a summary written into the system prompt or a summariser call with its own system prompt.
-<!-- leanprompt:generated v0.1.0-dev.11: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.12: written by npx leanprompt install; npx leanprompt update replaces local edits -->

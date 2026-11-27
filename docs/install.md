@@ -12,7 +12,7 @@ From your project root:
 npx leanprompt install
 ```
 
-To pin a release, add its version: `npx leanprompt@0.1.0-dev.11 install`. To run the latest code from GitHub instead: `npx github:Podwarden/leanprompt install`.
+To pin a release, add its version: `npx leanprompt@0.1.0-dev.12 install`. To run the latest code from GitHub instead: `npx github:Podwarden/leanprompt install`.
 
 In a terminal, `install`:
 
@@ -116,5 +116,5 @@ curl -fsSL https://raw.githubusercontent.com/Podwarden/leanprompt/main/scripts/i
 To pin a release, set the version for `sh`:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/Podwarden/leanprompt/main/scripts/install.sh | LEANPROMPT_VERSION=0.1.0-dev.11 sh -s -- --providers=cursor
+curl -fsSL https://raw.githubusercontent.com/Podwarden/leanprompt/main/scripts/install.sh | LEANPROMPT_VERSION=0.1.0-dev.12 sh -s -- --providers=cursor
 ```

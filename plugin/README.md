@@ -9,13 +9,12 @@ no wasted output, faster first tokens. Every fix says how to prove it with a bef
 
 ## Install
 
-In Claude Code (2.1.275 or later), inside a session:
+In Claude Code, inside a session:
 
 ```
-/plugin install leanprompt --marketplace Podwarden/leanprompt
+/plugin marketplace add Podwarden/leanprompt
+/plugin install leanprompt@leanprompt
 ```
-
-On older versions: `/plugin marketplace add Podwarden/leanprompt`, then `/plugin install leanprompt@leanprompt`.
 
 ## Use
 
@@ -34,7 +33,7 @@ If another command already has that name, the full name is `/leanprompt:leanprom
 
 ## What it runs, sends and fetches
 
-- The plugin is instructions only: Markdown skills and two small test templates. It has no hooks, no MCP
+- The plugin is instructions only: Markdown skills, two of them small test templates as code blocks. It has no hooks, no MCP
   servers and no executables, and it runs no code on its own.
 - Nothing is sent anywhere. The skills ask before editing code, installing a package, or running anything
   that sends billed requests to a model provider.
@@ -47,7 +46,7 @@ If another command already has that name, the full name is `/leanprompt:leanprom
 ## More
 
 Source, documentation and other assistants (Codex, Cursor, OpenCode): https://github.com/Podwarden/leanprompt. This folder is generated
-from that repository for version 0.1.0-dev.11.
+from that repository for version 0.1.0-dev.12.
 
 ## Licence
 

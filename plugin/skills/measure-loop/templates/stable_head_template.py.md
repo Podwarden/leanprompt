@@ -1,3 +1,8 @@
+# stable_head_template.py
+
+Save the code below as a file in the project's tests (the skill says which name), after the user says yes.
+
+```python
 """The helper for a CI test that fails when the stable head of your requests changes.
 
 Install: pip install kvsig==0.1.0 pytest   (kvsig/1 and loose/1 ids; never assert on loose/2).
@@ -37,4 +42,5 @@ def assert_stable_head(build, inputs, expect):
             break
     if bad:
         raise AssertionError("The stable head changed between the two inputs:\n- " + "\n- ".join(bad))
-# leanprompt:generated v0.1.0-dev.11: written by npx leanprompt install; npx leanprompt update replaces local edits
+# leanprompt:generated v0.1.0-dev.12: written by npx leanprompt install; npx leanprompt update replaces local edits
+```

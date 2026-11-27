@@ -41,6 +41,15 @@ The first release.
 - `npm run check:numbers`: every number with a unit in the README, the public docs and the skills cites an evidence row or a measured result.
 - Apache-2.0 for code, CC BY 4.0 for the skills and docs; README, CONTRIBUTING, GOVERNANCE and SECURITY (the last three under `.github/`).
 
+## 0.1.0-dev.12 – 2026-11-26
+
+Passes the plugin directory's checks.
+
+### Changed
+
+- `plugin/`: the two test templates of `measure-loop` ship as Markdown with the code in one fenced block (`templates/*.template.ts.md`, `templates/stable_head_template.py.md`), because the directory accepts only Markdown, text, JSON, YAML and images from organizations that are not Verified. The npm package, `forms/` and `npx leanprompt install` keep the plain `.ts` and `.py` files.
+- The plugin README and `docs/registries.md` give the two-step plugin install (`/plugin marketplace add`, then `/plugin install leanprompt@leanprompt`), and the runbook says to submit the `plugin` folder URL so the portal does not validate the whole repository.
+
 ## 0.1.0-dev.11 – 2026-11-26
 
 Ready for the plugin directories.
