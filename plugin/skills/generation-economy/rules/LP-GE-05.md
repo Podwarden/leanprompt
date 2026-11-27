@@ -81,4 +81,4 @@ A retry policy changes which calls get a second chance, not what they say. Raisi
 
 ## Waste signal
 Measured: output tokens spent on calls retried after a truncation count as generation waste; so do repeated identical calls after a failure. Static: severity high for a retry on `length` with unchanged parameters or a retry on every exception. A truncation filed under a generic "retryable" or "failed, try again" status counts as the same finding when the re-run sends the same parameters: high when a job, a queue or a loop re-runs it, medium when only a person re-runs it on demand. Medium for stacked retry layers or a missing backoff.
-<!-- leanprompt:generated v0.1.0-dev.12: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.12: written by leanprompt install; leanprompt update replaces local edits -->

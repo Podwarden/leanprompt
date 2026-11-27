@@ -84,4 +84,4 @@ Less thinking and shorter outputs can change answers. Lower an effort level or a
 
 ## Waste signal
 Measured: output tokens of calls with `finish: "length"` that were retried count as generation waste; output spent on a runaway call with no answer shows as `finish: "length"` too. Static: severity high for a reasoning or thinking model called with no output limit, medium for one effort level on every kind of call, low for a fixed limit far above the measured outputs. A limit below the task: medium for a fixed limit below outputs the task produces (truncations in the log, or a limit smaller than the output the task asks for); when those truncations are retried or re-run unchanged, that is also a high LP-GE-05 finding. Reasoning twice: medium.
-<!-- leanprompt:generated v0.1.0-dev.12: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.12: written by leanprompt install; leanprompt update replaces local edits -->

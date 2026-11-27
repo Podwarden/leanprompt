@@ -65,11 +65,10 @@ The routing result, with its limits (E10): on one box of four NVIDIA RTX A4000 c
 ## Reading the engine facts from LM Warden
 
 ```
-export LMWARDEN_API_KEY=...          # the inference key the app already uses
-leanprompt profile detect --lmwarden https://lm.example.com [--token-env LMWARDEN_API_KEY] [--model <name>]
+leanprompt profile detect --lmwarden https://lm.example.com [--token-env <VAR>] [--model <name>]
 ```
 
-This reads `GET <url>/api/me/engine` with the key as a bearer token and writes `block_tokens`, `match_unit_tokens` and `speculative` (true when the engine reports a speculative-decoding method) under `engine:` in `leanprompt.yaml`. It also sets `target.context_tokens` from `max_model_len` when the file does not already set it. Everything else in the file is kept. If there is no `leanprompt.yaml` it creates one with `target: {engine: lm-warden}`. In a profile with `targets:` it writes into the `lm-warden` entry (else the `vllm` entry, else it adds an `lm-warden` entry), under that entry's `engine_facts`, or under the top-level `engine:` when that block exists and the profile has one engine entry. A value the server cannot determine is left out and named in a printed note. If the key can use several models, pass `--model` or the command stops and lists their names.
+The key is the inference key the app already uses. The user makes it available to the command in their own shell, under the variable that `--token-env` names (see `leanprompt profile detect --help` for the default); never ask for the key in chat, and never write it to a file. The command reads `GET <url>/api/me/engine` with the key as a bearer token and writes `block_tokens`, `match_unit_tokens` and `speculative` (true when the engine reports a speculative-decoding method) under `engine:` in `leanprompt.yaml`. It also sets `target.context_tokens` from `max_model_len` when the file does not already set it. Everything else in the file is kept. If there is no `leanprompt.yaml` it creates one with `target: {engine: lm-warden}`. In a profile with `targets:` it writes into the `lm-warden` entry (else the `vllm` entry, else it adds an `lm-warden` entry), under that entry's `engine_facts`, or under the top-level `engine:` when that block exists and the profile has one engine entry. A value the server cannot determine is left out and named in a printed note. If the key can use several models, pass `--model` or the command stops and lists their names.
 
 Auto-detect needs an LM Warden release that has this endpoint. A server without it answers 404, and the command says so; then set the `engine:` block by hand from the engine's startup log (step 2 above). The command makes one request, to the URL you give, and never prints the key.
 
@@ -94,4 +93,4 @@ A longer context and more concurrent sequences take more KV-cache memory, and th
 ## What this skill does not do
 
 It does not make the model faster, change how much it generates (that is `generation-economy`), or change the prompt (that is `prefill-cache`). It does not choose hardware, and it does not promise the E9 or E10 results for another model, card count or workload.
-<!-- leanprompt:generated v0.1.0-dev.12: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.12: written by leanprompt install; leanprompt update replaces local edits -->

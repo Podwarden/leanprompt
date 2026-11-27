@@ -179,8 +179,10 @@ function pluginReadme(version: string): string {
     "- Nothing is sent anywhere. The skills ask before editing code, installing a package, or running anything",
     "  that sends billed requests to a model provider.",
     "- The command line tool is optional. Some commands (`score`, `report`, `calibrate`, `lesson`) run it as",
-    "  `npx leanprompt <command>`: npx downloads the `leanprompt` package from npm and runs it on your machine,",
-    "  where it reads and writes files in your project and makes no network calls. Only `profile detect",
+    "  `leanprompt <command>`. It is the `leanprompt` npm package (https://www.npmjs.com/package/leanprompt);",
+    "  the skills ask you to install it, or to run it through your package runner, and never install it",
+    "  themselves. It runs on your machine, where it reads and writes files in your project and makes no",
+    "  network calls. Only `profile detect",
     "  --lmwarden <url>` reads from a server: the LM Warden server you name, for its engine facts.",
     "- Links to provider tables and docs open pages on GitHub; the skills do not fetch them on their own.",
     "",
@@ -195,6 +197,73 @@ function pluginReadme(version: string): string {
     "Apache-2.0 (LICENSE). See NOTICE.md.",
     "",
   ].join("\n");
+}
+
+/** Each package's own page, where its install instructions live. */
+export const PACKAGE_PAGES: Record<string, string> = {
+  leanprompt: "https://www.npmjs.com/package/leanprompt",
+  "@kvsig/core": "https://www.npmjs.com/package/@kvsig/core",
+  "leanprompt-cli": "https://pypi.org/project/leanprompt-cli/",
+  kvsig: "https://pypi.org/project/kvsig/",
+};
+
+/** The note the plugin's `leanprompt` SKILL.md carries under its title. */
+export const PLUGIN_CLI_NOTE =
+  "The command line tool is the `leanprompt` npm package. If `leanprompt` is not available, ask the user to install it " +
+  `following ${PACKAGE_PAGES.leanprompt}, or to run it through their package runner; never install anything without asking.`;
+
+const PKG = String.raw`(@kvsig\/core|leanprompt-cli|leanprompt|kvsig)`;
+const VER = String.raw`(\d[\w.-]*)`;
+const page = (p: string) => PACKAGE_PAGES[p]!;
+const at = (v: string | undefined) => (v ? ` at ${v}` : "");
+
+/**
+ * Text rewrites for plugin/ only. Anthropic's plugin directory flags a command that downloads and
+ * runs code (`npx`, `npm i`, `pip install`) in a skill body, so the plugin copy names the CLI by
+ * its own command (`leanprompt <cmd>`) and points to each package's page for installing it. The
+ * npm package and forms/ keep the exact commands. Each rule matches one shape the skills use; a
+ * test fails when any install or npx command is left in plugin/.
+ */
+export const PLUGIN_REWRITES: ReadonlyArray<readonly [RegExp, string | ((...m: string[]) => string)]> = [
+  // `npx leanprompt score`, `npx -y leanprompt@0.1.0 score` -> `leanprompt score`
+  [/\bnpx (?:-y |--yes )?leanprompt(?:@[\w.-]+)?(?![\w-])/g, "leanprompt"],
+  // The prose around an install the skill proposes rather than runs.
+  [/propose the install command to the user instead of running it/g, "ask the user to add the package instead of installing it yourself"],
+  [/Propose the install command, /g, "Propose adding the package, "],
+  // The repo's replay harness is named by its file alone (`npm run eval` reads like a command to run here).
+  [/\(\x60npm run eval\x60, \x60eval\/run\.ts\x60\)/g, "(`eval/run.ts`)"],
+  // `pip install --pre leanprompt-cli` (`--pre` because it is a pre-release; `uv pip install` takes the same arguments)
+  [
+    new RegExp(String.raw`\x60pip install --pre ${PKG}\x60 \(\x60--pre\x60 because it is a pre-release; \x60uv pip install\x60 takes the same arguments\)`, "g"),
+    (_m, p) => `the \`${p}\` package, a pre-release (see its page on PyPI for how to install it: ${page(p)})`,
+  ],
+  // `npm i -D @kvsig/core@0.1.0` (npm) / `npm i leanprompt`
+  [
+    new RegExp(String.raw`\x60npm (?:i|install|add)(?: -D| --save-dev)? ${PKG}(?:@${VER})?\x60(?: \(npm\))?`, "g"),
+    (_m, p, v) => `the \`${p}\` package${at(v)} (see its page on npm for how to install it: ${page(p)})`,
+  ],
+  // `pip install kvsig==0.1.0` (PyPI)
+  [
+    new RegExp(String.raw`\x60(?:uv )?pip install (?:--pre )?${PKG}(?:==${VER})?\x60(?: \(PyPI\))?`, "g"),
+    (_m, p, v) => `the \`${p}\` package${at(v)} (see its page on PyPI for how to install it: ${page(p)})`,
+  ],
+  // Code comments in the templates: `Install: npm i -D @kvsig/core@0.1.0 (...)`
+  [
+    new RegExp(String.raw`Install: npm (?:i|install|add)(?: -D| --save-dev)? ${PKG}@${VER} `, "g"),
+    (_m, p, v) => `Install: ${p} ${v} as a dev dependency, following ${page(p)} `,
+  ],
+  // `Install: pip install kvsig==0.1.0 pytest   (...)`
+  [
+    new RegExp(String.raw`Install: pip install ${PKG}==${VER} pytest +`, "g"),
+    (_m, p, v) => `Install: ${p} ${v} and pytest, following ${page(p)} `,
+  ],
+];
+
+/** Rewrites one file's text for plugin/ (see PLUGIN_REWRITES). */
+export function pluginText(text: string): string {
+  let t = text;
+  for (const [re, to] of PLUGIN_REWRITES) t = t.replace(re, to as never);
+  return t;
 }
 
 function json(v: unknown): string {
@@ -291,7 +360,7 @@ export function buildForms(root: string): Map<string, string> {
     if (asMd(path)) {
       const name = path.split("/").pop()!;
       const lang = codeLang[name.slice(name.lastIndexOf("."))];
-      out.set(`${dest}.md`, [
+      out.set(`${dest}.md`, pluginText([
         `# ${name}`,
         "",
         `Save the code below as a file in the project's tests (the skill says which name), after the user says yes.`,
@@ -300,10 +369,14 @@ export function buildForms(root: string): Map<string, string> {
         text.replace(/\n$/, ""),
         "```",
         "",
-      ].join("\n"));
+      ].join("\n")));
     } else {
-      let t = text;
+      let t = pluginText(text);
       for (const n of renamed) t = t.split(`](templates/${n})`).join(`](templates/${n}.md)`);
+      if (dest === "plugin/skills/leanprompt/SKILL.md") {
+        if (!t.includes("\n## Commands\n")) throw new Error(`${dest}: no "## Commands" heading for the CLI note`);
+        t = t.replace("\n## Commands\n", `\n${PLUGIN_CLI_NOTE}\n\n## Commands\n`);
+      }
       out.set(dest, t);
     }
   }

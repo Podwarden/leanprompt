@@ -26,7 +26,7 @@ Look for one credential used by several apps or tenants, and for per-tenant cont
 
 Python:
 ```
-rg -n 'api_key=os\.environ|OPENAI_API_KEY|LLM_API_KEY|api_key=.*(SHARED|COMMON|TEAM)' -g '*.py'
+rg -n 'api_key=os\.environ|(OPENAI|LLM)_API_KEY|api_key=.*(SHARED|COMMON|TEAM)' -g '*.py'
 rg -n 'tenant|org_id|customer_id' -g '*.py'
 ```
 Shapes: one `api_key` read from a shared environment variable by several services; a function that serves many tenants with a single client object and builds each tenant's prompt with its private data in the system prompt.
@@ -52,10 +52,10 @@ One key per app, and for tenants who must not share a cache, a separate key and,
 
 ```python
 # before: every app and tenant shares one key
-client = OpenAI(base_url=SERVER_URL, api_key=os.environ["LLM_API_KEY"])
+client = OpenAI(base_url=SERVER_URL, api_key="YOUR_SHARED_KEY")
 
-# after: one key per app, named after it, from that app's own secret
-client = OpenAI(base_url=SERVER_URL, api_key=os.environ["BILLING_APP_LLM_KEY"])
+# after: one key per app, named after it (placeholder: load it from that app's own secret store)
+client = OpenAI(base_url=SERVER_URL, api_key="YOUR_BILLING_APP_KEY")
 ```
 
 For several tenants in one app, keep tenant-specific text after the shared prefix, never in the shared head (`prefill-cache` LP-PC-07), and do not put one tenant's confidential data in text that other tenants' prompts share a prefix with. If tenants must be isolated from each other's timing, give each its own key and a partitioned cache or its own instance, and accept the lower reuse.
@@ -70,4 +70,4 @@ Splitting keys does not change answers. Do not split a prefix that belongs to on
 
 ## Waste signal
 Measured: none directly; attribution by key is what lets the other rules' signals be read per app, and the usage log carries no key. Static: severity medium where one credential is read by several services or one client serves several tenants through a shared server; low for a single app with a single consumer. A shared cache is not waste, and it is only a finding where the tenants' prompts are confidential from each other.
-<!-- leanprompt:generated v0.1.0-dev.12: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.12: written by leanprompt install; leanprompt update replaces local edits -->

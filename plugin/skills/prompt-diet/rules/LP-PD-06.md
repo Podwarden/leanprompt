@@ -65,4 +65,4 @@ Compact JSON carries the same data; a header and rows changes the shape, so the 
 
 ## Waste signal
 Measured: the drop in `prompt_tokens` per call that carries the data, times those calls; the score does not count it, the report shows it as `tokens_per_1k.prompt`. Static: severity low for indented JSON or repeated keys in tool results or prompt data; medium when the data is large (hundreds of rows) and sits in an agent loop's history, where every later turn carries it.
-<!-- leanprompt:generated v0.1.0-dev.12: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.12: written by leanprompt install; leanprompt update replaces local edits -->

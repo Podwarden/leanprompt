@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve, posix } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
-import { buildForms, SKILLS, BLOCK_BEGIN, BLOCK_END, BINARY_COPIES, ICON_PATH, ICON_SOURCE } from "../src/forms.js";
+import { buildForms, pluginText, PLUGIN_CLI_NOTE, PACKAGE_PAGES, SKILLS, BLOCK_BEGIN, BLOCK_END, BINARY_COPIES, ICON_PATH, ICON_SOURCE } from "../src/forms.js";
 import { parseDoc } from "../src/frontmatter.js";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -139,10 +139,11 @@ describe("buildForms", () => {
       if (code.test(k)) {
         // Shipped as Markdown, the code intact inside one fenced block.
         expect(built.has(`plugin/${rest}`), k).toBe(false);
-        expect(built.get(`plugin/${rest}.md`)!).toContain(v.replace(/\n$/, ""));
+        expect(built.get(`plugin/${rest}.md`)!).toContain(pluginText(v).replace(/\n$/, ""));
       } else {
-        const p = built.get(`plugin/${rest}`)!;
-        expect(p.replace(/\]\(templates\/([^)]+?)\.md\)/g, "](templates/$1)")).toBe(v);
+        let p = built.get(`plugin/${rest}`)!;
+        if (rest === "skills/leanprompt/SKILL.md") p = p.replace(`\n${PLUGIN_CLI_NOTE}\n`, "");
+        expect(p.replace(/\]\(templates\/([^)]+?)\.md\)/g, "](templates/$1)")).toBe(pluginText(v));
       }
     }
     // Anthropic's directory: under 512 files, nothing over 256 KiB but images, no package.json.
@@ -163,8 +164,73 @@ describe("buildForms", () => {
     expect(readme).toContain("## What it runs, sends and fetches");
     expect(readme).toMatch(/runs no code on its own/);
     expect(readme).toMatch(/Nothing is sent anywhere/);
-    expect(readme).toMatch(/npx leanprompt/);
+    expect(readme).toMatch(/`leanprompt <command>`/);
+    expect(readme).toContain(PACKAGE_PAGES.leanprompt);
     expect(relLinks(readme)).toEqual([]);
+  });
+
+  // Anthropic's directory validator flags download-and-execute commands and keys read from the
+  // environment in skill text; plugin/ carries neither, forms/ (npx leanprompt install) keeps the commands.
+  const pluginFiles = () => [...built].filter(([k]) => k.startsWith("plugin/"));
+  const INSTALL_OR_RUN: Array<[string, RegExp]> = [
+    ["npx", /\bnpx\s/],
+    ["npm install", /\bnpm (?:i|install|add|ci)\b/],
+    ["pip install", /\bpip3? install\b/],
+    ["uv", /\buv (?:add|pip|run|tool|sync)\b|\buvx\b|\bpipx\b/],
+    ["other runners", /\b(?:yarn (?:add|dlx)|pnpm (?:add|dlx)|bunx)\b/],
+    ["piped to a shell", /\b(?:curl|wget)\b[^\n]*\|\s*(?:sudo\s+)?(?:ba|z)?sh\b/],
+    ["shell -c", /\b(?:ba|z)?sh -c\b/],
+    ["clone and run", /\bgit clone\b[^\n]*&&/],
+  ];
+  const KEY_READS = /os\.environ\[|os\.environ\.get\(|os\.getenv\(|process\.env\.|process\.env\[|\$\{?[A-Z][A-Z0-9_]*(?:KEY|TOKEN|SECRET)\b|\bexport [A-Z][A-Z0-9_]*(?:KEY|TOKEN|SECRET)=|Getenv\("[A-Z_]*(?:KEY|TOKEN)/;
+
+  it("plugin/ shows no install or download-and-run command", () => {
+    for (const [k, v] of pluginFiles()) for (const [what, re] of INSTALL_OR_RUN) expect(re.test(v), `${k}: ${what} (${v.match(re)?.[0]})`).toBe(false);
+  });
+
+  it("no skill example reads a key from the environment", () => {
+    for (const [k, v] of built) if (k.startsWith("plugin/") || k.startsWith("forms/skills/")) expect(KEY_READS.test(v), `${k}: ${v.match(KEY_READS)?.[0]}`).toBe(false);
+  });
+
+  it("forms/ keeps the exact npx and install commands", () => {
+    expect(built.get("forms/skills/leanprompt/SKILL.md")!).toContain("`npx leanprompt score`");
+    const ml = built.get("forms/skills/measure-loop/SKILL.md")!;
+    for (const c of ["`npm i leanprompt`", "`pip install --pre leanprompt-cli`", "`npm i -D @kvsig/core@0.1.0`", "`pip install kvsig==0.1.0`"]) expect(ml, c).toContain(c);
+    expect(built.get("forms/skills/measure-loop/templates/stable-head.template.ts")!).toContain("// Install: npm i -D @kvsig/core@0.1.0 ");
+    expect(built.get("forms/skills/measure-loop/templates/stable_head_template.py")!).toContain("Install: pip install kvsig==0.1.0 pytest");
+  });
+
+  it("the plugin's leanprompt skill says where the CLI comes from, once, under its title", () => {
+    const skill = built.get("plugin/skills/leanprompt/SKILL.md")!;
+    expect(skill.split(PLUGIN_CLI_NOTE).length).toBe(2);
+    expect(skill.indexOf(PLUGIN_CLI_NOTE)).toBeLessThan(skill.indexOf("## Commands"));
+    expect(skill).toContain("`leanprompt score`");
+    expect(built.get("forms/skills/leanprompt/SKILL.md")!).not.toContain(PLUGIN_CLI_NOTE);
+  });
+
+  it("the plugin's measure-loop names each package by its page and keeps the yes around it", () => {
+    const ml = built.get("plugin/skills/measure-loop/SKILL.md")!;
+    for (const url of Object.values(PACKAGE_PAGES)) expect(ml, url).toContain(url);
+    expect(ml).toContain("ask the user to add the package instead of installing it yourself");
+    expect(ml).toContain("only after the user says yes");
+    expect(built.get("plugin/skills/measure-loop/templates/stable-head.template.ts.md")!).toContain(
+      `// Install: @kvsig/core 0.1.0 as a dev dependency, following ${PACKAGE_PAGES["@kvsig/core"]} (kvsig/1`,
+    );
+  });
+
+  it("pluginText rewrites only the command shapes, not prose that mentions them", () => {
+    const cases: Array<[string, string]> = [
+      ["run `npx leanprompt score --static`.", "run `leanprompt score --static`."],
+      ["npx -y leanprompt@0.1.0 report --html", "leanprompt report --html"],
+      ["written by npx leanprompt install; npx leanprompt update", "written by leanprompt install; leanprompt update"],
+      ["propose: `npm i leanprompt`.", `propose: the \`leanprompt\` package (see its page on npm for how to install it: ${PACKAGE_PAGES.leanprompt}).`],
+      ["`npm i -D @kvsig/core@0.1.0` (npm) or `pip install kvsig==0.1.0` (PyPI)",
+        `the \`@kvsig/core\` package at 0.1.0 (see its page on npm for how to install it: ${PACKAGE_PAGES["@kvsig/core"]}) or the \`kvsig\` package at 0.1.0 (see its page on PyPI for how to install it: ${PACKAGE_PAGES.kvsig})`],
+      ["Install: pip install kvsig==0.1.0 pytest   (ids)", `Install: kvsig 0.1.0 and pytest, following ${PACKAGE_PAGES.kvsig} (ids)`],
+    ];
+    for (const [a, b] of cases) expect(pluginText(a)).toBe(b);
+    // Untouched: the package names in prose, leanprompt-cli, and commands for other packages.
+    for (const s of ["the leanprompt CLI", "`leanprompt calibrate`", "npx leanprompt-cli", "`npm i left-pad`", "an npx user"]) expect(pluginText(s)).toBe(s);
   });
 
   it("the icon is a square PNG of 512 to 2048 px", () => {

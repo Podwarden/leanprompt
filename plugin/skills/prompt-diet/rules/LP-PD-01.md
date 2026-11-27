@@ -78,4 +78,4 @@ Remove a tool from a route only when the code shows the model can never use it t
 
 ## Waste signal
 Measured: the drop in `prompt_tokens` per call on the route, times its calls; the score does not count it, the report shows it as `tokens_per_1k.prompt`. Static: severity medium for a full tool registry sent on a route that cannot call any tool or most of them; low when only a few unused tools are sent. A tool list that changes per call within a conversation is an LP-PC-04 or LP-PC-05 finding, not this one.
-<!-- leanprompt:generated v0.1.0-dev.12: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.12: written by leanprompt install; leanprompt update replaces local edits -->

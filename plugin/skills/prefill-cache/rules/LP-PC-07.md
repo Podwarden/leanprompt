@@ -96,4 +96,4 @@ The model must still know whom it serves: keep the user and tenant blocks labell
 
 ## Waste signal
 Measured: first requests of different users share a short prefix with each other; the score's S counts only continuing requests, so the loss shows as many `sys` or `head` ids for one shared prompt. Static: severity medium for per-user or per-tenant values before long shared text, low for a `prompt_cache_key` that is unique per request, low for a per-user transform run over the shared head (it costs only on the requests whose values occur in the head).
-<!-- leanprompt:generated v0.1.0-dev.12: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.12: written by leanprompt install; leanprompt update replaces local edits -->

@@ -66,4 +66,4 @@ The summary must still be read as context: label it ("Summary of the conversatio
 
 ## Waste signal
 Measured: compaction starts a new `conv`, so the score's S does not see it; it shows as a new `sys` right after a long conversation where the same `sys` was expected, and as a summarising call with a short shared prefix. Static: severity medium for a summary written into the system prompt or a summariser call with its own system prompt.
-<!-- leanprompt:generated v0.1.0-dev.12: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.12: written by leanprompt install; leanprompt update replaces local edits -->

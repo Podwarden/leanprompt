@@ -68,4 +68,4 @@ A smaller model can give different, worse answers. Run an answer check before sw
 
 ## Waste signal
 Not in the score (model choice is outside it). Static: severity medium for a label, title or yes/no call on the app's main or reasoning model; reported with the answer-check requirement.
-<!-- leanprompt:generated v0.1.0-dev.12: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.12: written by leanprompt install; leanprompt update replaces local edits -->

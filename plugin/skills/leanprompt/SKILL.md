@@ -9,6 +9,8 @@ license: CC-BY-4.0
 
 One command for the leanprompt skills. Each subcommand routes to the skill that does the work; this file holds no rules of its own, so read the file the table points at and follow it.
 
+The command line tool is the `leanprompt` npm package. If `leanprompt` is not available, ask the user to install it following https://www.npmjs.com/package/leanprompt, or to run it through their package runner; never install anything without asking.
+
 ## Commands
 
 | Command | What it does | Read |
@@ -17,9 +19,9 @@ One command for the leanprompt skills. Each subcommand routes to the skill that 
 | `audit [path]` | Finds every LLM call, checks it against the rules, ranks the findings, writes `leanprompt-report.md` and `.leanprompt/findings.json` | [llm-call-audit](../llm-call-audit/SKILL.md) |
 | `fix [rule or file]` | Works through the open findings one at a time: checks each against the code first, shows the diff, applies it only on a yes | [fix.md](fix.md) |
 | `measure` | Proves a fix with a before and after on the same scenario; sets up the usage logger and the stable-head test | [measure-loop](../measure-loop/SKILL.md) |
-| `score` | Runs `npx leanprompt score` and explains the number and its kind (measured or static) | [llm-call-audit](../llm-call-audit/SKILL.md#the-score) |
-| `report` | Runs `npx leanprompt report --html` and gives the path of the page to read and share | [presenting.md](../llm-call-audit/presenting.md#the-page-the-hand-off-and-sharing) |
-| `lesson` | Drafts a lesson-learned issue on this machine with `npx leanprompt lesson`; sends nothing | [llm-call-audit](../llm-call-audit/SKILL.md#sharing-a-lesson) |
+| `score` | Runs `leanprompt score` and explains the number and its kind (measured or static) | [llm-call-audit](../llm-call-audit/SKILL.md#the-score) |
+| `report` | Runs `leanprompt report --html` and gives the path of the page to read and share | [presenting.md](../llm-call-audit/presenting.md#the-page-the-hand-off-and-sharing) |
+| `lesson` | Drafts a lesson-learned issue on this machine with `leanprompt lesson`; sends nothing | [llm-call-audit](../llm-call-audit/SKILL.md#sharing-a-lesson) |
 
 The rules themselves live in [prefill-cache](../prefill-cache/SKILL.md), [generation-economy](../generation-economy/SKILL.md), [prompt-diet](../prompt-diet/SKILL.md) and [lmwarden](../lmwarden/SKILL.md). Load a rule file only when a command points at it.
 
@@ -44,5 +46,5 @@ The rules themselves live in [prefill-cache](../prefill-cache/SKILL.md), [genera
 
 ## Running the CLI
 
-The commands above call the leanprompt CLI as `npx leanprompt <command>`. `score`, `report --html` and `calibrate` only read and write files under `.leanprompt/` and make no network calls. Ask before editing code, installing a package, or running anything that sends requests to a provider, which are billed.
-<!-- leanprompt:generated v0.1.0-dev.12: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+The commands above call the leanprompt CLI as `leanprompt <command>`. `score`, `report --html` and `calibrate` only read and write files under `.leanprompt/` and make no network calls. Ask before editing code, installing a package, or running anything that sends requests to a provider, which are billed.
+<!-- leanprompt:generated v0.1.0-dev.12: written by leanprompt install; leanprompt update replaces local edits -->

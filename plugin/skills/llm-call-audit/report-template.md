@@ -1,6 +1,6 @@
 # Report template: `leanprompt-report.md`
 
-Write the report at the project root with the sections below, in this order. It follows the same order as the page `npx leanprompt report --html` writes: what is wrong and what it costs first, in plain English, then the hand-off for a coding agent, then the score and the detail. Replace every `<...>`; leave no placeholder in the written report. Keep the rule text out of it: link the rule file instead. The same content is what you present in the conversation ([presenting.md](presenting.md)); the file is the record.
+Write the report at the project root with the sections below, in this order. It follows the same order as the page `leanprompt report --html` writes: what is wrong and what it costs first, in plain English, then the hand-off for a coding agent, then the score and the detail. Replace every `<...>`; leave no placeholder in the written report. Keep the rule text out of it: link the rule file instead. The same content is what you present in the conversation ([presenting.md](presenting.md)); the file is the record.
 
 The plain-English lines come from each finding's fields in `.leanprompt/findings.json` (`problem`, `change`, `why`, `estimate`, `assumptions`, `verify`), so the report, the page and the hand-off block say the same thing. Write them for a person who has not read the rule: no rule ids in the sentences, no jargon.
 
@@ -61,12 +61,12 @@ Paste this into Claude Code, Codex, Cursor or any coding assistant. It checks ea
 ```text
 Please check and fix the LLM-call findings from a leanprompt audit of this repository.
 
-1. If the leanprompt skills are not installed for you here, install them: npx leanprompt install
+1. If the leanprompt skills are not installed for you here, install them: leanprompt install
 2. Read .leanprompt/findings.json and leanprompt-report.md. If they are missing, use the list below.
 3. Check each finding against the code before you change anything. The audit can be wrong: if a finding does not hold, tell me why and leave that code alone.
 4. Fix one finding at a time. Show me the change as a small diff and apply it only after I say yes.
 5. Prove each fix with the measure-loop skill: a before and after on the same scenario. Ask me before running anything that sends real, billed requests.
-6. When a fix is proved, set "fixed": true on its finding in .leanprompt/findings.json and run npx leanprompt score.
+6. When a fix is proved, set "fixed": true on its finding in .leanprompt/findings.json and run leanprompt score.
 
 Findings, largest first:
 1. <rule id> at <file>:<line>: <problem>
@@ -89,7 +89,7 @@ Open questions (confirm before fixing):
 
 <Measured only:> Heads: <distinct_head> distinct heads over <conversations> conversations. <One line: expected, or which finding it points to.>
 
-<Static only:> This score is an estimate from code. A trial run with `npx leanprompt calibrate` fits it to this app.
+<Static only:> This score is an estimate from code. A trial run with `leanprompt calibrate` fits it to this app.
 
 Money is not part of the score.
 
@@ -106,8 +106,8 @@ Money is not part of the score.
 3. <Turn on the usage logger to get a measured score, if there is no log yet>
 4. <Calibrate the static score, if it is static>
 5. <Add volume and prices to `leanprompt.yaml`, if the report shows tokens only>
-6. <The page: `npx leanprompt report --html` writes `.leanprompt/report.html` with the same content and the copyable hand-off block>
+6. <The page: `leanprompt report --html` writes `.leanprompt/report.html` with the same content and the copyable hand-off block>
 ````
 
 Write the numbers with their kind every time: "(estimate)" next to a figure from code, "(measured, N calls)" next to a figure from the usage log. A static score is never presented as measured, and money is shown only from the user's own volume and a price with its source and checked date; never invent either.
-<!-- leanprompt:generated v0.1.0-dev.12: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.12: written by leanprompt install; leanprompt update replaces local edits -->

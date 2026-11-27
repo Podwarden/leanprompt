@@ -72,4 +72,4 @@ Prefix caching does not change answers. The match unit changes what is stored an
 
 ## Waste signal
 Measured: raises E (provider-cached tokens over reusable tokens) for short prompts on a block-mode engine; the scorer treats the last partial block as the engine's rule and not as the app's, using the `engine:` values (docs/profile.md). A shortfall much larger than one block counts against the app. Static: a finding of severity high where a hybrid model runs with speculative decoding and no match unit, or with prefix caching turned off; low where the model is not hybrid and caching is on.
-<!-- leanprompt:generated v0.1.0-dev.12: written by npx leanprompt install; npx leanprompt update replaces local edits -->
+<!-- leanprompt:generated v0.1.0-dev.12: written by leanprompt install; leanprompt update replaces local edits -->

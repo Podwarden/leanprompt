@@ -38,8 +38,10 @@ If another command already has that name, the full name is `/leanprompt:leanprom
 - Nothing is sent anywhere. The skills ask before editing code, installing a package, or running anything
   that sends billed requests to a model provider.
 - The command line tool is optional. Some commands (`score`, `report`, `calibrate`, `lesson`) run it as
-  `npx leanprompt <command>`: npx downloads the `leanprompt` package from npm and runs it on your machine,
-  where it reads and writes files in your project and makes no network calls. Only `profile detect
+  `leanprompt <command>`. It is the `leanprompt` npm package (https://www.npmjs.com/package/leanprompt);
+  the skills ask you to install it, or to run it through your package runner, and never install it
+  themselves. It runs on your machine, where it reads and writes files in your project and makes no
+  network calls. Only `profile detect
   --lmwarden <url>` reads from a server: the LM Warden server you name, for its engine facts.
 - Links to provider tables and docs open pages on GitHub; the skills do not fetch them on their own.
 

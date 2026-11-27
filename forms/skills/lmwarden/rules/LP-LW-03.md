@@ -26,7 +26,7 @@ Look for one credential used by several apps or tenants, and for per-tenant cont
 
 Python:
 ```
-rg -n 'api_key=os\.environ|OPENAI_API_KEY|LLM_API_KEY|api_key=.*(SHARED|COMMON|TEAM)' -g '*.py'
+rg -n 'api_key=os\.environ|(OPENAI|LLM)_API_KEY|api_key=.*(SHARED|COMMON|TEAM)' -g '*.py'
 rg -n 'tenant|org_id|customer_id' -g '*.py'
 ```
 Shapes: one `api_key` read from a shared environment variable by several services; a function that serves many tenants with a single client object and builds each tenant's prompt with its private data in the system prompt.
@@ -52,10 +52,10 @@ One key per app, and for tenants who must not share a cache, a separate key and,
 
 ```python
 # before: every app and tenant shares one key
-client = OpenAI(base_url=SERVER_URL, api_key=os.environ["LLM_API_KEY"])
+client = OpenAI(base_url=SERVER_URL, api_key="YOUR_SHARED_KEY")
 
-# after: one key per app, named after it, from that app's own secret
-client = OpenAI(base_url=SERVER_URL, api_key=os.environ["BILLING_APP_LLM_KEY"])
+# after: one key per app, named after it (placeholder: load it from that app's own secret store)
+client = OpenAI(base_url=SERVER_URL, api_key="YOUR_BILLING_APP_KEY")
 ```
 
 For several tenants in one app, keep tenant-specific text after the shared prefix, never in the shared head (`prefill-cache` LP-PC-07), and do not put one tenant's confidential data in text that other tenants' prompts share a prefix with. If tenants must be isolated from each other's timing, give each its own key and a partitioned cache or its own instance, and accept the lower reuse.
