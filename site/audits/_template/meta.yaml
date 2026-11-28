@@ -45,7 +45,8 @@ status: draft
 #            subject, never the people: no mocking words, no exclamation marks, no em dashes.
 # subtitle   one sentence: what the app is and something it already does well.
 # kind       one of: Cut-off answer, Retry loop, Cache never hits, Blind spend meter,
-#            Setting that does nothing, Runs again every night, Wrong text summarised
+#            Setting that does nothing, Runs again every night, Wrong text summarised,
+#            Retired model
 # figure     the big number. Tokens per 1,000 calls of one finding (finding: its id or file:line;
 #            left out, the largest open finding), always shown as an estimate; or a count read
 #            from the project's own output (count: "66 of 558"), shown as counted. label says what

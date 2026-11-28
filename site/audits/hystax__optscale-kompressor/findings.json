@@ -1,0 +1,43 @@
+{
+  "v": 1,
+  "unattended": true,
+  "gateway": true,
+  "average_call": {
+    "prompt_tokens": 60000,
+    "output_tokens": 500
+  },
+  "findings": [
+    {
+      "rule": "LP-PC-11",
+      "id": "keepwarm-unmarked",
+      "file": "crates/kompressor-proxy/src/handler.rs",
+      "line": 555,
+      "saves": "prefill",
+      "severity": "low",
+      "scope": "proxied",
+      "status": "frequency-unknown",
+      "confirm": "how many Anthropic /v1/messages clients behind the proxy send no cache_control anywhere, and how often their tool waits pass 270 seconds (the proxy's own stats rows with keep_warm = 1 and cache_read_tokens = 0 count them)",
+      "reach": "only clients that send /v1/messages requests with no cache_control",
+      "share": 0.015,
+      "tokens_per_1k": {
+        "prompt": 900000
+      },
+      "problem": "The proxy arms a keep-warm ping for any Anthropic request that stops on tool_use, whether or not the request carries a cache_control mark. A request with no mark leaves nothing in the provider's cache, so the ping, which re-sends the whole prompt, is billed at the full input price and finds nothing to read.",
+      "change": "Arm keep-warm only when the body that was sent carries a cache_control mark (top-level, system, tools or messages, nested tool_result content included).",
+      "why": "Each such ping is one full-price read of the whole prompt, on a pause that already passed 270 seconds. It is the same cost the module comment says the feature exists to avoid, and it repeats on every later long tool wait because the next tool_use response arms a new timer.",
+      "estimate": "about 900k prompt tokens per 1,000 calls, only for clients that send no cache_control",
+      "assumptions": "60,000-token prompt; half of the calls stop on tool_use; 3% of those waits pass 270 seconds; every affected call comes from an unmarked client. All three rates are assumptions.",
+      "verify": "Send a /v1/messages tool_use turn with no cache_control through the proxy, wait 270 seconds, and check that no keep_warm = 1 row appears; with a marked request the ping still goes out and reads cached tokens."
+    }
+  ],
+  "notes": [
+    {
+      "title": "CLAUDE-CODE.md says keep-warm is both on and off by default",
+      "file": "docs/CLAUDE-CODE.md",
+      "line": 631,
+      "problem": "Line 615 says keep-warm is on by default and that cache_keep_warm = false turns it off. Line 631 of the same paragraph says \"It is off because it is the one thing the proxy does that no client asked for\", and the example that follows exports CACHE_KEEP_WARM=true as the way to enable it. The code default is true (crates/kompressor-core/src/config.rs:1443).",
+      "change": "Drop the sentence at line 631 and the enabling example, or turn the example into the cache_keep_warm = false opt-out that README.md:435 shows.",
+      "verify": "Read lines 615 to 637 together; the paragraph states one default."
+    }
+  ]
+}

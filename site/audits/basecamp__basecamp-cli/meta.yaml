@@ -1,0 +1,17 @@
+repo: https://github.com/basecamp/basecamp-cli
+visibility: public
+commit: d8583ae0123df212b1044f8ff13a1c58769b58cf
+leanprompt: 0.1.0-dev.15
+date: 2026-11-27
+status: notified
+headline: "The skill-eval runner defaults to a model Anthropic retired in June"
+subtitle: "Basecamp's command line and terminal workspace, whose chat summaries are cached for a day per segment and can run on a local or on-device model."
+kind: Retired model
+figure:
+  label: no token figure; the problems found cost no tokens of their own
+  unit: calls
+illustration:
+  scene: "a vintage brass key stuck in the lock of a wooden door, a blank calendar page torn from its pad lying on the floor below it, a clean new key resting on a small shelf beside the door"
+  alt: An old brass key sits in the lock of a wooden door, a torn blank pad lies on the floor, and a newer key rests on a small shelf.
+maintainer:
+  pr: https://github.com/basecamp/basecamp-cli/pull/1060

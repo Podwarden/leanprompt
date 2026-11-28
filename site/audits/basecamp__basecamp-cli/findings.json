@@ -1,0 +1,32 @@
+{
+  "v": 1,
+  "unattended": true,
+  "average_call": {
+    "prompt_tokens": 700,
+    "output_tokens": 50
+  },
+  "findings": [],
+  "notes": [
+    {
+      "title": "The skill-eval runner defaults to a model Anthropic retired on 2026-06-15",
+      "rule": "LP-GE-13",
+      "severity": "high",
+      "file": "skill-evals/run",
+      "line": 39,
+      "problem": "The runner's default model, and the default in skill-evals/Makefile line 1, is claude-sonnet-4-20250514. Anthropic's deprecations page lists it as retired on June 15, 2026, with claude-sonnet-5-5 as the replacement, and says requests to a retired model return 404 not_found_error. CI runs `make skill-eval` with no MODEL override, and api_call raises on any non-200 reply.",
+      "change": "Change the default to a model Anthropic still serves (the page recommends claude-sonnet-5-5) in skill-evals/run and skill-evals/Makefile, then re-run the cases once to see whether any expectations need adjusting.",
+      "verify": "Run `make skill-eval` with a key: the first request returns 200 instead of 404. Without a key, `grep -rn claude-sonnet-4-20250514 skill-evals` finds nothing."
+    },
+    {
+      "title": "A summary cut off at the token limit is cached for 24 hours as if complete",
+      "rule": "LP-GE-12",
+      "severity": "high",
+      "file": "internal/tui/workspace/summarize/summarize.go",
+      "line": 129,
+      "problem": "Summarize asks for max_tokens = TargetChars/3 (66 for the 200-character gap summaries) and none of the three HTTP providers reads the stop reason (provider_anthropic.go:68-79 ignores stop_reason, provider_openai.go:74-87 ignores finish_reason, provider_ollama.go:68-74 ignores done_reason). Whatever text came back is written to the cache at summarize.go:135 and shown in the collapsed gap row. A reply that ran into the limit (a model that ignores 'under 200 characters', or text in a script that takes more tokens per character) is stored for 24 hours without its end.",
+      "change": "Have Complete report whether the reply was cut off. On a cut-off reply, trim to the last whole sentence or word and add an ellipsis before caching, or do not cache it and keep the extractive summary for that segment.",
+      "why": "The cut-off text is what the user sees for the whole cache lifetime, and the same segment is not summarized again until the entry expires.",
+      "verify": "A fake Provider that returns a truncated reply with the truncation flag set must not leave the raw text in the cache; a normal reply is cached unchanged."
+    }
+  ]
+}

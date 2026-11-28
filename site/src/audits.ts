@@ -52,6 +52,7 @@ export const KINDS = [
   "Setting that does nothing",
   "Runs again every night",
   "Wrong text summarised",
+  "Retired model",
 ] as const;
 export type Kind = (typeof KINDS)[number];
 

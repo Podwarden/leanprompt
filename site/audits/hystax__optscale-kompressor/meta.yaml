@@ -1,0 +1,18 @@
+repo: https://github.com/hystax/optscale-kompressor
+visibility: public
+commit: afcd4def7fbca0f6f14f6985e4e9cdfe0a5eddf6
+leanprompt: 0.1.0-dev.15
+date: 2026-11-27
+status: notified
+headline: "Keep-warm pings go out for requests that carry no cache mark"
+subtitle: "A prompt-compression proxy for coding agents that keeps its output byte-stable for the provider cache and checks its savings against the real bill."
+kind: Cache never hits
+figure:
+  finding: keepwarm-unmarked
+  label: prompt tokens read at full price by pings that find nothing cached
+  unit: calls
+illustration:
+  scene: "a small brass alarm clock ringing beside a tall stack of paper sheets tied with a plain brown paper band, a thin string running from the clock to an empty wire tray"
+  alt: A brass alarm clock stands against a stack of paper tied with a brown band, a string running from it to an empty wire tray.
+maintainer:
+  issue: https://github.com/hystax/optscale-kompressor/issues/54
