@@ -8,6 +8,16 @@ lmwarden.com serves it from S3-compatible object storage, so a site update needs
 release. LM Warden also bundles a copy of the site, which it serves whenever the published
 copy is missing or fails verification.
 
+## Share cards
+
+Every audit page's Open Graph and Twitter image is `audits/<slug>/og.png`, a 1200x630 card the
+build draws from the audit's `meta.yaml` and `findings.json` (`site/src/og.ts`): kind, headline,
+repo, the page's big number, the status badge and the leanprompt mark, in the site's dark
+palette. Text is measured with opentype.js and rasterised by @resvg/resvg-js from the OFL
+fonts in `site/src/og-fonts/` (static TTFs: Mona Sans, JetBrains Mono), with no system fonts and
+no browser, so the output is the same on macOS and Linux. Both libraries are devDependencies;
+the site code is not in the npm package.
+
 ## Publishing
 
 Push the change to the public repository's `main` first, then:

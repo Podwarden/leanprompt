@@ -2,9 +2,9 @@
 // npm run illustrations: the picture beside each audit's headline, from its meta.yaml scene.
 //
 // For every site/audits/<folder>/ whose meta.yaml has `illustration.scene` and lacks
-// illustration.webp or og.jpg, fetch both from the illustration service:
+// illustration.webp, fetch it from the illustration service:
 //   - with IMGEN_API_TOKEN set, ask the service to draw the scene (slug = the folder name; the same
-//     slug and scene give the same picture), wait for the job and download the two files (the service makes og.png; it is converted to og.jpg here);
+//     slug and scene give the same picture), wait for the job and download the picture (the share card og.png is not made here: the site build draws it);
 //   - without it, download the job the service already finished for that folder and scene, if any.
 // Anything still missing at the end is listed and the script exits 1.
 //
@@ -16,11 +16,9 @@
 //   --force           every audit with a scene, even when its files exist
 //   --help
 //
-// Node 20+, no npm dependencies. The og.png -> og.jpg conversion needs `ffmpeg` or, on macOS, `sips`. See site/audits/README.md.
+// Node 20+, no npm dependencies. See site/audits/README.md.
 
-import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -29,14 +27,13 @@ const AUDITS = join(ROOT, "site", "audits");
 /** What the service makes, what the site keeps, and the size the build insists on. */
 const FILES = [
   { from: "full.webp", to: "illustration.webp", type: "webp", width: 1408, height: 736 },
-  { from: "og.png", to: "og.jpg", type: "png", width: 1200, height: 630, toJpeg: true },
 ];
 
 function usage(code) {
   console.log(`usage: npm run illustrations [-- --only <folder> | --force]
 
-Fetches illustration.webp and og.jpg for each audit in site/audits/ whose meta.yaml has
-illustration.scene and lacks them.
+Fetches illustration.webp for each audit in site/audits/ whose meta.yaml has
+illustration.scene and lacks it.
 
   IMGEN_URL         required: the illustration service's base URL
   IMGEN_API_TOKEN   optional: lets the script start new jobs (without it, only finished jobs are fetched)
@@ -104,39 +101,6 @@ function imageInfo(b) {
     if (c === "VP8X") return { type: "webp", width: b.readUIntLE(24, 3) + 1, height: b.readUIntLE(27, 3) + 1 };
   }
   return undefined;
-}
-
-// --- PNG -> JPEG, with whatever the machine has
-const which = (cmd) => {
-  try {
-    execFileSync(process.platform === "win32" ? "where" : "which", [cmd], { stdio: "ignore" });
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-/** A 1200x630 JPEG (quality about 82, no metadata) from a PNG, via ffmpeg or sips; exits with a clear message when neither exists. */
-function pngToJpeg(png) {
-  const tool = which("ffmpeg") ? "ffmpeg" : process.platform === "darwin" && which("sips") ? "sips" : undefined;
-  if (!tool) {
-    console.error("cannot convert og.png to og.jpg: install ffmpeg (or run this on macOS, which has sips), then run this again");
-    process.exit(2);
-  }
-  const dir = mkdtempSync(join(tmpdir(), "lp-og-"));
-  const src = join(dir, "og.png");
-  const dst = join(dir, "og.jpg");
-  try {
-    writeFileSync(src, png);
-    if (tool === "ffmpeg")
-      execFileSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-y", "-i", src, "-map_metadata", "-1", "-fflags", "+bitexact", "-flags", "+bitexact", "-vf", "scale=1200:630", "-q:v", "4", "-huffman", "optimal", dst], { stdio: ["ignore", "ignore", "pipe"] });
-    else execFileSync("sips", ["-s", "format", "jpeg", "-s", "formatOptions", "82", src, "--out", dst], { stdio: ["ignore", "ignore", "pipe"] });
-    return readFileSync(dst);
-  } catch (err) {
-    throw new Error(`converting og.png to JPEG with ${tool} failed: ${String(err.stderr ?? err.message).trim().slice(0, 300)}`);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
 }
 
 // --- the service
@@ -207,7 +171,7 @@ async function fetchFor(folder, scene) {
     const info = imageInfo(b);
     if (!info || info.type !== f.type || info.width !== f.width || info.height !== f.height)
       throw new Error(`${f.from} of job ${job.job_id} is not a ${f.width}x${f.height} ${f.type.toUpperCase()} (got ${info ? `${info.width}x${info.height} ${info.type}` : "an unreadable file"})`);
-    out.push([f.to, f.toJpeg ? pngToJpeg(b) : b]);
+    out.push([f.to, b]);
   }
   for (const [to, b] of out) {
     const dest = join(AUDITS, folder, to);

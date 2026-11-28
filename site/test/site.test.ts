@@ -79,14 +79,14 @@ const fakeWebp = (w: number, h: number) => {
   b.writeUIntLE(h - 1, 27, 3);
   return b;
 };
-/** A temporary repository root with one audit, acme__widget, and its two illustration files. */
+/** A temporary repository root with one audit, acme__widget, and its illustration file. */
 const tempAudit = (meta = good, files: Record<string, Buffer | null> = {}) => {
   const root = mkdtempSync(join(tmpdir(), "lp-site-"));
   const dir = join(root, "site", "audits", "acme__widget");
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "meta.yaml"), meta);
   writeFileSync(join(dir, "findings.json"), readFileSync(join(ROOT, "site", "audits", "_template", "findings.json")));
-  const all: Record<string, Buffer | null> = { "illustration.webp": fakeWebp(1408, 736), "og.jpg": fakeJpeg(1200, 630), ...files };
+  const all: Record<string, Buffer | null> = { "illustration.webp": fakeWebp(1408, 736), ...files };
   for (const [f, b] of Object.entries(all)) if (b) writeFileSync(join(dir, f), b);
   return root;
 };
@@ -462,9 +462,8 @@ describe("audit pages", () => {
     writeFileSync(join(dir, "acme__widget", "findings.json"), JSON.stringify({ v: 1, findings: [{ rule: "LP-PC-03", file: "a.ts", line: 1, saves: "prefill", severity: "high", tokens_per_1k: { uncached: 5, measured_calls: 50 } }] }));
     expect(() => loadAudits(root, ids)).toThrow(/estimates from the code only/);
     writeFileSync(join(dir, "acme__widget", "findings.json"), readFileSync(join(ROOT, "site", "audits", "_template", "findings.json")));
-    expect(() => loadAudits(root, ids)).toThrow(/illustration.webp and og.jpg missing: run npm run illustrations -- --only acme__widget/);
+    expect(() => loadAudits(root, ids)).toThrow(/illustration.webp missing: run npm run illustrations -- --only acme__widget/);
     writeFileSync(join(dir, "acme__widget", "illustration.webp"), fakeWebp(1408, 736));
-    writeFileSync(join(dir, "acme__widget", "og.jpg"), fakeJpeg(1200, 630));
     expect(loadAudits(root, ids).map((a) => a.slug)).toEqual(["acme__widget"]);
   });
 });
@@ -473,7 +472,7 @@ describe("audit illustrations", () => {
   const audits = () => loadAudits(ROOT, loadRuleIds(ROOT));
   const ids = loadRuleIds(ROOT);
 
-  it("give every published audit, the demonstration too, a scene, an alt sentence and both files", () => {
+  it("give every published audit, the demonstration too, a scene, an alt sentence and its illustration", () => {
     const all = audits();
     expect(all.some((a) => a.meta.status === "demo")).toBe(true);
     for (const a of all) {
@@ -481,16 +480,14 @@ describe("audit illustrations", () => {
       expect(a.meta.illustration?.alt, a.slug).toMatch(/^[A-Z].*\.$/);
       if (ILLUSTRATIONS_PENDING.includes(a.folder)) continue;
       expect(a.images, a.slug).toBeDefined();
-      for (const k of ["card", "og"] as const) {
-        const want = ILLUSTRATION_FILES[k];
-        expect(imageInfo(readFileSync(join(ROOT, "site", "audits", a.folder, want.file))), `${a.folder}/${want.file}`).toEqual({ type: want.type, width: want.width, height: want.height });
-        expect(site.files.has(`leanprompt/audits/${a.slug}/${want.file}`), `${a.slug} ${want.file}`).toBe(true);
-      }
+      const want = ILLUSTRATION_FILES.card;
+      expect(imageInfo(readFileSync(join(ROOT, "site", "audits", a.folder, want.file))), `${a.folder}/${want.file}`).toEqual({ type: want.type, width: want.width, height: want.height });
+      expect(site.files.has(`leanprompt/audits/${a.slug}/${want.file}`), `${a.slug} ${want.file}`).toBe(true);
     }
   });
 
   it("keep the pending list to audits that still lack their files: it must be empty before a release", () => {
-    // Each entry lets one audit build without illustration.webp and og.jpg until the owner renders them.
+    // Each entry lets one audit build without illustration.webp until the owner renders them.
     // Once the files exist the entry must go (this test fails until it does); site/audits/README.md's
     // release checklist requires the list to be empty.
     for (const folder of ILLUSTRATIONS_PENDING) {
@@ -523,14 +520,13 @@ describe("audit illustrations", () => {
     });
   });
 
-  it("show the picture after the headline on each audit page, never lazy, and use og.jpg as the page's share image", () => {
+  it("show the picture after the headline on each audit page, never lazy, and use the drawn og.png as the page's share image", () => {
     for (const a of audits()) {
       const h = html.get(`leanprompt/audits/${a.slug}/index.html`)!;
       const og = /<meta property="og:image" content="([^"]+)">/.exec(h)?.[1];
       const tw = /<meta name="twitter:image" content="([^"]+)">/.exec(h)?.[1];
       if (!a.images) {
         expect(h, a.slug).not.toContain('class="audit-art');
-        expect(og, a.slug).toBe(`${ORIGIN}${BASE}assets/og-image.png`);
         continue;
       }
       const img = /<img class="audit-art audit-art-page"[^>]*>/.exec(h)?.[0];
@@ -539,7 +535,7 @@ describe("audit illustrations", () => {
       expect(img, a.slug).toContain(' width="1408" height="736"');
       expect(img, a.slug).toMatch(/ alt="[A-Z][^"]{20,}\."/);
       expect(img, a.slug).not.toContain("loading=");
-      expect(og, a.slug).toBe(`${ORIGIN}${url(`audits/${a.slug}`)}og.jpg`);
+      expect(og, a.slug).toBe(`${ORIGIN}${url(`audits/${a.slug}`)}og.png`);
       expect(tw, a.slug).toBe(og);
       expect(h, a.slug).toContain('<meta property="og:image:width" content="1200">');
       expect(h, a.slug).toContain('<meta property="og:image:height" content="630">');
@@ -574,19 +570,15 @@ describe("audit illustrations", () => {
   });
 
   it.each([
-    ["no og.jpg", { "og.jpg": null }, /og.jpg missing: run npm run illustrations/],
     ["no illustration.webp", { "illustration.webp": null }, /illustration.webp missing/],
     ["a PNG saved as illustration.webp", { "illustration.webp": fakePng(1408, 736) }, /illustration.webp is not a valid WEBP image/],
     ["a truncated WebP", { "illustration.webp": fakeWebp(1408, 736).subarray(0, 26) }, /illustration.webp is not a valid WEBP image/],
     ["a WebP of the wrong size", { "illustration.webp": fakeWebp(1024, 1024) }, /illustration.webp must be 1408x736, not 1024x1024/],
-    ["an og.jpg of the wrong size", { "og.jpg": fakeJpeg(1408, 736) }, /og.jpg must be 1200x630, not 1408x736/],
-    ["a PNG saved as og.jpg", { "og.jpg": fakePng(1200, 630) }, /og.jpg is not a valid JPEG image/],
-    ["a truncated JPEG", { "og.jpg": fakeJpeg(1200, 630).subarray(0, 12) }, /og.jpg is not a valid JPEG image/],
   ])("fail the build on %s", (_name, files, re) => {
     expect(() => loadAudits(tempAudit(good, files as Record<string, Buffer | null>), ids)).toThrow(re);
   });
 
-  it("build an audit with both files, and read real files' sizes", () => {
+  it("build an audit with its file, and read real files' sizes", () => {
     expect(loadAudits(tempAudit(), ids)[0]!.images).toBeDefined();
     expect(imageInfo(readFileSync(join(ROOT, "site", "audits", "Nutlope__aicommits", "illustration.webp")))).toEqual({ type: "webp", width: 1408, height: 736 });
   });

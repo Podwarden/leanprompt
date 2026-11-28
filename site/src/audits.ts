@@ -14,8 +14,9 @@
 //   repository with no public channel (issues and discussions off) says so in `no_channel` instead;
 // - every page carries the corrections and takedown line;
 // - every published audit (the demonstration too) carries an illustration: meta.yaml
-//   `illustration: {scene, alt}` and, in its folder, illustration.webp (1408x736) and og.jpg
-//   (1200x630), made by scripts/audit-illustrations.mjs from the scene (see site/audits/README.md).
+//   `illustration: {scene, alt}` and, in its folder, illustration.webp (1408x736), made
+//   by scripts/audit-illustrations.mjs from the scene (see site/audits/README.md). The share card
+//   (og.png) is not a source file: site/src/og.ts draws it at build time from the audit's data.
 // A folder whose name starts with "_" (the template) is skipped, and so is an audit whose status
 // is `draft` or `withdrawn`. Any other problem fails the build with the folder and the reason.
 
@@ -82,15 +83,14 @@ export interface Illustration {
   alt: string;
 }
 
-/** The two image files every published audit folder holds, and their exact sizes in pixels. */
+/** The image file every published audit folder holds, and its exact size in pixels. */
 export const ILLUSTRATION_FILES = {
   card: { file: "illustration.webp", type: "webp", width: 1408, height: 736 },
-  og: { file: "og.jpg", type: "jpeg", width: 1200, height: 630 },
 } as const;
 
 /**
  * Audits whose illustration files have not been rendered yet: the build lets a named folder
- * through without illustration.webp and og.jpg (their scene and alt are still required). A test
+ * through without illustration.webp (their scene and alt are still required). A test
  * fails as soon as an entry's files exist, and the release checklist (site/audits/README.md)
  * requires this list to be empty.
  */
@@ -144,7 +144,7 @@ export interface Audit {
   /** The audit ran unattended (findings.json `unattended: true`); the page says so. */
   unattended?: boolean;
   /** The illustration files, read from the folder (absent only for an entry in ILLUSTRATIONS_PENDING). */
-  images?: { card: Buffer; og: Buffer };
+  images?: { card: Buffer };
 }
 
 /** The type and size of a PNG, JPEG or WebP image, read from its header; undefined when it is none of them, or truncated. */
@@ -426,12 +426,11 @@ export function loadAudits(root: string, ruleIds: ReadonlySet<string>, noteRuleI
         return { b };
       };
       const card = read("card");
-      const og = read("og");
-      const missing = [card.missing, og.missing].filter(Boolean);
-      for (const x of [card.error, og.error]) if (x) problems.push(`${at}: ${x}`);
+      const missing = [card.missing].filter(Boolean);
+      if (card.error) problems.push(`${at}: ${card.error}`);
       if (missing.length && !ILLUSTRATIONS_PENDING.includes(slug))
         problems.push(`${at}: ${missing.join(" and ")} missing: run npm run illustrations -- --only ${slug} (see site/audits/README.md)`);
-      if (card.b && og.b) images = { card: card.b, og: og.b };
+      if (card.b) images = { card: card.b };
     }
     const fig = meta.figure?.finding;
     const figF = fig !== undefined ? parsed.findings.find((f) => f.id === fig || `${f.file}:${f.line}` === fig) : undefined;

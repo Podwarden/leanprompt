@@ -25,6 +25,7 @@ import { costsNothing, formatTokens } from "../../cli/src/report/cost.js";
 import { KNOWN_LABEL, loadRules, NO_DISCOUNT_LINE, rankFindings, renderReport, SCOPE_LABEL, scopeCounts, scopeLine, UNATTENDED_LINE, type ScoreFile } from "../../cli/src/report/html.js";
 import { isKnownFinding, isServerFinding, knownOf, parseFindings, staticScore, tokensLost, unitOf, type Finding, type Note } from "../../cli/src/score/static.js";
 import { badgeColor } from "../../cli/src/score/write.js";
+import { OG_FILE, OG_HEIGHT, OG_WIDTH, renderCard } from "./og.js";
 import { BADGES, ILLUSTRATION_FILES, STATUS_TEXT, badgeOf, bigNumberOf, loadAudits, sortForIndex, type Audit } from "./audits.js";
 import { page, type AssetUrl, type PageSpec } from "./layout.js";
 import { clip, escapeHtml as e, plain, renderMarkdown } from "./markdown.js";
@@ -458,11 +459,10 @@ ${stat(problems, problems === 1 ? "problem found" : "problems found")}
 ${stat(fixedUpstream, "fixed upstream")}
 ${stat(reported, "reported to the maintainers")}${planned ? `\n${stat(planned, "already planned by the maintainers")}` : ""}
 </ul>`;
-  // The illustrations ship with the site, beside each audit page: /leanprompt/audits/<slug>/illustration.webp and og.jpg.
+  // The illustrations ship with the site, beside each audit page: /leanprompt/audits/<slug>/illustration.webp; the share card og.png is drawn from the audit's data.
   for (const a of audits) {
-    if (!a.images) continue;
-    files.set(`leanprompt/audits/${a.slug}/${ILLUSTRATION_FILES.card.file}`, a.images.card);
-    files.set(`leanprompt/audits/${a.slug}/${ILLUSTRATION_FILES.og.file}`, a.images.og);
+    files.set(`leanprompt/audits/${a.slug}/${OG_FILE}`, renderCard(a));
+    if (a.images) files.set(`leanprompt/audits/${a.slug}/${ILLUSTRATION_FILES.card.file}`, a.images.card);
   }
   emit({
     key: "audits",
@@ -590,7 +590,7 @@ ${corrections}`;
         crumbLabel: `${m.owner}/${m.name}`,
         ogType: "article",
         published: m.date,
-        ...(a.images && m.illustration ? { ogImage: { url: canonical(key) + ILLUSTRATION_FILES.og.file, width: ILLUSTRATION_FILES.og.width, height: ILLUSTRATION_FILES.og.height, alt: m.illustration.alt } } : {}),
+        ogImage: { url: canonical(key) + OG_FILE, width: OG_WIDTH, height: OG_HEIGHT, alt: `${m.headline ?? auditTitle(a)} (audit of ${m.owner}/${m.name})` },
         body: article(e(m.headline ?? auditTitle(a)), body, undefined, { h1Class: "audit-h1", beside: auditImg(a, true, "audit-art audit-art-page") }),
       },
       m.date,

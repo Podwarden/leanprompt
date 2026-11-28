@@ -58,8 +58,8 @@ status: draft
 # figure:
 #   finding: src/agent/prompt.ts:12
 #   label: for a handbook the cache could have served
-# Required to publish: the picture beside the headline on the audits list and the page, and the
-# page's share image. The folder also needs illustration.webp (1408x736) and og.jpg (1200x630, JPEG):
+# Required to publish: the picture beside the headline on the audits list and the page. The folder
+# also needs illustration.webp (1408x736). (The share card, og.png, is drawn by the build.)
 # write the scene, then run `npm run illustrations -- --only <owner>__<repo>` (site/audits/README.md).
 # scene  what the picture shows, objects only: a concrete metaphor for the headline's mistake. No
 #        text or lettering, no logos, no people's faces. The style is added by the service; the

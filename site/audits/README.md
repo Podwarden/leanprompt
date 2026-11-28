@@ -7,9 +7,10 @@ One folder per published audit, `site/audits/<owner>__<repo>/`, holding:
 | `meta.yaml` | The audit's facts, headline, figure and illustration. Every key is explained in [`_template/meta.yaml`](_template/meta.yaml). |
 | `findings.json` | The findings `/leanprompt audit` wrote to `.leanprompt/findings.json`. |
 | `illustration.webp` | The picture beside the headline on the [audits list](https://lmwarden.com/leanprompt/audits/) and the audit page, 1408x736. |
-| `og.jpg` | The page's share image (Open Graph and Twitter), 1200x630, progressive JPEG, under about 150 KB. |
 
-`npm run build:site` checks every rule in [`site/src/audits.ts`](../src/audits.ts) and fails on any audit that breaks one, including an illustration without a scene or alt text, or a missing image, or one of the wrong size.
+`npm run build:site` checks every rule in [`site/src/audits.ts`](../src/audits.ts) and fails on any audit that breaks one, including an illustration without a scene or alt text, or a missing illustration, or one of the wrong size.
+
+The page's share image (Open Graph and Twitter) is not a source file. The build draws a 1200x630 `og.png` for every audit from its `meta.yaml` and `findings.json` (kind, headline, repo, big number, status badge, the leanprompt mark) with [`site/src/og.ts`](../src/og.ts), so it always matches the page and needs nothing from you. Long headlines wrap and shrink to fit.
 
 ## The illustration
 
@@ -38,11 +39,11 @@ npm run illustrations -- --force                   # every audit, again
 
 Instead of exporting them, you can put both lines (without `export`) in a `.env` file at the repository root; `npm run illustrations` loads it (Node 22.9 or later). `.env` is in `.gitignore` and outside the npm package's `files`: never commit it, and keep it readable only by you (`chmod 600 .env`).
 
-With a token, the script asks the service to draw each scene, waits for the job and writes `illustration.webp` and `og.jpg` into the folder (the service makes og.png; the script converts it to JPEG locally with `ffmpeg` or, on macOS, `sips`, and stops with a message if neither is installed). Without one, it downloads the picture the service already drew for that folder and that exact scene, and exits 1 naming any audit that has none yet. It checks both images' sizes before writing them, and never prints the token.
+With a token, the script asks the service to draw each scene, waits for the job and writes `illustration.webp` into the folder. Without one, it downloads the picture the service already drew for that folder and that exact scene, and exits 1 naming any audit that has none yet. It checks the image's size before writing them, and never prints the token.
 
 Check the picture before committing: it must read as the headline's mistake, and the alt must describe what is actually drawn.
 
 ## Before a release
 
-- `ILLUSTRATIONS_PENDING` in [`site/src/audits.ts`](../src/audits.ts) must be empty. It lets a named audit build without its two images while they wait to be drawn; a site test fails as soon as an entry's images exist, so the entry is removed with the commit that adds them.
+- `ILLUSTRATIONS_PENDING` in [`site/src/audits.ts`](../src/audits.ts) must be empty. It lets a named audit build without its illustration while it waits to be drawn; a site test fails as soon as an entry's illustration exists, so the entry is removed with the commit that adds it.
 - `npm run build:site` and `npx vitest run site/test` pass.
