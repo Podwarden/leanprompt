@@ -1,0 +1,18 @@
+repo: https://github.com/every-app/open-seo
+visibility: public
+commit: 6f68494e92a695db17f4b22da25e84b9bf1e582c
+leanprompt: 0.1.0-dev.15
+date: 2026-11-28
+status: notified
+headline: "Website research resends a cut-off answer unchanged"
+subtitle: "An open source SEO tool for keyword research, rank tracking and site audits, with an MCP server so an agent can use the same data."
+kind: Cut-off answer
+figure:
+  finding: F1
+  label: tokens for the answers and searches resent after a cut-off reply
+  unit: runs
+illustration:
+  scene: "three identical short wooden planks lined up on a workshop bench, each sawn off at exactly the same point by a small bandsaw with a clamp fixed at one stop, plain surfaces, no labels, no markings"
+  alt: "Three identical pale wooden planks lie in a row on a workbench, each with the same notch cut out, beside a steel clamp."
+maintainer:
+  issue: https://github.com/every-app/open-seo/issues/623

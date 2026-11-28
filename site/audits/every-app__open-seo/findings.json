@@ -1,0 +1,501 @@
+{
+ "v": 1,
+ "unattended": true,
+ "run": "one website research run, 1 to 3 attempts of up to 7 model steps",
+ "average_call": {
+  "prompt_tokens": 4000,
+  "output_tokens": 2500
+ },
+ "findings": [
+  {
+   "id": "F1",
+   "rule": "LP-GE-05",
+   "file": "src/server/features/projects/services/websiteResearch.ts",
+   "line": 58,
+   "quote": "async function retryInvalidOutput<T>(",
+   "saves": "both",
+   "severity": "medium",
+   "share_prefill": 0.005,
+   "share_output": 0.01,
+   "status": "frequency-unknown",
+   "unit": "run",
+   "tokens_per_run": {
+    "prompt": 9000,
+    "output": 6000
+   },
+   "confirm": "How often generateText throws NoObjectGeneratedError with finishReason 'length' in website research, from the Workers logs or the seo spend rows.",
+   "problem": "When website research ends with output that does not parse, retryInvalidOutput runs the whole request again, up to two more times, as a fresh tool-using conversation with the same 6000-token output limit. It never looks at the error's finishReason, so an answer cut off at the limit (reasoning tokens count toward it) is retried the same way and is likely to be cut off again.",
+   "change": "In the catch, read error.finishReason. On 'length', raise maxOutputTokens for the next attempt (or lower the effort or the amount asked for) instead of resending the same request; keep the retry as it is for a normal stop with bad JSON.",
+   "why": "Each attempt re-runs up to seven model steps and the paid searches and page reads they trigger, and bills the full output again. A reply that hit the limit repeats the same cost and the same failure.",
+   "estimate": "up to about 6,000 output tokens plus a full tool loop per wasted attempt, at most two attempts per run (estimate)",
+   "assumptions": "Only runs whose first attempt ends in a length cut-off are affected; how many that is is not known from the code. Prompt figure assumes about seven steps of a few thousand input tokens, mostly cached.",
+   "verify": "Force a small maxOutputTokens in a test, make the model reply long, and check that the second attempt is sent with a larger limit and that the number of search calls does not double."
+  }
+ ],
+ "notes": [
+  {
+   "title": "SAM meters a missing OpenRouter cost as zero, where the other paths fail closed",
+   "file": "src/server/features/sam/SamChatAgent.ts",
+   "line": 426,
+   "quote": "const costUsd = openRouterCostUsd(ctx.providerMetadata);",
+   "rule": "LP-GE-11",
+   "severity": "low",
+   "problem": "SamChatAgent.ts:426 and :257 read the step cost through openRouterCostUsd, which returns 0 when providerMetadata has no openrouter.usage.cost (chatAgent.ts:34-37). The other hosted paths use requireOpenRouterCostUsd (chatAgent.ts:44-51), whose comment says hosted should fail closed when the cost is missing. A hosted SAM step whose reply lacks the cost field is therefore billed nothing and the turn goes on.",
+   "change": "Use requireOpenRouterCostUsd in SAM's onStepFinish and compaction path, or log a warning when the cost is absent on hosted, so a provider route that drops usage accounting is seen.",
+   "verify": "In a test, pass providerMetadata {} on a hosted turn and check that the turn errors or logs, instead of recording 0."
+  },
+  {
+   "title": "The compaction summary call has no output limit, no deadline and no finish check",
+   "file": "src/server/features/sam/SamChatAgent.ts",
+   "line": 253,
+   "quote": "const result = await generateText({",
+   "severity": "medium",
+   "problem": "summarizeForCompaction calls generateText with only a model and a prompt, over a transcript that has passed an estimated 120,000 tokens (SamChatAgent.ts:84). It sets no maxOutputTokens and no abortSignal, so a stalled provider holds the turn until the platform stops it, and result.text is stored as the summary without reading finishReason; a summary cut off by a provider default limit replaces the history it summarises.",
+   "change": "Add a maxOutputTokens sized for the summary and an AbortSignal.timeout like the other generateText calls in the repo (60 to 120 seconds), and throw or keep the old history when finishReason is 'length'.",
+   "verify": "Stub the model to return finishReason 'length' and check that compaction does not store the partial text.",
+   "rule": "LP-GE-15"
+  }
+ ],
+ "binding_matrix": [
+  {
+   "binding": "generateText: AI prompt suggestions (OpenRouter)",
+   "file": "src/server/features/ai-visibility/services/aiPromptSuggestions.ts",
+   "line": 70,
+   "status": "checked",
+   "in_scope": true,
+   "cache_marker": {
+    "value": "n.a.",
+    "where": "src/server/features/ai-visibility/services/aiPromptSuggestions.ts:76",
+    "note": "OpenAI models behind OpenRouter cache implicitly (fact openai-prompt-caching: caching enabled by default, implicit breakpoints only); a request marker is not needed. If OPENROUTER_MODEL names a non-OpenAI model the marker question is open, but the prompt here is below any minimum cacheable size."
+   },
+   "usage_counts_cache": {
+    "value": "yes",
+    "where": "src/server/features/ai-visibility/services/aiPromptSuggestions.ts:102",
+    "note": "Meters the USD OpenRouter charged (providerMetadata.openrouter.usage.cost), not token counts, so cached reads and any cache writes are inside the charge.",
+    "fact": "openai-prompt-caching"
+   },
+   "cache_breakdown": {
+    "value": "n.a.",
+    "where": "src/server/features/ai-visibility/services/aiPromptSuggestions.ts:102",
+    "note": "No token counters of its own on this path: the OpenRouter cost is billed per step; there is no app counter to hold a cached share."
+   },
+   "stop_reason": {
+    "value": "yes",
+    "where": "src/server/features/ai-visibility/services/aiPromptSuggestions.ts:114",
+    "note": "finishReason is not read, but Output.object makes a cut-off JSON reply throw at generatedAiTopicSchema.parse(result.output); a truncation is not accepted as complete."
+   },
+   "retry_identical": {
+    "value": "no",
+    "where": "src/server/features/ai-visibility/services/aiPromptSuggestions.ts:70",
+    "note": "No app retry loop; the SDK default retries transient errors only."
+   },
+   "output_cap": {
+    "value": "yes",
+    "where": "src/server/features/ai-visibility/services/aiPromptSuggestions.ts:77",
+    "note": "maxOutputTokens 2000, sent on the request, for one topic and five prompts; reasoning effort low."
+   }
+  },
+  {
+   "binding": "generateText: prompt-research relevance filter (OpenRouter)",
+   "file": "src/server/features/ai-visibility/services/aiPromptResearch.ts",
+   "line": 294,
+   "status": "checked",
+   "in_scope": true,
+   "cache_marker": {
+    "value": "n.a.",
+    "where": "src/server/features/ai-visibility/services/aiPromptResearch.ts:300",
+    "note": "OpenAI models behind OpenRouter cache implicitly (fact openai-prompt-caching: caching enabled by default, implicit breakpoints only); a request marker is not needed. If OPENROUTER_MODEL names a non-OpenAI model the marker question is open, but the prompt here is below any minimum cacheable size."
+   },
+   "usage_counts_cache": {
+    "value": "yes",
+    "where": "src/server/features/ai-visibility/services/aiPromptResearch.ts:308",
+    "note": "Meters the USD OpenRouter charged (providerMetadata.openrouter.usage.cost), not token counts, so cached reads and any cache writes are inside the charge.",
+    "fact": "openai-prompt-caching"
+   },
+   "cache_breakdown": {
+    "value": "n.a.",
+    "where": "src/server/features/ai-visibility/services/aiPromptResearch.ts:308",
+    "note": "No token counters; cost in USD only."
+   },
+   "stop_reason": {
+    "value": "yes",
+    "where": "src/server/features/ai-visibility/services/aiPromptResearch.ts:319",
+    "note": "Cut-off JSON throws at relevanceOutputSchema.parse; no silent partial. The result is cached for 24h on the exact prompt (aiPromptResearch.ts:287)."
+   },
+   "retry_identical": {
+    "value": "no",
+    "where": "src/server/features/ai-visibility/services/aiPromptResearch.ts:294",
+    "note": "No app retry loop."
+   },
+   "output_cap": {
+    "value": "yes",
+    "where": "src/server/features/ai-visibility/services/aiPromptResearch.ts:301",
+    "note": "maxOutputTokens 4000 on the request; 60s abort signal at :302."
+   }
+  },
+  {
+   "binding": "generateText + tools: website research (OpenRouter)",
+   "file": "src/server/features/projects/services/websiteResearch.ts",
+   "line": 203,
+   "status": "checked",
+   "in_scope": true,
+   "cache_marker": {
+    "value": "n.a.",
+    "where": "src/server/features/projects/services/websiteResearch.ts:212",
+    "note": "OpenAI models behind OpenRouter cache implicitly (fact openai-prompt-caching: caching enabled by default, implicit breakpoints only); a request marker is not needed. If OPENROUTER_MODEL names a non-OpenAI model the marker question is open, but the prompt here is below any minimum cacheable size."
+   },
+   "usage_counts_cache": {
+    "value": "yes",
+    "where": "src/server/features/projects/services/websiteResearch.ts:374",
+    "note": "Meters the USD OpenRouter charged (providerMetadata.openrouter.usage.cost), not token counts, so cached reads and any cache writes are inside the charge.",
+    "fact": "openai-prompt-caching"
+   },
+   "cache_breakdown": {
+    "value": "n.a.",
+    "where": "src/server/features/projects/services/websiteResearch.ts:374",
+    "note": "No token counters; cost in USD only."
+   },
+   "stop_reason": {
+    "value": "no",
+    "where": "src/server/features/projects/services/websiteResearch.ts:73",
+    "note": "finishReason is never read; the retry filter names NoObjectGeneratedError only, whose finishReason field (fact fetch:ec5e8e66) is not looked at, so a length cut-off is retried like a bad-JSON reply.",
+    "note_ref": "F1"
+   },
+   "retry_identical": {
+    "value": "yes",
+    "where": "src/server/features/projects/services/websiteResearch.ts:58",
+    "note": "retryInvalidOutput resends the same request up to OUTPUT_RETRIES=2 more times, each a fresh tool loop (websiteResearch.ts:197).",
+    "note_ref": "F1"
+   },
+   "output_cap": {
+    "value": "yes",
+    "where": "src/server/features/projects/services/websiteResearch.ts:213",
+    "note": "maxOutputTokens 6000 on the request; it covers reasoning as well as the reply (reasoning effort low)."
+   }
+  },
+  {
+   "binding": "SAM chat agent turn loop (Think, OpenRouter)",
+   "file": "src/server/features/sam/SamChatAgent.ts",
+   "line": 216,
+   "status": "checked",
+   "in_scope": true,
+   "cache_marker": {
+    "value": "n.a.",
+    "where": "src/server/features/sam/SamChatAgent.ts:216",
+    "note": "OpenAI models behind OpenRouter cache implicitly (fact openai-prompt-caching: caching enabled by default, implicit breakpoints only); a request marker is not needed. If OPENROUTER_MODEL names a non-OpenAI model the marker question is open, but the prompt here is below any minimum cacheable size."
+   },
+   "usage_counts_cache": {
+    "value": "yes",
+    "where": "src/server/features/sam/SamChatAgent.ts:426",
+    "note": "Cost is the OpenRouter USD per step, which includes cache pricing; the telemetry tokens at samTurnTelemetry.ts:73-75 add inputTokens and cacheReadTokens separately and send both.",
+    "fact": "openai-prompt-caching"
+   },
+   "cache_breakdown": {
+    "value": "yes",
+    "where": "src/server/features/sam/samTurnTelemetry.ts:88",
+    "note": "$ai_cache_read_input_tokens is recorded beside input tokens, per step."
+   },
+   "stop_reason": {
+    "value": "yes",
+    "where": "src/server/features/sam/samTurnTelemetry.ts:94",
+    "note": "finish_reason is recorded per step; a cut-off turn is announced via INTERRUPTED_TURN_NOTICE (SamChatAgent.ts:87)."
+   },
+   "retry_identical": {
+    "value": "no",
+    "where": "src/server/features/sam/SamChatAgent.ts:177",
+    "note": "The reactive retry is deliberately off, with the reason given in the comment."
+   },
+   "output_cap": {
+    "value": "yes",
+    "where": "src/server/features/sam/SamChatAgent.ts:420",
+    "note": "maxOutputTokens 16000 per step, maxSteps 40 on the TurnConfig."
+   },
+   "note_ref": "N1"
+  },
+  {
+   "binding": "generateText: SAM compaction summary (OpenRouter)",
+   "file": "src/server/features/sam/SamChatAgent.ts",
+   "line": 253,
+   "status": "checked",
+   "in_scope": true,
+   "cache_marker": {
+    "value": "n.a.",
+    "where": "src/server/features/sam/SamChatAgent.ts:254",
+    "note": "OpenAI models behind OpenRouter cache implicitly (fact openai-prompt-caching: caching enabled by default, implicit breakpoints only); a request marker is not needed. If OPENROUTER_MODEL names a non-OpenAI model the marker question is open, but the prompt here is below any minimum cacheable size."
+   },
+   "usage_counts_cache": {
+    "value": "yes",
+    "where": "src/server/features/sam/SamChatAgent.ts:257",
+    "note": "Meters the USD OpenRouter charged (providerMetadata.openrouter.usage.cost), not token counts, so cached reads and any cache writes are inside the charge.",
+    "fact": "openai-prompt-caching"
+   },
+   "cache_breakdown": {
+    "value": "n.a.",
+    "where": "src/server/features/sam/SamChatAgent.ts:257",
+    "note": "Cost only."
+   },
+   "stop_reason": {
+    "value": "no",
+    "where": "src/server/features/sam/SamChatAgent.ts:259",
+    "note": "result.text is returned as the summary without reading finishReason.",
+    "note_ref": "N2"
+   },
+   "retry_identical": {
+    "value": "no",
+    "where": "src/server/features/sam/SamChatAgent.ts:253",
+    "note": "No app retry."
+   },
+   "output_cap": {
+    "value": "no",
+    "where": "src/server/features/sam/SamChatAgent.ts:253",
+    "note": "No maxOutputTokens and no abortSignal on this call, input is a transcript past 120k estimated tokens (SamChatAgent.ts:84).",
+    "note_ref": "N2"
+   }
+  },
+  {
+   "binding": "generateText + tools: SEO report writer (web, OpenRouter)",
+   "file": "web/src/lib/seo-report/write.ts",
+   "line": 267,
+   "status": "checked",
+   "in_scope": true,
+   "cache_marker": {
+    "value": "n.a.",
+    "where": "web/src/lib/seo-report/model.ts:37",
+    "note": "OpenAI host pinned (model.ts:23), implicit caching; see fact openai-prompt-caching."
+   },
+   "usage_counts_cache": {
+    "value": "yes",
+    "where": "web/src/lib/seo-report/write.ts:131",
+    "note": "countedUsd reads cacheReadTokens and subtracts it from input at the cached price; the spend is max(counted, OpenRouter charged) at write.ts:182, so cache writes billed at their own rate are covered by the charged figure.",
+    "fact": "openai-prompt-caching"
+   },
+   "cache_breakdown": {
+    "value": "no",
+    "where": "web/src/lib/seo-report/write.ts:185",
+    "note": "used() logs tokens, countedUsd and chargedUsd but not the cached share, though cacheReadTokens is read at :131."
+   },
+   "stop_reason": {
+    "value": "yes",
+    "where": "web/src/lib/seo-report/write.ts:302",
+    "note": "Truncation is handled as no submit call found (fail Ours) and the limits are checked per step (atLimit :255)."
+   },
+   "retry_identical": {
+    "value": "yes",
+    "where": "web/src/lib/seo-report/write.ts:63",
+    "note": "MODEL_RETRIES 5 on API errors via maxRetries at :277, plus one resume at :287; bounded, and the failed side is logged."
+   },
+   "output_cap": {
+    "value": "yes",
+    "where": "web/src/lib/seo-report/write.ts:276",
+    "note": "maxOutputTokens 16000, used also in the next-call price bound at :153."
+   }
+  },
+  {
+   "binding": "OpenRouter provider adapter buildChatAgentModel",
+   "file": "src/server/lib/openrouter.ts",
+   "line": 140,
+   "status": "checked",
+   "in_scope": true,
+   "cache_marker": {
+    "value": "n.a.",
+    "where": "src/server/lib/openrouter.ts:198",
+    "note": "Sends usage.include and a reasoning effort only; implicit caching on OpenAI, MiniMax route (:186) has no marker either."
+   },
+   "usage_counts_cache": {
+    "value": "n.a.",
+    "where": "src/server/lib/openrouter.ts:199",
+    "note": "Adapter only; the callers meter usage."
+   },
+   "cache_breakdown": {
+    "value": "n.a.",
+    "where": "src/server/lib/openrouter.ts:199",
+    "note": "Adapter only."
+   },
+   "stop_reason": {
+    "value": "n.a.",
+    "where": "src/server/lib/openrouter.ts:140",
+    "note": "Adapter only; callers decide."
+   },
+   "retry_identical": {
+    "value": "no",
+    "where": "src/server/lib/openrouter.ts:167",
+    "note": "The OpenAI-blocked fallback is chosen before the request, not after a failure."
+   },
+   "output_cap": {
+    "value": "n.a.",
+    "where": "src/server/lib/openrouter.ts:140",
+    "note": "Adapter does not set an output limit; each caller does (see rows)."
+   }
+  },
+  {
+   "binding": "SEO report model adapter",
+   "file": "web/src/lib/seo-report/model.ts",
+   "line": 25,
+   "status": "checked",
+   "in_scope": true,
+   "cache_marker": {
+    "value": "n.a.",
+    "where": "web/src/lib/seo-report/model.ts:37",
+    "note": "Implicit caching on the pinned OpenAI host."
+   },
+   "usage_counts_cache": {
+    "value": "n.a.",
+    "where": "web/src/lib/seo-report/model.ts:40",
+    "note": "Does not apply here: this function only builds the model object and never sees a reply, so the cached share is recorded by its caller (see the write.ts row)."
+   },
+   "cache_breakdown": {
+    "value": "n.a.",
+    "where": "web/src/lib/seo-report/model.ts:40",
+    "note": "Does not apply here: the adapter sends no request and receives no usage, so there is no counter to hold a cached share."
+   },
+   "stop_reason": {
+    "value": "n.a.",
+    "where": "web/src/lib/seo-report/model.ts:25",
+    "note": "Does not apply here: stop reasons arrive with replies, which this builder never handles; write.ts reads them."
+   },
+   "retry_identical": {
+    "value": "no",
+    "where": "web/src/lib/seo-report/model.ts:41",
+    "note": "allow_fallbacks false; one host."
+   },
+   "output_cap": {
+    "value": "n.a.",
+    "where": "web/src/lib/seo-report/model.ts:25",
+    "note": "Set by write.ts:276."
+   }
+  },
+  {
+   "binding": "DataForSEO LLM responses live (Prompt Explorer, four models)",
+   "file": "src/server/lib/dataforseo/ai.ts",
+   "line": 282,
+   "status": "checked",
+   "in_scope": true,
+   "cache_marker": {
+    "value": "n.a.",
+    "where": "src/server/lib/dataforseo/ai.ts:316",
+    "note": "Third-party API that runs the model; no cache option in its request fields."
+   },
+   "usage_counts_cache": {
+    "value": "n.a.",
+    "where": "src/server/lib/dataforseo/ai.ts:282",
+    "note": "The app is billed per task by DataForSEO (pricing.ts:123-130), not per token."
+   },
+   "cache_breakdown": {
+    "value": "n.a.",
+    "where": "src/server/lib/dataforseo/ai.ts:282",
+    "note": "Per-task pricing."
+   },
+   "stop_reason": {
+    "value": "no",
+    "where": "src/server/lib/dataforseoLlmSchemas.ts:1",
+    "note": "The result schema has no finish field (grep found none), so a cut-off answer is stored and shown as whole."
+   },
+   "retry_identical": {
+    "value": "yes",
+    "where": "src/server/features/ai-search/services/promptExplorer.ts:158",
+    "note": "One paid retry when the model did not search; bounded and deliberate (comment :151-157)."
+   },
+   "output_cap": {
+    "value": "yes",
+    "where": "src/server/lib/dataforseo/ai.ts:323",
+    "note": "max_output_tokens clamped to 256..4096 and sent; promptExplorer.ts:52 sets 4096."
+   }
+  },
+  {
+   "binding": "DataForSEO LLM mentions, aggregate and top-pages endpoints",
+   "file": "src/server/lib/dataforseo/ai.ts",
+   "line": 74,
+   "status": "out_of_scope",
+   "in_scope": false,
+   "reason": "These endpoints read DataForSEO's stored mention data; no model is run and no prompt is built."
+  },
+  {
+   "binding": "staticAssistantModel (canned refusal model)",
+   "file": "src/server/lib/chatAgent.ts",
+   "line": 70,
+   "status": "out_of_scope",
+   "in_scope": false,
+   "reason": "Streams fixed text back without any provider request, as its own comment says."
+  },
+  {
+   "binding": "Cloudflare trace country lookup",
+   "file": "src/server/lib/openrouter.ts",
+   "line": 115,
+   "status": "out_of_scope",
+   "in_scope": false,
+   "reason": "A 2-second GET for the egress country; not an LLM request."
+  },
+  {
+   "binding": "workers-ai-provider build stub",
+   "file": "src/server/lib/workers-ai-provider-stub.ts",
+   "line": 20,
+   "status": "out_of_scope",
+   "in_scope": false,
+   "reason": "Throws if called; replaces an unused default provider in the bundle."
+  },
+  {
+   "binding": "SEO report stand-in model",
+   "file": "web/src/lib/seo-report/stand-in-model.ts",
+   "line": 16,
+   "status": "out_of_scope",
+   "in_scope": false,
+   "reason": "A scripted model for tests and previews; sends nothing to a provider."
+  }
+ ],
+ "prior_art_log": [
+  {
+   "finding": "F1",
+   "terms": "NoObjectGeneratedError,retryInvalidOutput,website research retry,finishReason,truncated,maxOutputTokens",
+   "files": [
+    "src/server/features/projects/services/websiteResearch.ts"
+   ],
+   "before": null,
+   "matches": [
+    "pr#56",
+    "pr#134",
+    "pr#524",
+    "pr#218"
+   ],
+   "pr_file_hits": [
+    "#584"
+   ],
+   "coverage": "issues 241, prs 370, discussions 0, commits 300, capped=False"
+  },
+  {
+   "finding": "N1",
+   "terms": "openRouterCostUsd,spend metering,cost missing,compaction summary,timeout",
+   "files": [
+    "src/server/features/sam/SamChatAgent.ts",
+    "src/server/lib/chatAgent.ts"
+   ],
+   "before": null,
+   "matches": [
+    "issue#485",
+    "commit#43c3d15b",
+    "commit#550e4d10",
+    "commit#0f947b47",
+    "pr#541",
+    "issue#554",
+    "pr#93",
+    "pr#220",
+    "pr#283",
+    "pr#285"
+   ],
+   "pr_file_hits": [],
+   "coverage": "issues 241, prs 370, discussions 0, commits 300, capped=False"
+  },
+  {
+   "finding": "N2",
+   "terms": "compaction,summarize,maxOutputTokens,abortSignal,context overflow",
+   "files": [
+    "src/server/features/sam/SamChatAgent.ts"
+   ],
+   "before": null,
+   "matches": [
+    "pr#141"
+   ],
+   "pr_file_hits": [],
+   "coverage": "issues 241, prs 370, discussions 0, commits 300, capped=False"
+  }
+ ]
+}
