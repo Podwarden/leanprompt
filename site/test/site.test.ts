@@ -177,6 +177,15 @@ describe("the site build", () => {
     expect(css).not.toMatch(/@import/);
   });
 
+  it("keeps the dateline below an audit subtitle instead of pulling it over the last line", () => {
+    const css = site.files.get("leanprompt/assets/site.css")!.toString();
+    // .dateline has a negative top margin for other contexts; after the subtitle it must not overlap.
+    expect(css).toMatch(/\.dateline\{[^}]*margin:-\d+px/);
+    const m = css.match(/\.audit-sub\.lede\+\.dateline\{margin-top:(-?\d+)px\}/);
+    expect(m, "rule for the dateline after an audit subtitle").not.toBeNull();
+    expect(Number(m![1])).toBeGreaterThan(0);
+  });
+
   it("has landmarks and one h1 on every site page", () => {
     for (const p of site.pages.filter((x) => !x.key.endsWith("/report") && !/\/(before|after)$/.test(x.key))) {
       const h = html.get(p.file)!;

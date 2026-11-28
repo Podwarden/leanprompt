@@ -268,6 +268,7 @@ td.a-right,th.a-right{text-align:right}
 .audit-card:has(:is(h2,h3) a:hover){border-color:var(--ink-2)}
 .audit-sub{color:var(--ink-2);font-size:var(--t-small);line-height:1.5}
 .prose .audit-sub.lede{color:var(--ink-2);font-size:var(--t-lede);max-width:38em;margin:-8px 0 0}
+.prose .audit-sub.lede+.dateline{margin-top:12px}
 .audit-foot{margin-top:auto !important;padding-top:14px;font-size:.8125rem;color:var(--ink-2);font-variant-numeric:tabular-nums}
 .audit-tags{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0}
 .kind{font:600 .8125rem/1 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--accent-text)}
