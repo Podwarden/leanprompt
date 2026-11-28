@@ -165,6 +165,26 @@ export function buildSite(root: string): Site {
   const releases = loadReleases(read("docs/CHANGELOG.md"));
   const posts = loadPosts(root);
   const audits = loadAudits(root, ruleIds, noteRuleIds);
+  /** The illustration's <img>: lazy unless it is in the first screen (the first row of cards, or the page header). */
+  const auditImg = (a: Audit, eager: boolean, cls: string) => {
+    if (!a.images || !a.meta.illustration) return "";
+    const c = ILLUSTRATION_FILES.card;
+    return `<img class="${cls}" src="${url(`audits/${a.slug}`)}${c.file}?v=${hash(a.images.card)}" width="${c.width}" height="${c.height}" alt="${e(a.meta.illustration.alt)}"${eager ? "" : ' loading="lazy"'} decoding="async">`;
+  };
+  const auditCard = (a: Audit, i: number, h: "h2" | "h3" = "h2") => {
+    const m = a.meta;
+    // Two cards to a row on a desktop: the first two images load at once, the rest when scrolled to.
+    return `<li class="audit-card">
+<div class="audit-head"><${h}><a href="${url(`audits/${a.slug}`)}">${e(m.headline ?? auditTitle(a))}</a></${h}>${auditImg(a, i < 2, "audit-art")}</div>
+<p class="audit-tags">${auditTags(a)}</p>
+${m.subtitle ? `<p class="audit-sub">${e(m.subtitle)}</p>` : ""}
+${bigNumber(a)}
+<p class="audit-foot"><span>${e(m.owner)}/${e(m.name)}</span> · <time datetime="${m.date}">${m.date}</time></p>
+</li>`;
+  };
+  // The home page shows the first three audits in the index order: fixed upstream first, then the largest estimate.
+  const homeAudits = sortForIndex(audits.filter((a) => a.meta.status !== "demo")).slice(0, 3);
+  const auditCount = audits.length;
   const news = [
     ...posts.map((p) => ({ date: p.date, title: p.title, href: url(`news/${p.slug}`), text: p.description })),
     ...releases.map((r) => ({ date: r.date, title: `leanprompt ${r.version}`, href: `${url("news/changelog")}#${r.anchor}`, text: r.summary })),
@@ -211,7 +231,22 @@ export function buildSite(root: string): Site {
       <p class="small">Both pages show estimates from the code, not measurements. <code>/leanprompt measure</code> turns a fix into a before and after number.</p>
     </div>
   </section>
-
+${
+  homeAudits.length
+    ? `
+  <section class="sec audits-sec" aria-labelledby="audits-title">
+    <div class="wrap">
+      <h2 id="audits-title">Audits of public projects</h2>
+      <p class="sec-lede">The same audit, run on open-source apps. Each one is dated, names the commit it read, and links where the maintainers were told and what they said.</p>
+      <ul class="audit-cards home-audit-cards">
+${homeAudits.map((a) => auditCard(a, 3, "h3")).join("\n")}
+      </ul>
+      <p><a class="more" href="${url("audits")}">See all ${auditCount} audits</a></p>
+    </div>
+  </section>
+`
+    : ""
+}
   <section class="sec steps-sec" aria-labelledby="steps-title">
     <div class="wrap">
       <h2 id="steps-title">What your assistant does with it</h2>
@@ -235,18 +270,13 @@ ${SKILL_ORDER.map((s) => `        <li><a href="${url("rules")}#${s}"><span class
   </section>
 
   <section class="sec news-sec" aria-labelledby="news-title">
-    <div class="wrap split">
+    <div class="wrap">
       <div>
         <h2 id="news-title">News</h2>
         <ul class="dated">
 ${news.slice(0, 3).map((n) => `          <li><time datetime="${n.date}">${n.date}</time> <a href="${n.href}">${e(n.title)}</a></li>`).join("\n")}
         </ul>
         <p><a class="more" href="${url("news")}">All news</a></p>
-      </div>
-      <div>
-        <h2>Audits</h2>
-        <p>Audits of public repositories, each dated, with the commit and leanprompt version it ran on and the maintainers’ response.</p>
-        <p><a class="more" href="${url("audits")}">See the audits</a></p>
       </div>
     </div>
   </section>
@@ -434,23 +464,6 @@ ${stat(reported, "reported to the maintainers")}${planned ? `\n${stat(planned, "
     files.set(`leanprompt/audits/${a.slug}/${ILLUSTRATION_FILES.card.file}`, a.images.card);
     files.set(`leanprompt/audits/${a.slug}/${ILLUSTRATION_FILES.og.file}`, a.images.og);
   }
-  /** The illustration's <img>: lazy unless it is in the first screen (the first row of cards, or the page header). */
-  const auditImg = (a: Audit, eager: boolean, cls: string) => {
-    if (!a.images || !a.meta.illustration) return "";
-    const c = ILLUSTRATION_FILES.card;
-    return `<img class="${cls}" src="${url(`audits/${a.slug}`)}${c.file}?v=${hash(a.images.card)}" width="${c.width}" height="${c.height}" alt="${e(a.meta.illustration.alt)}"${eager ? "" : ' loading="lazy"'} decoding="async">`;
-  };
-  const auditCard = (a: Audit, i: number) => {
-    const m = a.meta;
-    // Two cards to a row on a desktop: the first two images load at once, the rest when scrolled to.
-    return `<li class="audit-card">
-<div class="audit-head"><h2><a href="${url(`audits/${a.slug}`)}">${e(m.headline ?? auditTitle(a))}</a></h2>${auditImg(a, i < 2, "audit-art")}</div>
-<p class="audit-tags">${auditTags(a)}</p>
-${m.subtitle ? `<p class="audit-sub">${e(m.subtitle)}</p>` : ""}
-${bigNumber(a)}
-<p class="audit-foot"><span>${e(m.owner)}/${e(m.name)}</span> · <time datetime="${m.date}">${m.date}</time></p>
-</li>`;
-  };
   emit({
     key: "audits",
     title: "Audits",
@@ -462,7 +475,7 @@ ${bigNumber(a)}
       `${audits.length ? strip : ""}
 <p class="lede">What a leanprompt audit finds in public repositories. Each audit names the commit and the leanprompt version it ran on, and links the maintainers’ issue and response. The figures are estimates from reading the code, not measurements.</p>
 <p>We tell the maintainers before an audit is published. Where a repository has no public channel for it, the audit page says so. ${CORRECTIONS_LINE.replace("open an issue", `<a href="${REPO}/issues/new" rel="noopener">open an issue</a>`).replace(CONTACT, `<a href="mailto:${CONTACT}">${CONTACT}</a>`)}</p>
-${audits.length ? `<ul class="audit-cards">\n${auditOrder.map(auditCard).join("\n")}\n</ul>` : "<p>No audits yet.</p>"}`,
+${audits.length ? `<ul class="audit-cards">\n${auditOrder.map((a, i) => auditCard(a, i)).join("\n")}\n</ul>` : "<p>No audits yet.</p>"}`,
     ),
   });
   for (const a of audits) {

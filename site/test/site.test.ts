@@ -540,6 +540,17 @@ describe("audit illustrations", () => {
     expect(html.get("leanprompt/index.html")!).toContain(`<meta property="og:image" content="${ORIGIN}${BASE}assets/og-image.png">`);
   });
 
+  it("shows the first three audits of the index order on the home page, with a link to all of them", () => {
+    const home = html.get("leanprompt/index.html")!;
+    const real = sortForIndex(loadAudits(ROOT, loadRuleIds(ROOT)).filter((a) => a.meta.status !== "demo"));
+    const section = home.slice(home.indexOf('id="audits-title"'), home.indexOf("</section>", home.indexOf('id="audits-title"')));
+    const linked = [...section.matchAll(/<h3><a href="([^"]+)"/g)].map((m) => m[1]);
+    expect(linked).toEqual(real.slice(0, 3).map((a) => url(`audits/${a.slug}`)));
+    expect(section).toContain(`See all ${loadAudits(ROOT, loadRuleIds(ROOT)).length} audits`);
+    // Below the first screen: the pictures load lazily.
+    expect(section.match(/<img [^>]*>/g)!.every((i) => i.includes('loading="lazy"'))).toBe(true);
+  });
+
   it.each([
     ["no illustration", good.replace(/^illustration:\n(  .*\n)+/m, ""), /illustration is required/],
     ["no scene", good.replace(/^  scene:.*\n/m, ""), /illustration.scene is required/],
