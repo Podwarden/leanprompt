@@ -16,3 +16,9 @@ illustration:
   alt: "Three identical pale wooden planks lie in a row on a workbench, each with the same notch cut out, beside a steel clamp."
 maintainer:
   issue: https://github.com/every-app/open-seo/issues/623
+# The mechanism diagram drawn on the page and its cards (site/audits/README.md, "The diagram").
+diagram:
+  cap: "6000 tokens, reasoning included"
+  then: "Same request run again"
+  repeat: "up to 2 more"
+  wrong: "finishReason is never looked at"

@@ -18,3 +18,9 @@ figure:
 illustration:
   scene: "a thick bound handbook with a small ticking desk clock fixed onto its front cover, a photocopier beside it copying the whole handbook again, a tall pile of full fresh copies next to the copier, each copy's cover clock showing a different time"
   alt: "A thick handbook with a small clock on its cover sits beside a copier and a tall pile of full copies, the top copy wearing its own clock."
+# The mechanism diagram drawn on the page and its cards (site/audits/README.md, "The diagram").
+diagram:
+  prompt: "Current time to the second, then a 6,000-token handbook"
+  cache: "First line differs on every call: nothing reused"
+  bill: "about 6.7M prompt tokens per 1,000 calls"
+  wrong: "The time comes first, so no call matches the last"

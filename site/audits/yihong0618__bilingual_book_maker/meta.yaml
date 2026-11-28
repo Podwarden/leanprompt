@@ -23,3 +23,10 @@ figure:
 illustration:
   scene: "an open book on a desk with one torn page, three identical coins stacked beside the torn page, and a small wrench lying on the page next to a neat fresh stitch that repairs the tear"
   alt: "An open book with a neatly stitched tear down one page, with stacked coins and a small wrench lying on it."
+# The mechanism diagram drawn on the page and its cards (site/audits/README.md, "The diagram").
+diagram:
+  request: "Batch translation with structured output"
+  reply: "Cut off at the output limit"
+  then: "Same request sent twice more, before the fix"
+  repeat: "2 more times"
+  wrong: "This error is not among the three that are not retried"

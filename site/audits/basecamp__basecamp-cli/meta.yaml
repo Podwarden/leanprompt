@@ -15,3 +15,10 @@ illustration:
   alt: An old brass key sits in the lock of a wooden door, a torn blank pad lies on the floor, and a newer key rests on a small shelf.
 maintainer:
   pr: https://github.com/basecamp/basecamp-cli/pull/1060
+# The mechanism diagram drawn on the page and its cards (site/audits/README.md, "The diagram").
+diagram:
+  app: "skill-eval runner"
+  model: "claude-sonnet-4-20250514, its default"
+  provider: "Anthropic: retired on 2026-06-15"
+  result: "Requests return 404 not_found_error"
+  wrong: "The default model is one that no longer exists"

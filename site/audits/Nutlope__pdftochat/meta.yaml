@@ -29,3 +29,9 @@ figure:
 illustration:
   scene: "a thick printed book lying open on a desk with a row of small blank paper bookmark tabs sticking out of its edge, every tab bunched at the same spot near the cover, while a brass page-turning clip hovers beside the book holding nothing"
   alt: "A closed cream book with a row of blank paper bookmark tabs along its edge, and a brass binder clip floating beside it, holding nothing."
+# The mechanism diagram drawn on the page and its cards (site/audits/README.md, "The diagram").
+diagram:
+  setting: "Page number in each chunk's metadata"
+  request: "Chroma stores it as a JSON string"
+  result: "All four sources become one button, no page number"
+  wrong: "The page number is lost on the way into Chroma"

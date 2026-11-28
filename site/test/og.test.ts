@@ -102,7 +102,7 @@ describe("audit share cards", () => {
     }
   });
 
-  it("leaves the audits index and the home page on the illustrations, not the cards", () => {
+  it("leaves the audits index and the home page on the diagrams, not the share cards", () => {
     for (const k of ["leanprompt/audits/index.html", "leanprompt/index.html"]) {
       const h = site.files.get(k) as string;
       expect(h).not.toMatch(/<img [^>]*og\.(png|jpg)/);

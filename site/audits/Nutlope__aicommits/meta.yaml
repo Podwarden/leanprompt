@@ -31,3 +31,9 @@ figure:
 illustration:
   scene: "a small desktop machine feeding out three identical long paper strips side by side, a guillotine blade slicing every strip off at exactly the same point, the cut-off ends falling into a wastebasket"
   alt: "A cream desktop machine feeds out three paper strips side by side while a steel blade cuts every strip off at the same point."
+# The mechanism diagram drawn on the page and its cards (site/audits/README.md, "The diagram").
+diagram:
+  cap: "2,048 tokens"
+  then: "Same request sent again, same limit"
+  repeat: "up to 3 times"
+  wrong: "finishReason is never read"

@@ -24,3 +24,9 @@ figure:
 illustration:
   scene: "a well-stocked storage cabinet with its doors closed and covered in dust, while a small delivery cart drives past it to fetch the same supplies from a distant warehouse"
   alt: "A dusty storage cabinet full of boxes stands unused while a small delivery cart drives past it."
+# The mechanism diagram drawn on the page and its cards (site/audits/README.md, "The diagram").
+diagram:
+  prompt: "Chat on the default model, alibaba/qwen3.6-plus"
+  cache: "Probably none: no cache mark, gateway caching not set"
+  bill: "about 8M prompt tokens per 1,000 calls, if never cached"
+  wrong: "The default model's chats probably never use the cache"

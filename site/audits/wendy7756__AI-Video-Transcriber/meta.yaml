@@ -29,3 +29,8 @@ figure:
 illustration:
   scene: "a film reel unspooling into a paper strip that is torn off halfway, the torn half-page being placed neatly into an open filing cabinet drawer as if complete, a rubber stamp pressing a check mark onto it"
   alt: "A film reel unspools into a paper strip torn off halfway, and the torn page lies in an open drawer while a rubber stamp marks it with a check mark."
+# The mechanism diagram drawn on the page and its cards (site/audits/README.md, "The diagram").
+diagram:
+  cap: "4,000 tokens, thinking included"
+  then: "Saved and shown as if whole"
+  wrong: "Only an empty reply is checked for length"

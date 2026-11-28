@@ -26,3 +26,8 @@ figure:
 illustration:
   scene: "one long blank paper letter being pushed through a narrow wooden slot whose exit has a fixed brass blade; the blade has sliced the letter off short, the long cut-off remainder curls on the desk behind the slot, and the short front piece lies folded in an open envelope closed with a red wax seal, as if finished"
   alt: "A long blank sheet of paper runs through a narrow wooden slot lined with a brass blade, beside a folded envelope closed with a red wax seal."
+# The mechanism diagram drawn on the page and its cards (site/audits/README.md, "The diagram").
+diagram:
+  cap: "1,024 tokens, fixed in the code"
+  then: "Posted as the final reply"
+  wrong: "Only an empty reply is noticed"

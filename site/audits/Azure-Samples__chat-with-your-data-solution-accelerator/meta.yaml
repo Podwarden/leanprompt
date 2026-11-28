@@ -28,3 +28,9 @@ figure:
 illustration:
   scene: "a large rotary control knob mounted on a panel, its cable cut and dangling loose with the plug lying on the floor, while the machine beside it keeps running at full output"
   alt: "A large control knob on its own panel, its cable unplugged and lying on the floor, beside a machine that keeps running."
+# The mechanism diagram drawn on the page and its cards (site/audits/README.md, "The diagram").
+diagram:
+  setting: "Admin page: OpenAI max tokens"
+  request: "Request sent without max tokens or temperature"
+  result: "Answer has no output limit"
+  wrong: "Saved values are ignored on the default model"

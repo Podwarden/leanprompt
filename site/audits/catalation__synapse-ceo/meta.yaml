@@ -20,3 +20,9 @@ maintainer:
   response: >-
     The maintainers ran the audit on their own code, fixed every finding in it, and agreed to its publication here.
   response_date: 2026-11-27
+# The mechanism diagram drawn on the page and its cards (site/audits/README.md, "The diagram").
+diagram:
+  prompt: "Chat history, the newest 60 messages"
+  cache: "Oldest message dropped each turn: the start moves"
+  bill: "about 2.0M prompt tokens per 1,000 calls recomputed"
+  wrong: "Past 60 messages the history start moves every turn"

@@ -15,3 +15,8 @@ illustration:
   alt: "A long paper ribbon has had its end cut off by scissors, the short piece sits in a sealed envelope and the offcut curls on the floor."
 maintainer:
   issue: https://github.com/JoshuaC215/agent-service-toolkit/issues/410
+# The mechanism diagram drawn on the page and its cards (site/audits/README.md, "The diagram").
+diagram:
+  cap: "1,024 tokens on Bedrock, none set in the app"
+  then: "Passed on and saved as a finished answer"
+  wrong: "Nothing in src/ reads the stop reason"

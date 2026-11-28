@@ -16,3 +16,9 @@ illustration:
   alt: "A small wooden toy car is tied by string to a long row of stacked cardboard boxes far bigger than itself."
 maintainer:
   issue: https://github.com/Usagi-org/ai-goofish-monitor/issues/550
+# The mechanism diagram drawn on the page and its cards (site/audits/README.md, "The diagram").
+diagram:
+  ask: "Judge one second-hand item"
+  attached: "The seller's whole rating list and whole listing list"
+  paid: "about 3.5M prompt tokens per 1,000 items"
+  wrong: "The seller's complete history rides on every item"

@@ -16,3 +16,9 @@ illustration:
   alt: "A cream filing cabinet overflows with paper sheets, a small funnel of folded paper stands beside it, and one blank card lies unused."
 maintainer:
   issue: https://github.com/OpenMontageInc/OpenMontage/issues/986
+# The mechanism diagram drawn on the page and its cards (site/audits/README.md, "The diagram").
+diagram:
+  ask: "Proposal stage of one video run"
+  attached: "Whole tool registry as JSON, then the capability catalog"
+  paid: "about 30,000 prompt tokens per run"
+  wrong: "A short summary exists; the whole dump is used"

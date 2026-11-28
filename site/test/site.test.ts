@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 import { loadRuleIds } from "../../cli/src/lint/rules.js";
 import { knownOf } from "../../cli/src/score/static.js";
-import { BADGES, ILLUSTRATIONS_PENDING, ILLUSTRATION_FILES, KINDS, MOCKING, badgeOf, bigNumberOf, imageInfo, loadAudits, sortForIndex, validateMeta } from "../src/audits.js";
+import { BADGES, DIAGRAM_KEYS, KINDS, MOCKING, badgeOf, bigNumberOf, loadAudits, sortForIndex, validateMeta } from "../src/audits.js";
 import { CORRECTIONS_LINE, ESTIMATE_LABEL, buildSite, type Site } from "../src/build.js";
 import { BASE, LMWARDEN_PATHS, ORIGIN, siteHref, url } from "../src/paths.js";
 
@@ -44,50 +44,21 @@ subtitle: An example app that keeps its whole handbook in one system prompt.
 kind: Cache never hits
 figure:
   label: for a handbook the cache could have served
-illustration:
-  scene: a desk clock glued to the cover of a thick handbook beside a copier
-  alt: A thick handbook with a small clock on its cover sits beside a copier.
+diagram:
+  prompt: Current time, then a 6,000-token handbook
+  cache: First line differs on every call
+  bill: about 6.7M prompt tokens per 1,000 calls
+  wrong: The time comes first, so no call matches
 `;
 
-/** A PNG, JPEG or WebP header of the given size: enough for the build's checks, not a picture. */
-const fakePng = (w: number, h: number) => {
-  const ihdr = Buffer.alloc(25);
-  ihdr.writeUInt32BE(13, 0);
-  ihdr.write("IHDR", 4, "latin1");
-  ihdr.writeUInt32BE(w, 8);
-  ihdr.writeUInt32BE(h, 12);
-  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), ihdr, Buffer.from([0, 0, 0, 0, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82])]);
-};
-/** A JPEG skeleton (SOI, a progressive frame header, EOI) of the given size. */
-const fakeJpeg = (w: number, h: number) => {
-  const sof = Buffer.alloc(19);
-  sof.writeUInt16BE(0xffc2, 0);
-  sof.writeUInt16BE(17, 2);
-  sof[4] = 8;
-  sof.writeUInt16BE(h, 5);
-  sof.writeUInt16BE(w, 7);
-  sof[9] = 3;
-  return Buffer.concat([Buffer.from([0xff, 0xd8]), sof, Buffer.from([0xff, 0xd9])]);
-};
-const fakeWebp = (w: number, h: number) => {
-  const b = Buffer.alloc(30);
-  b.write("RIFF", 0, "latin1");
-  b.writeUInt32LE(22, 4);
-  b.write("WEBPVP8X", 8, "latin1");
-  b.writeUInt32LE(10, 16);
-  b.writeUIntLE(w - 1, 24, 3);
-  b.writeUIntLE(h - 1, 27, 3);
-  return b;
-};
-/** A temporary repository root with one audit, acme__widget, and its illustration file. */
+/** A temporary repository root with one audit, acme__widget. */
 const tempAudit = (meta = good, files: Record<string, Buffer | null> = {}) => {
   const root = mkdtempSync(join(tmpdir(), "lp-site-"));
   const dir = join(root, "site", "audits", "acme__widget");
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "meta.yaml"), meta);
   writeFileSync(join(dir, "findings.json"), readFileSync(join(ROOT, "site", "audits", "_template", "findings.json")));
-  const all: Record<string, Buffer | null> = { "illustration.webp": fakeWebp(1408, 736), ...files };
-  for (const [f, b] of Object.entries(all)) if (b) writeFileSync(join(dir, f), b);
+  for (const [f, b] of Object.entries(files)) if (b) writeFileSync(join(dir, f), b);
   return root;
 };
 
@@ -462,124 +433,118 @@ describe("audit pages", () => {
     writeFileSync(join(dir, "acme__widget", "findings.json"), JSON.stringify({ v: 1, findings: [{ rule: "LP-PC-03", file: "a.ts", line: 1, saves: "prefill", severity: "high", tokens_per_1k: { uncached: 5, measured_calls: 50 } }] }));
     expect(() => loadAudits(root, ids)).toThrow(/estimates from the code only/);
     writeFileSync(join(dir, "acme__widget", "findings.json"), readFileSync(join(ROOT, "site", "audits", "_template", "findings.json")));
-    expect(() => loadAudits(root, ids)).toThrow(/illustration.webp missing: run npm run illustrations -- --only acme__widget/);
-    writeFileSync(join(dir, "acme__widget", "illustration.webp"), fakeWebp(1408, 736));
     expect(loadAudits(root, ids).map((a) => a.slug)).toEqual(["acme__widget"]);
   });
 });
 
-describe("audit illustrations", () => {
+describe("audit diagrams", () => {
   const audits = () => loadAudits(ROOT, loadRuleIds(ROOT));
-  const ids = loadRuleIds(ROOT);
+  const SVGS = /<svg [\s\S]*?<\/svg>/g;
+  const KEYWORDS: Record<(typeof KINDS)[number], string> = {
+    "Cut-off answer": "cut-off answer",
+    "Retry loop": "retry loop",
+    "Cache never hits": "cache never hits",
+    "Blind spend meter": "blind spend meter",
+    "Setting that does nothing": "setting that does nothing",
+    "Runs again every night": "runs again every night",
+    "Wrong text summarised": "wrong text summarised",
+    "Retired model": "retired model",
+    "Oversized prompt": "oversized prompt",
+  };
+  const pageOf = (slug: string) => html.get(`leanprompt/audits/${slug}/index.html`)!;
 
-  it("give every published audit, the demonstration too, a scene, an alt sentence and its illustration", () => {
-    const all = audits();
-    expect(all.some((a) => a.meta.status === "demo")).toBe(true);
-    for (const a of all) {
-      expect(a.meta.illustration?.scene, a.slug).toBeTruthy();
-      expect(a.meta.illustration?.alt, a.slug).toMatch(/^[A-Z].*\.$/);
-      if (ILLUSTRATIONS_PENDING.includes(a.folder)) continue;
-      expect(a.images, a.slug).toBeDefined();
-      const want = ILLUSTRATION_FILES.card;
-      expect(imageInfo(readFileSync(join(ROOT, "site", "audits", a.folder, want.file))), `${a.folder}/${want.file}`).toEqual({ type: want.type, width: want.width, height: want.height });
-      expect(site.files.has(`leanprompt/audits/${a.slug}/${want.file}`), `${a.slug} ${want.file}`).toBe(true);
+  it("has a template for every kind, and every published audit carries a diagram block", () => {
+    expect(Object.keys(DIAGRAM_KEYS).sort()).toEqual([...KINDS].sort());
+    for (const a of audits()) expect(a.meta.diagram, a.slug).toBeDefined();
+  });
+
+  it("draws a diagram on every audit page, after the subtitle, with an aria-label that names the mechanism", () => {
+    for (const a of audits()) {
+      const h = pageOf(a.slug);
+      const fig = /<figure class="dg">[\s\S]*?<\/figure>/.exec(h)?.[0];
+      expect(fig, a.slug).toBeDefined();
+      expect(h.indexOf("<h1"), a.slug).toBeLessThan(h.indexOf(fig!));
+      const svgs = fig!.match(SVGS)!;
+      expect(svgs.length, a.slug).toBe(3);
+      for (const svg of svgs) {
+        const label = /<svg [^>]*aria-label="([^"]*)"/.exec(svg)?.[1];
+        expect(svg, a.slug).toContain('role="img"');
+        expect(label, a.slug).toBeTruthy();
+        expect(label!.toLowerCase(), a.slug).toContain(KEYWORDS[a.meta.kind!]);
+        expect(label, a.slug).toContain(a.meta.diagram!.wrong!.replace(/&/g, "&amp;").replace(/'/g, "&#39;"));
+        expect(svg, a.slug).toMatch(/<title>[^<]+<\/title>/);
+        expect(svg, a.slug).toContain("dg-bad");
+      }
     }
   });
 
-  it("keep the pending list to audits that still lack their files: it must be empty before a release", () => {
-    // Each entry lets one audit build without illustration.webp until the owner renders them.
-    // Once the files exist the entry must go (this test fails until it does); site/audits/README.md's
-    // release checklist requires the list to be empty.
-    for (const folder of ILLUSTRATIONS_PENDING) {
-      expect(existsSync(join(ROOT, "site", "audits", folder, "meta.yaml")), folder).toBe(true);
-      const has = Object.values(ILLUSTRATION_FILES).filter((f) => existsSync(join(ROOT, "site", "audits", folder, f.file)));
-      expect(has.map((f) => f.file), `${folder} has its files now: remove it from ILLUSTRATIONS_PENDING`).toEqual([]);
-    }
-    expect(ILLUSTRATIONS_PENDING.length, "pending illustrations").toBeLessThanOrEqual(2);
-  });
-
-  it("show the picture beside each card's headline, after it in the markup, lazy below the first row", () => {
-    const h = html.get("leanprompt/audits/index.html")!;
-    const cards = h.split('<li class="audit-card">').slice(1);
+  it("shows the diagram on each audits-index card after its headline, and on the home cards; never an illustration image", () => {
+    const cards = html.get("leanprompt/audits/index.html")!.split('<li class="audit-card">').slice(1);
     const order = sortForIndex(audits());
     expect(cards.length).toBe(order.length);
     order.forEach((a, i) => {
-      const card = cards[i]!;
-      const img = /<img [^>]*>/.exec(card)?.[0];
-      if (!a.images) {
-        expect(img, a.slug).toBeUndefined();
-        return;
-      }
-      expect(img, a.slug).toBeDefined();
-      expect(card.indexOf("<h2>"), a.slug).toBeLessThan(card.indexOf("<img "));
-      expect(img, a.slug).toContain(` src="/leanprompt/audits/${a.slug}/illustration.webp?v=`);
-      expect(img, a.slug).toContain(' width="1408" height="736"');
-      expect(img, a.slug).toMatch(/ alt="[A-Z][^"]{20,}\."/);
-      if (i < 2) expect(img, a.slug).not.toContain("loading=");
-      else expect(img, a.slug).toContain(' loading="lazy"');
+      expect(cards[i]!.indexOf("<h2>"), a.slug).toBeLessThan(cards[i]!.indexOf('<figure class="dg">'));
+      expect(cards[i]!, a.slug).not.toContain("<img ");
     });
-  });
-
-  it("show the picture after the headline on each audit page, never lazy, and use the drawn og.png as the page's share image", () => {
-    for (const a of audits()) {
-      const h = html.get(`leanprompt/audits/${a.slug}/index.html`)!;
-      const og = /<meta property="og:image" content="([^"]+)">/.exec(h)?.[1];
-      const tw = /<meta name="twitter:image" content="([^"]+)">/.exec(h)?.[1];
-      if (!a.images) {
-        expect(h, a.slug).not.toContain('class="audit-art');
-        continue;
-      }
-      const img = /<img class="audit-art audit-art-page"[^>]*>/.exec(h)?.[0];
-      expect(img, a.slug).toBeDefined();
-      expect(h.indexOf("<h1"), a.slug).toBeLessThan(h.indexOf(img!));
-      expect(img, a.slug).toContain(' width="1408" height="736"');
-      expect(img, a.slug).toMatch(/ alt="[A-Z][^"]{20,}\."/);
-      expect(img, a.slug).not.toContain("loading=");
-      expect(og, a.slug).toBe(`${ORIGIN}${url(`audits/${a.slug}`)}og.png`);
-      expect(tw, a.slug).toBe(og);
-      expect(h, a.slug).toContain('<meta property="og:image:width" content="1200">');
-      expect(h, a.slug).toContain('<meta property="og:image:height" content="630">');
-      expect(site.files.has(og!.slice(ORIGIN.length + 1)), a.slug).toBe(true);
-    }
-    // Other pages keep the site's own share image.
-    expect(html.get("leanprompt/index.html")!).toContain(`<meta property="og:image" content="${ORIGIN}${BASE}assets/og-image.png">`);
-  });
-
-  it("shows the first three audits of the index order on the home page, with a link to all of them", () => {
     const home = html.get("leanprompt/index.html")!;
-    const real = sortForIndex(loadAudits(ROOT, loadRuleIds(ROOT)).filter((a) => a.meta.status !== "demo"));
     const section = home.slice(home.indexOf('id="audits-title"'), home.indexOf("</section>", home.indexOf('id="audits-title"')));
-    const linked = [...section.matchAll(/<h3><a href="([^"]+)"/g)].map((m) => m[1]);
-    expect(linked).toEqual(real.slice(0, 3).map((a) => url(`audits/${a.slug}`)));
-    expect(section).toContain(`See all ${loadAudits(ROOT, loadRuleIds(ROOT)).length} audits`);
-    // Below the first screen: the pictures load lazily.
-    expect(section.match(/<img [^>]*>/g)!.every((i) => i.includes('loading="lazy"'))).toBe(true);
+    expect(section.match(/<figure class="dg">/g)!.length).toBe(3);
+    expect(section).not.toMatch(/<img /);
+    for (const k of [...html.keys()]) expect(html.get(k)!, k).not.toContain("illustration.webp");
+    expect([...site.files.keys()].filter((f) => f.endsWith("illustration.webp"))).toEqual([]);
   });
 
+  it("holds no empty label, no raw undefined or null, and no literal colour: only theme tokens", () => {
+    for (const a of audits()) {
+      const figs = pageOf(a.slug).match(/<figure class="dg">[\s\S]*?<\/figure>/)!;
+      const svg = figs[0];
+      expect(svg, a.slug).not.toMatch(/undefined|null|NaN|\[object/);
+      expect(svg, a.slug).not.toMatch(/<text[^>]*>\s*<\/text>|<tspan[^>]*>\s*<\/tspan>|<title>\s*<\/title>/);
+      expect(svg, a.slug).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(|\b(fill|stroke|stop-color|color)="(?!none|currentColor)|style=/);
+      // Every drawn text has words in it.
+      for (const t of svg.matchAll(/<text [^>]*>([\s\S]*?)<\/text>/g)) expect(t[1]!.replace(/<[^>]+>/g, "").trim().length, a.slug).toBeGreaterThan(1);
+    }
+  });
+
+  it("colours the diagram with tokens in site.css, for both themes", () => {
+    const css = readFileSync(join(ROOT, "site", "assets", "site.css"), "utf8");
+    const dg = css.split("\n").filter((l) => /^\.dg|^\.audit-card \.dg|^@container/.test(l)).join("\n");
+    expect(dg).toContain("var(--amber)");
+    expect(dg).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(/);
+    expect(css).toMatch(/:root\[data-theme="light"\]\{[^}]*--amber:/);
+  });
+
+  it("fills the template from the audit's own strings", () => {
+    const a = audits().find((x) => x.slug === "abi__screenshot-to-code")!;
+    const h = pageOf(a.slug);
+    expect(h).toContain("Output limit: 50,000 tokens");
+    expect(h).toContain("Nothing reads why the turn stopped");
+  });
+
+  const withDiagram = (d: string) => good.replace(/^diagram:\n(  .*\n)+/m, d);
   it.each([
-    ["no illustration", good.replace(/^illustration:\n(  .*\n)+/m, ""), /illustration is required/],
-    ["no scene", good.replace(/^  scene:.*\n/m, ""), /illustration.scene is required/],
-    ["no alt", good.replace(/^  alt:.*\n/m, ""), /illustration.alt is required/],
-    ["a two-sentence alt", good.replace(/^  alt:.*$/m, "  alt: A handbook. A copier."), /one plain sentence/],
-    ["an alt without a full stop", good.replace(/^  alt:.*$/m, "  alt: A handbook beside a copier"), /one plain sentence/],
-    ["an image-of alt", good.replace(/^  alt:.*$/m, "  alt: Image of a handbook beside a copier."), /drop "image of"/],
-    ["a too-short scene", good.replace(/^  scene:.*$/m, "  scene: a clock"), /10 to 1500 characters/],
-    ["an unknown illustration key", good + "  seed: 4\n", /illustration: unknown keys seed/],
+    ["a missing required key", good.replace(/^  bill:.*\n/m, ""), /diagram.bill is required for kind Cache never hits/],
+    ["no wrong label", good.replace(/^  wrong:.*\n/m, ""), /diagram.wrong is required/],
+    ["a value over 56 characters", good.replace(/^  bill:.*$/m, `  bill: ${"x".repeat(57)}`), /diagram.bill must be at most 56 characters, not 57/],
+    ["a wrong label over 64 characters", good.replace(/^  wrong:.*$/m, `  wrong: ${"x".repeat(65)}`), /diagram.wrong must be at most 64 characters, not 65/],
+    ["an empty value", good.replace(/^  cache:.*$/m, '  cache: ""'), /diagram.cache must be a non-empty string/],
+    ["the word undefined", good.replace(/^  cache:.*$/m, "  cache: undefined"), /no "undefined"/],
+    ["an em dash", good.replace(/^  cache:.*$/m, "  cache: a \u2014 b"), /no em dash/],
+    ["a key of another kind", good + "  cap: 1,024 tokens\n", /diagram: unknown keys cap for kind Cache never hits/],
+    ["a diagram without a kind", good.replace(/^kind:.*\n/m, ""), /diagram needs a valid kind|kind is required/],
+    ["a list instead of a mapping", withDiagram("diagram:\n  - a\n"), /diagram must be a mapping/],
   ])("refuse %s", (_name, text, re) => {
     expect(validateMeta(text, "acme__widget").errors.join("\n")).toMatch(re);
   });
 
-  it.each([
-    ["no illustration.webp", { "illustration.webp": null }, /illustration.webp missing/],
-    ["a PNG saved as illustration.webp", { "illustration.webp": fakePng(1408, 736) }, /illustration.webp is not a valid WEBP image/],
-    ["a truncated WebP", { "illustration.webp": fakeWebp(1408, 736).subarray(0, 26) }, /illustration.webp is not a valid WEBP image/],
-    ["a WebP of the wrong size", { "illustration.webp": fakeWebp(1024, 1024) }, /illustration.webp must be 1408x736, not 1024x1024/],
-  ])("fail the build on %s", (_name, files, re) => {
-    expect(() => loadAudits(tempAudit(good, files as Record<string, Buffer | null>), ids)).toThrow(re);
+  it("accept an audit with no diagram, and one still carrying the old illustration block", () => {
+    expect(validateMeta(withDiagram(""), "acme__widget").errors).toEqual([]);
+    const old = good + "illustration:\n  scene: a desk clock glued to a thick handbook\n  alt: A handbook with a clock on its cover.\n";
+    expect(validateMeta(old, "acme__widget").errors).toEqual([]);
+    expect(loadAudits(tempAudit(withDiagram("")), loadRuleIds(ROOT))[0]!.meta.diagram).toBeUndefined();
   });
 
-  it("build an audit with its file, and read real files' sizes", () => {
-    expect(loadAudits(tempAudit(), ids)[0]!.images).toBeDefined();
-    expect(imageInfo(readFileSync(join(ROOT, "site", "audits", "Nutlope__aicommits", "illustration.webp")))).toEqual({ type: "webp", width: 1408, height: 736 });
+  it("builds an audit with no illustration.webp in its folder", () => {
+    expect(loadAudits(tempAudit(), loadRuleIds(ROOT)).map((a) => a.slug)).toEqual(["acme__widget"]);
   });
 });

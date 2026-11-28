@@ -27,3 +27,8 @@ figure:
 illustration:
   scene: "a long paper receipt feeding out of a small desk printer, torn off cleanly halfway through a line of printed bars, the torn half lying neatly in a filing tray with a green check-mark stamp beside it, the rest of the paper roll still visible inside the printer"
   alt: "A grey desk printer feeds out a receipt with printed bars, and the torn-off half, cut across its bars, lies in a tray beside a green check mark."
+# The mechanism diagram drawn on the page and its cards (site/audits/README.md, "The diagram").
+diagram:
+  cap: "2,000 tokens by default"
+  then: "Saved to history as a finished answer"
+  wrong: "Any finish reason counts as finished"

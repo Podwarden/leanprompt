@@ -16,3 +16,9 @@ illustration:
   alt: Four paper cups stand on a small wooden rack beside two clean glass jars that nobody uses.
 maintainer:
   issue: https://github.com/shareAI-lab/learn-claude-code/issues/629
+# The mechanism diagram drawn on the page and its cards (site/audits/README.md, "The diagram").
+diagram:
+  prompt: "Whole growing conversation, resent every turn"
+  cache: "No cache_control mark anywhere in the repository"
+  bill: "about 7.7M tokens per 1,000 loop calls at full price"
+  wrong: "Nothing is marked, so nothing is read from the cache"

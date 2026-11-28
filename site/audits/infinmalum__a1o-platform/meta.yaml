@@ -34,3 +34,9 @@ figure:
 illustration:
   scene: "an old brass cash register on a counter pushing out a long blank paper tape, beside it a small stack of parcels that each wear a large round green paid stamp, a full coin tray open under the register, no writing on anything"
   alt: "An old brass cash register pushes out a long paper tape over a full coin tray, next to parcels that already wear a green paid stamp."
+# The mechanism diagram drawn on the page and its cards (site/audits/README.md, "The diagram").
+diagram:
+  call: "Request with a cached part of the prompt"
+  reports: "Input includes cache reads and cache writes"
+  meter: "Charged at the full input price"
+  wrong: "Cache reads are billed like fresh input"

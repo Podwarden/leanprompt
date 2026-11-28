@@ -16,3 +16,9 @@ illustration:
   alt: "A brass key hangs in the lock of a wooden door, a torn blank pad lies on the floor, and a newer key rests on a small shelf."
 maintainer:
   issue: https://github.com/sqlchat/sqlchat/issues/197
+# The mechanism diagram drawn on the page and its cards (site/audits/README.md, "The diagram").
+diagram:
+  model: "gpt-3.5-turbo, its default"
+  provider: "OpenAI: shut down on 2026-10-23"
+  result: "OpenAI lists gpt-5.6-terra and gpt-5.6-sol instead"
+  wrong: "The default model has been shut down"

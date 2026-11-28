@@ -16,3 +16,9 @@ illustration:
   alt: A brass padlock stays shut beside a ring of keys, one of them a small clock, in front of a chest of drawers.
 maintainer:
   issue: https://github.com/ChatGPTNextWeb/NextChat/issues/6961
+# The mechanism diagram drawn on the page and its cards (site/audits/README.md, "The diagram").
+diagram:
+  prompt: "System prompt starts with the time, to the second"
+  cache: "First line differs on every call: nothing reused"
+  bill: "about 360,000 uncached tokens per 1,000 calls"
+  wrong: "The current time leads, so the start never repeats"

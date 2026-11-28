@@ -27,3 +27,9 @@ figure:
 illustration:
   scene: "a kitchen egg timer on a shelf wired to a dusty spare machine that is switched off, while beside it a busy desktop scanner keeps feeding out an endless ribbon of blank paper that coils across the desk and onto the floor"
   alt: "A small hourglass is wired to a dusty, idle metal machine on a shelf, while beside it a desktop printer keeps feeding out a long ribbon of blank paper."
+# The mechanism diagram drawn on the page and its cards (site/audits/README.md, "The diagram").
+diagram:
+  setting: "OLLAMA_TIMEOUT_SECONDS"
+  request: "Set on a vision client that nothing calls"
+  result: "OCR requests through Ollama run with no timeout"
+  wrong: "The OCR provider is built without the timeout"

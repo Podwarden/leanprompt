@@ -18,3 +18,9 @@ illustration:
   alt: "A tall stack of cream paper sheets with the top sheet folded up stands beside a small unused brass tag lying on the desk."
 maintainer:
   pr: https://github.com/HKUDS/LightRAG/pull/4743
+# The mechanism diagram drawn on the page and its cards (site/audits/README.md, "The diagram").
+diagram:
+  prompt: "Entity-extraction system prompt, about 1.5k tokens"
+  cache: "Bedrock caches nothing without a cache point"
+  bill: "about 1.5M uncached tokens per 1,000 extraction calls"
+  wrong: "The system prompt carries no cache mark"

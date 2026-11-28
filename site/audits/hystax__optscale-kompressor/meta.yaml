@@ -16,3 +16,9 @@ illustration:
   alt: A brass alarm clock stands against a stack of paper tied with a brown band, a string running from it to an empty wire tray.
 maintainer:
   issue: https://github.com/hystax/optscale-kompressor/issues/54
+# The mechanism diagram drawn on the page and its cards (site/audits/README.md, "The diagram").
+diagram:
+  prompt: "Keep-warm ping re-sends the whole prompt"
+  cache: "No cache_control on the request: nothing cached"
+  bill: "about 900k tokens per 1,000 calls at full price"
+  wrong: "Pings are armed for requests with no cache mark"

@@ -8,6 +8,15 @@ lmwarden.com serves it from S3-compatible object storage, so a site update needs
 release. LM Warden also bundles a copy of the site, which it serves whenever the published
 copy is missing or fails verification.
 
+## Audit diagrams
+
+An audit's picture (audit page, audits index, home page) is a mechanism diagram drawn by the
+build as inline SVG (`site/src/diagram.ts`) from the `diagram:` block of its `meta.yaml`: one
+template per kind, the wrong step in the accent colour, colours from the site's theme tokens so it
+follows the light and dark themes. Three layouts (a row, two columns, one column) are in the markup
+and a container query shows the one that fits the figure's width. The old generated illustrations
+are no longer required or shown; see `site/audits/README.md`.
+
 ## Share cards
 
 Every audit page's Open Graph and Twitter image is `audits/<slug>/og.png`, a 1200x630 card the

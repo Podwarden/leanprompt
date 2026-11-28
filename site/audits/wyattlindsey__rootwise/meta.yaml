@@ -19,3 +19,9 @@ figure:
 illustration:
   scene: "a small garden meter gauge watching a stream of coins flow through a pipe into a flower pot, while a side branch of the pipe carries a third of the coins around behind the gauge where it cannot see them"
   alt: "A small meter box watches coins pour through a pipe into a flower pot, while some coins spill from a side opening and roll away behind it unseen."
+# The mechanism diagram drawn on the page and its cards (site/audits/README.md, "The diagram").
+diagram:
+  call: "Claude call, system prompt carries a cache mark"
+  reports: "input_tokens leaves out cache reads and writes"
+  meter: "Daily cap can be overspent by about a third"
+  wrong: "Cache reads and writes never reach the meter"

@@ -16,3 +16,8 @@ illustration:
   alt: A cut sheet of paper rests in a tray with two green seals on it, beside open scissors and a ruler.
 maintainer:
   issue: https://github.com/abi/screenshot-to-code/issues/651
+# The mechanism diagram drawn on the page and its cards (site/audits/README.md, "The diagram").
+diagram:
+  cap: "50,000 tokens"
+  then: "Cut-off page saved and shown as finished"
+  wrong: "Nothing reads why the turn stopped"

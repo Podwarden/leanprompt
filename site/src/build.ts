@@ -26,7 +26,8 @@ import { KNOWN_LABEL, loadRules, NO_DISCOUNT_LINE, rankFindings, renderReport, S
 import { isKnownFinding, isServerFinding, knownOf, parseFindings, staticScore, tokensLost, unitOf, type Finding, type Note } from "../../cli/src/score/static.js";
 import { badgeColor } from "../../cli/src/score/write.js";
 import { OG_FILE, OG_HEIGHT, OG_WIDTH, renderCard } from "./og.js";
-import { BADGES, ILLUSTRATION_FILES, STATUS_TEXT, badgeOf, bigNumberOf, loadAudits, sortForIndex, type Audit } from "./audits.js";
+import { BADGES, STATUS_TEXT, badgeOf, bigNumberOf, loadAudits, sortForIndex, type Audit } from "./audits.js";
+import { renderDiagram } from "./diagram.js";
 import { page, type AssetUrl, type PageSpec } from "./layout.js";
 import { clip, escapeHtml as e, plain, renderMarkdown } from "./markdown.js";
 import { loadPosts, loadReleases } from "./news.js";
@@ -166,17 +167,11 @@ export function buildSite(root: string): Site {
   const releases = loadReleases(read("docs/CHANGELOG.md"));
   const posts = loadPosts(root);
   const audits = loadAudits(root, ruleIds, noteRuleIds);
-  /** The illustration's <img>: lazy unless it is in the first screen (the first row of cards, or the page header). */
-  const auditImg = (a: Audit, eager: boolean, cls: string) => {
-    if (!a.images || !a.meta.illustration) return "";
-    const c = ILLUSTRATION_FILES.card;
-    return `<img class="${cls}" src="${url(`audits/${a.slug}`)}${c.file}?v=${hash(a.images.card)}" width="${c.width}" height="${c.height}" alt="${e(a.meta.illustration.alt)}"${eager ? "" : ' loading="lazy"'} decoding="async">`;
-  };
-  const auditCard = (a: Audit, i: number, h: "h2" | "h3" = "h2") => {
+  const auditCard = (a: Audit, h: "h2" | "h3" = "h2") => {
     const m = a.meta;
-    // Two cards to a row on a desktop: the first two images load at once, the rest when scrolled to.
     return `<li class="audit-card">
-<div class="audit-head"><${h}><a href="${url(`audits/${a.slug}`)}">${e(m.headline ?? auditTitle(a))}</a></${h}>${auditImg(a, i < 2, "audit-art")}</div>
+<${h}><a href="${url(`audits/${a.slug}`)}">${e(m.headline ?? auditTitle(a))}</a></${h}>
+${renderDiagram(m)}
 <p class="audit-tags">${auditTags(a)}</p>
 ${m.subtitle ? `<p class="audit-sub">${e(m.subtitle)}</p>` : ""}
 ${bigNumber(a)}
@@ -240,7 +235,7 @@ ${
       <h2 id="audits-title">Audits of public projects</h2>
       <p class="sec-lede">The same audit, run on open-source apps. Each one is dated, names the commit it read, and links where the maintainers were told and what they said.</p>
       <ul class="audit-cards home-audit-cards">
-${homeAudits.map((a) => auditCard(a, 3, "h3")).join("\n")}
+${homeAudits.map((a) => auditCard(a, "h3")).join("\n")}
       </ul>
       <p><a class="more" href="${url("audits")}">See all ${auditCount} audits</a></p>
     </div>
@@ -459,11 +454,8 @@ ${stat(problems, problems === 1 ? "problem found" : "problems found")}
 ${stat(fixedUpstream, "fixed upstream")}
 ${stat(reported, "reported to the maintainers")}${planned ? `\n${stat(planned, "already planned by the maintainers")}` : ""}
 </ul>`;
-  // The illustrations ship with the site, beside each audit page: /leanprompt/audits/<slug>/illustration.webp; the share card og.png is drawn from the audit's data.
-  for (const a of audits) {
-    files.set(`leanprompt/audits/${a.slug}/${OG_FILE}`, renderCard(a));
-    if (a.images) files.set(`leanprompt/audits/${a.slug}/${ILLUSTRATION_FILES.card.file}`, a.images.card);
-  }
+  // The share card og.png of each audit is drawn from the audit's data; the mechanism diagram is inline in the page.
+  for (const a of audits) files.set(`leanprompt/audits/${a.slug}/${OG_FILE}`, renderCard(a));
   emit({
     key: "audits",
     title: "Audits",
@@ -475,7 +467,7 @@ ${stat(reported, "reported to the maintainers")}${planned ? `\n${stat(planned, "
       `${audits.length ? strip : ""}
 <p class="lede">What a leanprompt audit finds in public repositories. Each audit names the commit and the leanprompt version it ran on, and links the maintainers’ issue and response. The figures are estimates from reading the code, not measurements.</p>
 <p>We tell the maintainers before an audit is published. Where a repository has no public channel for it, the audit page says so. ${CORRECTIONS_LINE.replace("open an issue", `<a href="${REPO}/issues/new" rel="noopener">open an issue</a>`).replace(CONTACT, `<a href="mailto:${CONTACT}">${CONTACT}</a>`)}</p>
-${audits.length ? `<ul class="audit-cards">\n${auditOrder.map((a, i) => auditCard(a, i)).join("\n")}\n</ul>` : "<p>No audits yet.</p>"}`,
+${audits.length ? `<ul class="audit-cards">\n${auditOrder.map((a) => auditCard(a)).join("\n")}\n</ul>` : "<p>No audits yet.</p>"}`,
     ),
   });
   for (const a of audits) {
@@ -550,6 +542,7 @@ ${n.verify ? `<p class="small"><b>To check.</b> ${e(n.verify)}</p>` : ""}
     const corrections = `<p class="corrections">${CORRECTIONS_LINE.replace(CONTACT, `<a href="mailto:${CONTACT}">${CONTACT}</a>`).replace("open an issue", `<a href="${REPO}/issues/new" rel="noopener">open an issue</a>`)}</p>`;
     const body = `<p class="audit-tags">${auditTags(a)}</p>
 ${m.subtitle ? `<p class="audit-sub lede">${e(m.subtitle)}</p>` : ""}
+${renderDiagram(m)}
 ${bigNumber(a, true)}
 <p class="dateline">Audited <time datetime="${m.date}">${m.date}</time> with leanprompt ${e(m.leanprompt)}</p>
 <p class="notice"><b>Estimates, not measurements.</b> ${ESTIMATE_LABEL}</p>
@@ -591,7 +584,7 @@ ${corrections}`;
         ogType: "article",
         published: m.date,
         ogImage: { url: canonical(key) + OG_FILE, width: OG_WIDTH, height: OG_HEIGHT, alt: `${m.headline ?? auditTitle(a)} (audit of ${m.owner}/${m.name})` },
-        body: article(e(m.headline ?? auditTitle(a)), body, undefined, { h1Class: "audit-h1", beside: auditImg(a, true, "audit-art audit-art-page") }),
+        body: article(e(m.headline ?? auditTitle(a)), body, undefined, { h1Class: "audit-h1" }),
       },
       m.date,
     );
@@ -693,13 +686,12 @@ function scoreOf(findings: Finding[], date: string, version: string): ScoreFile 
 }
 
 /** The body of an article page: its h1, its content and, for a page made from a file, where to edit it. */
-function article(titleHtml: string, inner: string, sourceFile?: string, o: { h1Class?: string; beside?: string } = {}): string {
+function article(titleHtml: string, inner: string, sourceFile?: string, o: { h1Class?: string } = {}): string {
   const src = sourceFile ? `\n      <p class="source"><a href="${REPO}/blob/main/${sourceFile}" rel="noopener">Edit this page on GitHub</a></p>` : "";
   const h1 = `<h1${o.h1Class ? ` class="${o.h1Class}"` : ""}>${titleHtml}</h1>`;
-  // A picture beside the headline comes after it in the markup, so the headline is read first.
   return `  <article class="sec article">
     <div class="wrap prose">
-      ${o.beside ? `<div class="audit-head audit-head-page">${h1}${o.beside}</div>` : h1}
+      ${h1}
 ${inner}${src}
     </div>
   </article>`;

@@ -31,3 +31,10 @@ figure:
 illustration:
   scene: "a row of ten identical empty open envelopes on a conveyor belt, each one being fed back into the same mail chute again and again"
   alt: "A row of identical empty, open envelopes rides a grey conveyor belt, one after another."
+# The mechanism diagram drawn on the page and its cards (site/audits/README.md, "The diagram").
+diagram:
+  request: "Completion request to a reasoning model"
+  reply: "Empty answer: the output limit is usually used up"
+  then: "Sent again, unchanged"
+  repeat: "up to 10 times"
+  wrong: "Same request, same failure, every attempt billed"

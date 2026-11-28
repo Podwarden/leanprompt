@@ -34,3 +34,9 @@ figure:
 illustration:
   scene: "a small printing press at night under a crescent moon in a window, printing a stack of pages identical to the tall stack of identical pages already beside it, a coin dropping into the press's coin slot"
   alt: "Under a crescent moon in a night window, a small printing press fed with coins prints another page beside a tall stack of identical pages."
+# The mechanism diagram drawn on the page and its cards (site/audits/README.md, "The diagram").
+diagram:
+  job: "Documented nightly job: tools/ingest.py"
+  call: "A full ingest call for each file, every night"
+  input: "Every .md file under raw/, changed or not"
+  wrong: "Files that did not change are ingested again"

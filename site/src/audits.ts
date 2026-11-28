@@ -13,10 +13,10 @@
 // - the maintainer's issue, pull request and response are linked when there is one; an audit of a
 //   repository with no public channel (issues and discussions off) says so in `no_channel` instead;
 // - every page carries the corrections and takedown line;
-// - every published audit (the demonstration too) carries an illustration: meta.yaml
-//   `illustration: {scene, alt}` and, in its folder, illustration.webp (1408x736), made
-//   by scripts/audit-illustrations.mjs from the scene (see site/audits/README.md). The share card
-//   (og.png) is not a source file: site/src/og.ts draws it at build time from the audit's data.
+// - an audit's picture is a mechanism diagram that site/src/diagram.ts draws at build time from
+//   meta.yaml `diagram:` (short strings, the keys each kind needs are in DIAGRAM_KEYS); the
+//   share card (og.png) is drawn by site/src/og.ts from the same data. The old generated
+//   illustration (`illustration: {scene, alt}` and illustration.webp) is optional and unused.
 // A folder whose name starts with "_" (the template) is skipped, and so is an audit whose status
 // is `draft` or `withdrawn`. Any other problem fails the build with the folder and the reason.
 
@@ -75,26 +75,40 @@ export interface Figure {
   unit: "calls" | "runs";
 }
 
-/** The picture beside an audit's headline: what was drawn (the prompt, kept so a re-run reproduces it) and its alt text. */
+/**
+ * The old generated picture: optional and no longer shown anywhere. A meta.yaml may still carry it
+ * (scene and alt), and illustration.webp may still sit in the folder; the build neither requires
+ * nor reads either.
+ */
 export interface Illustration {
-  /** What the picture shows, objects only: the prompt the illustration service drew (10 to 1500 characters). */
   scene: string;
-  /** One plain sentence describing the picture for screen readers (at most 250 characters). */
   alt: string;
 }
 
-/** The image file every published audit folder holds, and its exact size in pixels. */
-export const ILLUSTRATION_FILES = {
-  card: { file: "illustration.webp", type: "webp", width: 1408, height: 736 },
-} as const;
+/** The longest value of a diagram string, and of its `wrong` label, in characters. */
+export const DIAGRAM_VALUE_MAX = 56;
+export const DIAGRAM_WRONG_MAX = 64;
 
 /**
- * Audits whose illustration files have not been rendered yet: the build lets a named folder
- * through without illustration.webp (their scene and alt are still required). A test
- * fails as soon as an entry's files exist, and the release checklist (site/audits/README.md)
- * requires this list to be empty.
+ * The strings each kind's diagram template needs (`required`) and may take (`optional`); every
+ * diagram also takes `wrong`: a short label saying what goes wrong at the marked step. `app`
+ * overrides the name of the app (default: the repository name); `repeat` is a short "x N" tag.
+ * See site/src/diagram.ts for where each string goes, and site/audits/README.md for how to write them.
  */
-export const ILLUSTRATIONS_PENDING: readonly string[] = [];
+export const DIAGRAM_KEYS: Record<Kind, { required: readonly string[]; optional: readonly string[] }> = {
+  "Cut-off answer": { required: ["cap", "then", "wrong"], optional: ["app", "repeat"] },
+  "Retry loop": { required: ["request", "reply", "then", "wrong"], optional: ["app", "repeat"] },
+  "Cache never hits": { required: ["prompt", "cache", "bill", "wrong"], optional: ["app"] },
+  "Blind spend meter": { required: ["call", "reports", "meter", "wrong"], optional: ["app"] },
+  "Setting that does nothing": { required: ["setting", "request", "result", "wrong"], optional: [] },
+  "Runs again every night": { required: ["job", "input", "call", "wrong"], optional: [] },
+  "Wrong text summarised": { required: ["source", "cut", "asked", "result", "wrong"], optional: [] },
+  "Retired model": { required: ["model", "provider", "result", "wrong"], optional: ["app"] },
+  "Oversized prompt": { required: ["ask", "attached", "paid", "wrong"], optional: [] },
+};
+
+/** The diagram's strings: one entry per key of the kind's template. */
+export type DiagramStrings = Record<string, string>;
 
 export interface AuditMeta {
   repo: string;
@@ -122,7 +136,9 @@ export interface AuditMeta {
    * repository has issues and discussions turned off, say). Shown as the page's status.
    */
   no_channel?: string;
-  /** Required to publish: the illustration's scene and alt text. */
+  /** The strings that fill the kind's mechanism diagram (DIAGRAM_KEYS); the page and cards show the diagram when present. */
+  diagram?: DiagramStrings;
+  /** Optional and unused: the old generated picture's scene and alt text. */
   illustration?: Illustration;
 }
 
@@ -143,45 +159,6 @@ export interface Audit {
   run?: string;
   /** The audit ran unattended (findings.json `unattended: true`); the page says so. */
   unattended?: boolean;
-  /** The illustration files, read from the folder (absent only for an entry in ILLUSTRATIONS_PENDING). */
-  images?: { card: Buffer };
-}
-
-/** The type and size of a PNG, JPEG or WebP image, read from its header; undefined when it is none of them, or truncated. */
-export function imageInfo(b: Buffer): { type: "png" | "jpeg" | "webp"; width: number; height: number } | undefined {
-  if (b.length >= 4 && b[0] === 0xff && b[1] === 0xd8) {
-    // JPEG: walk the marker segments to the frame header (baseline, extended or progressive); the file must end with EOI.
-    if (b[b.length - 2] !== 0xff || b[b.length - 1] !== 0xd9) return undefined;
-    let i = 2;
-    while (i + 4 <= b.length) {
-      if (b[i] !== 0xff) return undefined;
-      const m = b[i + 1]!;
-      if (m === 0xff) { i++; continue; }
-      if (m === 0xc0 || m === 0xc1 || m === 0xc2) {
-        if (i + 9 > b.length) return undefined;
-        return { type: "jpeg", width: b.readUInt16BE(i + 7), height: b.readUInt16BE(i + 5) };
-      }
-      if (m === 0xd8 || m === 0x01 || (m >= 0xd0 && m <= 0xd7)) { i += 2; continue; }
-      if (m === 0xda || m === 0xd9) return undefined;
-      i += 2 + b.readUInt16BE(i + 2);
-    }
-    return undefined;
-  }
-  if (b.length >= 33 && b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) && b.toString("latin1", 12, 16) === "IHDR") {
-    if (b.toString("latin1", b.length - 8, b.length - 4) !== "IEND") return undefined;
-    return { type: "png", width: b.readUInt32BE(16), height: b.readUInt32BE(20) };
-  }
-  if (b.length >= 30 && b.toString("latin1", 0, 4) === "RIFF" && b.toString("latin1", 8, 12) === "WEBP") {
-    if (b.readUInt32LE(4) + 8 !== b.length) return undefined;
-    const chunk = b.toString("latin1", 12, 16);
-    if (chunk === "VP8 " && b[23] === 0x9d && b[24] === 0x01 && b[25] === 0x2a) return { type: "webp", width: b.readUInt16LE(26) & 0x3fff, height: b.readUInt16LE(28) & 0x3fff };
-    if (chunk === "VP8L" && b[20] === 0x2f) {
-      const bits = b.readUInt32LE(21);
-      return { type: "webp", width: (bits & 0x3fff) + 1, height: ((bits >> 14) & 0x3fff) + 1 };
-    }
-    if (chunk === "VP8X") return { type: "webp", width: b.readUIntLE(24, 3) + 1, height: b.readUIntLE(27, 3) + 1 };
-  }
-  return undefined;
 }
 
 const GITHUB_REPO = /^https:\/\/github\.com\/([A-Za-z0-9-]{1,39})\/([A-Za-z0-9._-]{1,100})$/;
@@ -325,25 +302,47 @@ export function validateMeta(text: string, slug: string): { meta?: AuditMeta; er
   }
   let illustration: Illustration | undefined;
   if (m.illustration !== undefined && m.illustration !== null) {
+    // Optional and unused now; a block that is there must still be well formed.
     if (typeof m.illustration !== "object" || Array.isArray(m.illustration)) errors.push("illustration must be a mapping with scene and alt");
     else {
       const im = m.illustration as Record<string, unknown>;
       const scene = typeof im.scene === "string" ? im.scene.trim() : undefined;
       const alt = typeof im.alt === "string" ? im.alt.trim() : undefined;
-      if (!scene) errors.push("illustration.scene is required: what the picture shows, objects only (the prompt the illustration service draws)");
-      else if (scene.length < 10 || scene.length > 1500) errors.push(`illustration.scene must be 10 to 1500 characters, not ${scene.length}`);
-      if (!alt) errors.push("illustration.alt is required: one plain sentence describing the picture for screen readers");
-      else {
-        if (alt.length > 250) errors.push(`illustration.alt must be at most 250 characters, not ${alt.length}`);
-        if (/\n/.test(alt) || !/^[A-Z].*[.]$/.test(alt) || /[.?!]\s+[A-Z]/.test(alt)) errors.push("illustration.alt must be one plain sentence: a capital letter first, a full stop last");
-        if (/^(an? )?(image|picture|illustration|photo) of\b/i.test(alt)) errors.push('illustration.alt describes the picture itself: drop "image of" or "picture of"');
-      }
+      if (!scene || !alt) errors.push("illustration needs both scene and alt (or leave the block out: it is optional and unused)");
       const extra = Object.keys(im).filter((k) => !["scene", "alt"].includes(k));
       if (extra.length) errors.push(`illustration: unknown keys ${extra.join(", ")}`);
       if (scene && alt) illustration = { scene, alt };
     }
-  } else if (publishable) errors.push("illustration is required: {scene, alt}; see site/audits/README.md");
-  const known = ["repo", "visibility", "consent", "commit", "leanprompt", "date", "status", "path", "summary", "headline", "subtitle", "kind", "figure", "maintainer", "no_channel", "illustration"];
+  }
+  let diagram: DiagramStrings | undefined;
+  if (m.diagram !== undefined && m.diagram !== null) {
+    if (typeof m.diagram !== "object" || Array.isArray(m.diagram)) errors.push("diagram must be a mapping of short strings");
+    else if (!kind || !KINDS.includes(kind)) {
+      if (publishable) errors.push("diagram needs a valid kind: the kind picks the template");
+    }
+    else {
+      const dm = m.diagram as Record<string, unknown>;
+      const spec = DIAGRAM_KEYS[kind];
+      const out: DiagramStrings = {};
+      for (const k of [...spec.required, ...spec.optional]) {
+        const v = dm[k];
+        if (v === undefined || v === null) {
+          if (spec.required.includes(k)) errors.push(`diagram.${k} is required for kind ${kind}`);
+          continue;
+        }
+        const t = typeof v === "string" ? v.trim() : typeof v === "number" ? String(v) : undefined;
+        const max = k === "wrong" ? DIAGRAM_WRONG_MAX : k === "repeat" ? 14 : k === "app" ? 32 : DIAGRAM_VALUE_MAX;
+        if (t === undefined || !t) errors.push(`diagram.${k} must be a non-empty string`);
+        else if (t.length > max) errors.push(`diagram.${k} must be at most ${max} characters, not ${t.length}`);
+        else if (/[\n\u2014<>]/.test(t) || /\bundefined\b|\bnull\b/i.test(t)) errors.push(`diagram.${k} must be plain words on one line: no em dash, no markup, no "undefined"`);
+        else out[k] = t;
+      }
+      const extra = Object.keys(dm).filter((k) => !spec.required.includes(k) && !spec.optional.includes(k));
+      if (extra.length) errors.push(`diagram: unknown keys ${extra.join(", ")} for kind ${kind} (it takes ${[...spec.required, ...spec.optional].join(", ")})`);
+      if (!errors.some((x) => x.startsWith("diagram"))) diagram = out;
+    }
+  }
+  const known = ["repo", "visibility", "consent", "commit", "leanprompt", "date", "status", "path", "summary", "headline", "subtitle", "kind", "figure", "maintainer", "no_channel", "diagram", "illustration"];
   const unknown = Object.keys(m).filter((k) => !known.includes(k));
   if (unknown.length) errors.push(`unknown keys ${unknown.join(", ")}`);
   if (errors.length) return { errors };
@@ -367,6 +366,7 @@ export function validateMeta(text: string, slug: string): { meta?: AuditMeta; er
       ...(figure ? { figure } : {}),
       ...(maintainer && Object.keys(maintainer).length ? { maintainer } : {}),
       ...(noChannel ? { no_channel: noChannel } : {}),
+      ...(diagram ? { diagram } : {}),
       ...(illustration ? { illustration } : {}),
     },
   };
@@ -413,25 +413,6 @@ export function loadAudits(root: string, ruleIds: ReadonlySet<string>, noteRuleI
       if (tokensLost(f)?.measured_calls !== undefined)
         problems.push(`${at}/findings.json: findings[${i}] has measured_calls; a published audit states estimates from the code only`);
     }
-    let images: Audit["images"];
-    {
-      const read = (k: keyof typeof ILLUSTRATION_FILES) => {
-        const want = ILLUSTRATION_FILES[k];
-        const f = join(dir, slug, want.file);
-        if (!existsSync(f)) return { missing: want.file };
-        const b = readFileSync(f);
-        const info = imageInfo(b);
-        if (!info || info.type !== want.type) return { error: `${want.file} is not a valid ${want.type.toUpperCase()} image` };
-        if (info.width !== want.width || info.height !== want.height) return { error: `${want.file} must be ${want.width}x${want.height}, not ${info.width}x${info.height}` };
-        return { b };
-      };
-      const card = read("card");
-      const missing = [card.missing].filter(Boolean);
-      if (card.error) problems.push(`${at}: ${card.error}`);
-      if (missing.length && !ILLUSTRATIONS_PENDING.includes(slug))
-        problems.push(`${at}: ${missing.join(" and ")} missing: run npm run illustrations -- --only ${slug} (see site/audits/README.md)`);
-      if (card.b) images = { card: card.b };
-    }
     const fig = meta.figure?.finding;
     const figF = fig !== undefined ? parsed.findings.find((f) => f.id === fig || `${f.file}:${f.line}` === fig) : undefined;
     if (fig !== undefined && !figF) problems.push(`${at}/meta.yaml: figure.finding ${fig} names no finding in findings.json (use its id or file:line)`);
@@ -448,7 +429,6 @@ export function loadAudits(root: string, ruleIds: ReadonlySet<string>, noteRuleI
       ...(parsed.unattended ? { unattended: true } : {}),
       ...(parsed.gateway ? { gateway: true } : {}),
       ...(parsed.run !== undefined ? { run: parsed.run } : {}),
-      ...(images ? { images } : {}),
     });
   }
   if (problems.length) throw new Error(`audits:\n  ${problems.join("\n  ")}`);

@@ -29,3 +29,10 @@ figure:
 illustration:
   scene: "a very long scroll of paper running behind a wall, only its first short section visible through a small window in the wall, a typewriter in front of the wall writing a headline from that small glimpse"
   alt: "A long paper scroll runs along a wall and vanishes through a small window, while a typewriter in front of it writes from the short part it can see."
+# The mechanism diagram drawn on the page and its cards (site/audits/README.md, "The diagram").
+diagram:
+  source: "Whole report: title, project links, comparison"
+  cut: "First 2,000 characters of each report"
+  asked: "6 highlights per report"
+  result: "66 of 558 name a project whose text was cut"
+  wrong: "The model sees only the first 2,000 characters"

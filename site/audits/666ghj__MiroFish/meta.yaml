@@ -16,3 +16,9 @@ illustration:
   alt: A long row of ledger books, each with a loose paper tag on its cover, stands beside an unused rubber stamp.
 maintainer:
   issue: https://github.com/666ghj/MiroFish/issues/1005
+# The mechanism diagram drawn on the page and its cards (site/audits/README.md, "The diagram").
+diagram:
+  prompt: "Section name first, then about 3,000 shared tokens"
+  cache: "Each section starts differently: shared text missed"
+  bill: "about 9,000 uncached prompt tokens per report"
+  wrong: "The section name sits in front of the shared text"
