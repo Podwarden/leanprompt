@@ -1,0 +1,17 @@
+repo: https://github.com/iamajmeena/neonclipping
+visibility: public
+commit: 6a3b9e758a1ddf25af47be45120888735cde29bd
+leanprompt: 0.1.0-dev.15
+date: 2026-11-28
+status: notified
+headline: "A cut-off model reply is never noticed, so a window of picks is lost"
+subtitle: "A local clip maker that turns long streams into captioned vertical clips, finding the moments from the audio first and reading only the chosen parts."
+kind: Cut-off answer
+figure:
+  label: no token figure; the problems found cost no tokens of their own
+  unit: calls
+illustration:
+  scene: "a small desktop machine feeding out a long plain paper strip that is sliced off mid-way by a steel blade, the cut-off end falling unnoticed into an open drawer beside the desk, plain surfaces, no labels"
+  alt: "A long cream paper strip runs under a steel blade on a tan desk unit and falls into an open drawer."
+maintainer:
+  issue: https://github.com/iamajmeena/neonclipping/issues/104

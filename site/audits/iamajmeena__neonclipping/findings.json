@@ -1,0 +1,619 @@
+{
+ "v": 1,
+ "unattended": true,
+ "run": "one clip-making job: 1 to about 40 model calls",
+ "average_call": {
+  "prompt_tokens": 1800,
+  "output_tokens": 250
+ },
+ "findings": [],
+ "notes": [
+  {
+   "rule": "LP-GE-13",
+   "severity": "medium",
+   "title": "The Gemini preset names gemini-2.5-flash, which is rerouted to a different model on 1 December 2026",
+   "file": "llm.py",
+   "line": 21,
+   "quote": "'gemini': {'label': 'Google Gemini', 'base_url': 'https://generativelanguage.googleapis.com/v1beta/openai', 'model': 'gemini-2.5-flash',",
+   "problem": "The Google Gemini preset fills in gemini-2.5-flash. Google's deprecation page says that from December 1, 2026 all API requests to gemini-2.5-flash automatically route to gemini-3.5-flash-lite and are billed at Gemini 3.5 Flash-Lite rates. The saved settings and the clip reason text (smart.py:292) keep naming the old model while another one answers.",
+   "change": "Change the preset's model to a model the provider still serves and, optionally, tell users who saved the old id in data/llm.json that it now routes to gemini-3.5-flash-lite.",
+   "verify": "Press Find models with a Gemini key and check that the preset's id is in the list the provider returns."
+  },
+  {
+   "rule": "LP-GE-12",
+   "severity": "medium",
+   "title": "A cut-off model answer is not detected, so a clip or a whole 15-minute window is silently left unread",
+   "file": "llm.py",
+   "line": 156,
+   "quote": "return str(data['choices'][0]['message']['content'] or '')",
+   "problem": "_chat returns only the message content and the Ollama branch only 'response' (llm.py:196); no finish reason is read. Caps are small (judge 420 at smart.py:105, heading 180, whole-talk 120+90*n at wholepass.py:75). A reply cut at the cap is a successful call, so nothing is resent; the cut JSON makes parse_json raise and the caller swallows it: wholepass.py:80-81 does `continue` and drops that window's picks, smart.py:294 only appends '(skipped reading ...)'. Open PR #82 raises only the connection test's budget (30 to 512) for models that spend it on reasoning.",
+   "change": "Read choices[0].finish_reason in _chat (and the done signal on the Ollama branch if the project wants it) and raise a specific error on 'length'. Have cloud_complete resend once with a larger budget on that error (a different request, so not an unchanged retry), and report a skipped window in wholepass.proposals instead of continuing silently.",
+   "verify": "Call cloud_complete with budget=5 against a stub that answers finish_reason 'length' and check that it raises or resends with a larger max_tokens; then run a whole-talk pass with the stub failing one window and check that the progress report names the skipped window."
+  },
+  {
+   "title": "The edit planner sends up to 45,000 characters to a local Ollama model with no num_ctx",
+   "file": "studio_plans.py",
+   "line": 177,
+   "quote": "answer=llm.parse_json(llm.complete(model,smart._payload(model,instruction,800)))",
+   "problem": "The planner builds one prompt of up to 45,000 characters (studio_plans.py:170; about 11,000 tokens at 4 characters per token, an estimate) and sends it through smart._payload, which sets only temperature and num_predict; no file sets num_ctx. Ollama's context-length page gives 4k context below 24 GiB VRAM, 32k for 24-48 GiB, 256k from 48 GiB. The page does not say what happens to an overflow. wholepass.py:15 records Ollama answering HTTP 500 on 15-minute windows and shrinks them to 5 minutes locally; the planner has no such local limit.",
+   "change": "For a local model, either send options.num_ctx sized to the prompt (and fall back to a smaller source range when it does not fit), or lower the 45,000-character guard when the model is not a cloud model, as wholepass.py does with LOCAL_WINDOW.",
+   "verify": "On a machine with under 24 GiB VRAM, plan a 45,000-character range in 'topic' mode, then read the context length Ollama reports for the loaded model (ollama ps) and check that it covers the prompt."
+  }
+ ],
+ "binding_matrix": [
+  {
+   "binding": "Cloud OpenAI-compatible chat (llm._chat)",
+   "file": "llm.py",
+   "line": 153,
+   "status": "checked",
+   "in_scope": true,
+   "cache_marker": {
+    "value": "n.a.",
+    "where": "llm.py:153",
+    "note": "No cache marker is sent. The prompt before the transcript is about 2,650 characters (about 660 tokens, estimate), below the 1,024-token minimum cacheable prefix in the OpenAI caching page (fact), and the host is user-chosen, so no marker applies."
+   },
+   "usage_counts_cache": {
+    "value": "n.a.",
+    "where": "llm.py:153",
+    "fact": "openai-prompt-caching",
+    "note": "The app reads no usage fields from any response (no spend meter, no token counter), so there is nothing that could miss cache tokens."
+   },
+   "cache_breakdown": {
+    "value": "n.a.",
+    "where": "llm.py:153",
+    "note": "No usage is recorded at all, so no cached share is kept or lost."
+   },
+   "stop_reason": {
+    "value": "no",
+    "where": "llm.py:156",
+    "note": "Only choices[0].message.content is read; finish_reason is never looked at, so a cut-off JSON answer is only noticed when parse_json fails."
+   },
+   "retry_identical": {
+    "value": "yes",
+    "where": "llm.py:164",
+    "note": "cloud_complete tries up to 3 times: 400 with json_mode retries without response_format (changed request), 429 waits Retry-After (max 10 s), any other exception (timeout, bad JSON body) is retried once unchanged after 1 s, HTTP 401/404/5xx break at once. Bounded."
+   },
+   "output_cap": {
+    "value": "yes",
+    "where": "llm.py:147",
+    "note": "max_tokens = the caller's budget (120 to 800); it is sent and reaches the request."
+   }
+  },
+  {
+   "binding": "Ollama /api/generate via llm.complete",
+   "file": "llm.py",
+   "line": 195,
+   "status": "checked",
+   "in_scope": true,
+   "cache_marker": {
+    "value": "n.a.",
+    "where": "llm.py:195",
+    "note": "Ollama /api/generate has no cache marker; local engine, no engine fact in the store, nothing to send."
+   },
+   "usage_counts_cache": {
+    "value": "n.a.",
+    "where": "llm.py:195",
+    "fact": "openai-prompt-caching",
+    "note": "The app reads no usage fields from any response (no spend meter, no token counter), so there is nothing that could miss cache tokens."
+   },
+   "cache_breakdown": {
+    "value": "n.a.",
+    "where": "llm.py:195",
+    "note": "No usage is recorded at all, so no cached share is kept or lost."
+   },
+   "stop_reason": {
+    "value": "no",
+    "where": "llm.py:196",
+    "note": "Only the 'response' field is read; no stop signal is read."
+   },
+   "retry_identical": {
+    "value": "no",
+    "where": "llm.py:195",
+    "note": "The Ollama path makes one request, no retry."
+   },
+   "output_cap": {
+    "value": "yes",
+    "where": "llm.py:195",
+    "note": "The payload built by the callers carries options.num_predict, so the cap reaches the request. No num_ctx is ever set (see the note on studio_plans.py:177)."
+   }
+  },
+  {
+   "binding": "Clip judge (smart._judge)",
+   "file": "smart.py",
+   "line": 105,
+   "status": "checked",
+   "in_scope": true,
+   "cache_marker": {
+    "value": "n.a.",
+    "where": "smart.py:105",
+    "note": "No cache marker is sent. The prompt before the transcript is about 2,650 characters (about 660 tokens, estimate), below the 1,024-token minimum cacheable prefix in the OpenAI caching page (fact), and the host is user-chosen, so no marker applies. Same call as llm.py:153 for the cloud host; Ollama /api/generate otherwise."
+   },
+   "usage_counts_cache": {
+    "value": "n.a.",
+    "where": "smart.py:105",
+    "fact": "openai-prompt-caching",
+    "note": "The app reads no usage fields from any response (no spend meter, no token counter), so there is nothing that could miss cache tokens."
+   },
+   "cache_breakdown": {
+    "value": "n.a.",
+    "where": "smart.py:105",
+    "note": "No usage is recorded at all, so no cached share is kept or lost."
+   },
+   "stop_reason": {
+    "value": "no",
+    "where": "smart.py:105",
+    "note": "The answer goes to llm.parse_json; no finish reason is read (llm.py:156)."
+   },
+   "retry_identical": {
+    "value": "no",
+    "where": "smart.py:105",
+    "note": "One complete() call per item; any failure is swallowed by the caller without a resend (see llm.py:164 for the transport retries)."
+   },
+   "output_cap": {
+    "value": "yes",
+    "where": "smart.py:105",
+    "note": "Budget 420 tokens reaches the request (num_predict locally, max_tokens in the cloud)."
+   }
+  },
+  {
+   "binding": "Heading writer (smart._heading)",
+   "file": "smart.py",
+   "line": 132,
+   "status": "checked",
+   "in_scope": true,
+   "cache_marker": {
+    "value": "n.a.",
+    "where": "smart.py:132",
+    "note": "No cache marker is sent. The prompt before the transcript is about 2,650 characters (about 660 tokens, estimate), below the 1,024-token minimum cacheable prefix in the OpenAI caching page (fact), and the host is user-chosen, so no marker applies. Same call as llm.py:153 for the cloud host; Ollama /api/generate otherwise."
+   },
+   "usage_counts_cache": {
+    "value": "n.a.",
+    "where": "smart.py:132",
+    "fact": "openai-prompt-caching",
+    "note": "The app reads no usage fields from any response (no spend meter, no token counter), so there is nothing that could miss cache tokens."
+   },
+   "cache_breakdown": {
+    "value": "n.a.",
+    "where": "smart.py:132",
+    "note": "No usage is recorded at all, so no cached share is kept or lost."
+   },
+   "stop_reason": {
+    "value": "no",
+    "where": "smart.py:132",
+    "note": "The answer goes to llm.parse_json; no finish reason is read (llm.py:156)."
+   },
+   "retry_identical": {
+    "value": "no",
+    "where": "smart.py:132",
+    "note": "One complete() call per item; any failure is swallowed by the caller without a resend (see llm.py:164 for the transport retries)."
+   },
+   "output_cap": {
+    "value": "yes",
+    "where": "smart.py:132",
+    "note": "Budget 180 tokens reaches the request."
+   }
+  },
+  {
+   "binding": "Head-to-head rerank (smart._order)",
+   "file": "smart.py",
+   "line": 146,
+   "status": "checked",
+   "in_scope": true,
+   "cache_marker": {
+    "value": "n.a.",
+    "where": "smart.py:146",
+    "note": "No cache marker is sent. The prompt before the transcript is about 2,650 characters (about 660 tokens, estimate), below the 1,024-token minimum cacheable prefix in the OpenAI caching page (fact), and the host is user-chosen, so no marker applies. Same call as llm.py:153 for the cloud host; Ollama /api/generate otherwise."
+   },
+   "usage_counts_cache": {
+    "value": "n.a.",
+    "where": "smart.py:146",
+    "fact": "openai-prompt-caching",
+    "note": "The app reads no usage fields from any response (no spend meter, no token counter), so there is nothing that could miss cache tokens."
+   },
+   "cache_breakdown": {
+    "value": "n.a.",
+    "where": "smart.py:146",
+    "note": "No usage is recorded at all, so no cached share is kept or lost."
+   },
+   "stop_reason": {
+    "value": "no",
+    "where": "smart.py:146",
+    "note": "The answer goes to llm.parse_json; no finish reason is read (llm.py:156)."
+   },
+   "retry_identical": {
+    "value": "no",
+    "where": "smart.py:146",
+    "note": "One complete() call per item; any failure is swallowed by the caller without a resend (see llm.py:164 for the transport retries)."
+   },
+   "output_cap": {
+    "value": "yes",
+    "where": "smart.py:146",
+    "note": "Budget 120 tokens reaches the request."
+   }
+  },
+  {
+   "binding": "Finalist review (smart.review_finalists)",
+   "file": "smart.py",
+   "line": 194,
+   "status": "checked",
+   "in_scope": true,
+   "cache_marker": {
+    "value": "n.a.",
+    "where": "smart.py:194",
+    "note": "No cache marker is sent. The prompt before the transcript is about 2,650 characters (about 660 tokens, estimate), below the 1,024-token minimum cacheable prefix in the OpenAI caching page (fact), and the host is user-chosen, so no marker applies. Same call as llm.py:153 for the cloud host; Ollama /api/generate otherwise."
+   },
+   "usage_counts_cache": {
+    "value": "n.a.",
+    "where": "smart.py:194",
+    "fact": "openai-prompt-caching",
+    "note": "The app reads no usage fields from any response (no spend meter, no token counter), so there is nothing that could miss cache tokens."
+   },
+   "cache_breakdown": {
+    "value": "n.a.",
+    "where": "smart.py:194",
+    "note": "No usage is recorded at all, so no cached share is kept or lost."
+   },
+   "stop_reason": {
+    "value": "no",
+    "where": "smart.py:194",
+    "note": "The answer goes to llm.parse_json; no finish reason is read (llm.py:156)."
+   },
+   "retry_identical": {
+    "value": "no",
+    "where": "smart.py:194",
+    "note": "One complete() call per item; any failure is swallowed by the caller without a resend (see llm.py:164 for the transport retries)."
+   },
+   "output_cap": {
+    "value": "yes",
+    "where": "smart.py:194",
+    "note": "Budget 220 tokens reaches the request."
+   }
+  },
+  {
+   "binding": "Whole-transcript scout (wholepass.proposals)",
+   "file": "wholepass.py",
+   "line": 79,
+   "status": "checked",
+   "in_scope": true,
+   "cache_marker": {
+    "value": "n.a.",
+    "where": "wholepass.py:79",
+    "note": "No cache marker is sent. The prompt before the transcript is about 2,650 characters (about 660 tokens, estimate), below the 1,024-token minimum cacheable prefix in the OpenAI caching page (fact), and the host is user-chosen, so no marker applies. Same call as llm.py:153 for the cloud host; Ollama /api/generate otherwise."
+   },
+   "usage_counts_cache": {
+    "value": "n.a.",
+    "where": "wholepass.py:79",
+    "fact": "openai-prompt-caching",
+    "note": "The app reads no usage fields from any response (no spend meter, no token counter), so there is nothing that could miss cache tokens."
+   },
+   "cache_breakdown": {
+    "value": "n.a.",
+    "where": "wholepass.py:79",
+    "note": "No usage is recorded at all, so no cached share is kept or lost."
+   },
+   "stop_reason": {
+    "value": "no",
+    "where": "wholepass.py:79",
+    "note": "The answer goes to llm.parse_json; no finish reason is read (llm.py:156)."
+   },
+   "retry_identical": {
+    "value": "no",
+    "where": "wholepass.py:79",
+    "note": "One complete() call per item; any failure is swallowed by the caller without a resend (see llm.py:164 for the transport retries)."
+   },
+   "output_cap": {
+    "value": "yes",
+    "where": "wholepass.py:79",
+    "note": "num_predict = 120 + 90 * per clips reaches the request; a failed or unparsable window is skipped silently (wholepass.py:80-81)."
+   }
+  },
+  {
+   "binding": "Caption spelling fix (capfix._fix_chunk)",
+   "file": "capfix.py",
+   "line": 66,
+   "status": "checked",
+   "in_scope": true,
+   "cache_marker": {
+    "value": "n.a.",
+    "where": "capfix.py:66",
+    "note": "No cache marker is sent. The prompt before the transcript is about 2,650 characters (about 660 tokens, estimate), below the 1,024-token minimum cacheable prefix in the OpenAI caching page (fact), and the host is user-chosen, so no marker applies. Same call as llm.py:153 for the cloud host; Ollama /api/generate otherwise."
+   },
+   "usage_counts_cache": {
+    "value": "n.a.",
+    "where": "capfix.py:66",
+    "fact": "openai-prompt-caching",
+    "note": "The app reads no usage fields from any response (no spend meter, no token counter), so there is nothing that could miss cache tokens."
+   },
+   "cache_breakdown": {
+    "value": "n.a.",
+    "where": "capfix.py:66",
+    "note": "No usage is recorded at all, so no cached share is kept or lost."
+   },
+   "stop_reason": {
+    "value": "no",
+    "where": "capfix.py:66",
+    "note": "The answer goes to llm.parse_json; no finish reason is read (llm.py:156)."
+   },
+   "retry_identical": {
+    "value": "no",
+    "where": "capfix.py:66",
+    "note": "One complete() call per item; any failure is swallowed by the caller without a resend (see llm.py:164 for the transport retries)."
+   },
+   "output_cap": {
+    "value": "yes",
+    "where": "capfix.py:66",
+    "note": "num_predict = 40 + 12 * words reaches the request."
+   }
+  },
+  {
+   "binding": "Chat assistant (assistant.ask_model)",
+   "file": "assistant.py",
+   "line": 228,
+   "status": "checked",
+   "in_scope": true,
+   "cache_marker": {
+    "value": "n.a.",
+    "where": "assistant.py:228",
+    "note": "No cache marker is sent. The prompt before the transcript is about 2,650 characters (about 660 tokens, estimate), below the 1,024-token minimum cacheable prefix in the OpenAI caching page (fact), and the host is user-chosen, so no marker applies. Same call as llm.py:153 for the cloud host; Ollama /api/generate otherwise."
+   },
+   "usage_counts_cache": {
+    "value": "n.a.",
+    "where": "assistant.py:228",
+    "fact": "openai-prompt-caching",
+    "note": "The app reads no usage fields from any response (no spend meter, no token counter), so there is nothing that could miss cache tokens."
+   },
+   "cache_breakdown": {
+    "value": "n.a.",
+    "where": "assistant.py:228",
+    "note": "No usage is recorded at all, so no cached share is kept or lost."
+   },
+   "stop_reason": {
+    "value": "no",
+    "where": "assistant.py:228",
+    "note": "The answer goes to llm.parse_json; no finish reason is read (llm.py:156)."
+   },
+   "retry_identical": {
+    "value": "no",
+    "where": "assistant.py:228",
+    "note": "One complete() call per item; any failure is swallowed by the caller without a resend (see llm.py:164 for the transport retries)."
+   },
+   "output_cap": {
+    "value": "yes",
+    "where": "assistant.py:228",
+    "note": "Budget 400 tokens reaches the request."
+   }
+  },
+  {
+   "binding": "Edit planner (studio_plans)",
+   "file": "studio_plans.py",
+   "line": 177,
+   "status": "checked",
+   "in_scope": true,
+   "cache_marker": {
+    "value": "n.a.",
+    "where": "studio_plans.py:177",
+    "note": "No cache marker is sent. The prompt before the transcript is about 2,650 characters (about 660 tokens, estimate), below the 1,024-token minimum cacheable prefix in the OpenAI caching page (fact), and the host is user-chosen, so no marker applies. Same call as llm.py:153 for the cloud host; Ollama /api/generate otherwise."
+   },
+   "usage_counts_cache": {
+    "value": "n.a.",
+    "where": "studio_plans.py:177",
+    "fact": "openai-prompt-caching",
+    "note": "The app reads no usage fields from any response (no spend meter, no token counter), so there is nothing that could miss cache tokens."
+   },
+   "cache_breakdown": {
+    "value": "n.a.",
+    "where": "studio_plans.py:177",
+    "note": "No usage is recorded at all, so no cached share is kept or lost."
+   },
+   "stop_reason": {
+    "value": "no",
+    "where": "studio_plans.py:177",
+    "note": "The answer goes to llm.parse_json; no finish reason is read (llm.py:156)."
+   },
+   "retry_identical": {
+    "value": "no",
+    "where": "studio_plans.py:177",
+    "note": "One complete() call per item; any failure is swallowed by the caller without a resend (see llm.py:164 for the transport retries)."
+   },
+   "output_cap": {
+    "value": "yes",
+    "where": "studio_plans.py:177",
+    "note": "Budget 800 tokens reaches the request; the prompt may be up to 45,000 characters and no num_ctx is sent."
+   }
+  },
+  {
+   "binding": "Visual frame describer (vision.describe)",
+   "file": "vision.py",
+   "line": 46,
+   "status": "checked",
+   "in_scope": true,
+   "cache_marker": {
+    "value": "n.a.",
+    "where": "vision.py:46",
+    "note": "Local Ollama with an image; no cache marker exists; each frame is a different image."
+   },
+   "usage_counts_cache": {
+    "value": "n.a.",
+    "where": "vision.py:46",
+    "fact": "openai-prompt-caching",
+    "note": "The app reads no usage fields from any response (no spend meter, no token counter), so there is nothing that could miss cache tokens."
+   },
+   "cache_breakdown": {
+    "value": "n.a.",
+    "where": "vision.py:46",
+    "note": "No usage is recorded at all, so no cached share is kept or lost."
+   },
+   "stop_reason": {
+    "value": "no",
+    "where": "vision.py:47",
+    "note": "Only 'response' is read."
+   },
+   "retry_identical": {
+    "value": "no",
+    "where": "vision.py:46",
+    "note": "One request per frame, no retry."
+   },
+   "output_cap": {
+    "value": "yes",
+    "where": "vision.py:43",
+    "note": "num_predict=110 reaches the request via smart._payload."
+   }
+  },
+  {
+   "binding": "Facecam check (vision.inspect_facecam)",
+   "file": "vision.py",
+   "line": 70,
+   "status": "checked",
+   "in_scope": true,
+   "cache_marker": {
+    "value": "n.a.",
+    "where": "vision.py:70",
+    "note": "Local Ollama with an image crop; no cache marker exists; each crop is different."
+   },
+   "usage_counts_cache": {
+    "value": "n.a.",
+    "where": "vision.py:70",
+    "fact": "openai-prompt-caching",
+    "note": "The app reads no usage fields from any response (no spend meter, no token counter), so there is nothing that could miss cache tokens."
+   },
+   "cache_breakdown": {
+    "value": "n.a.",
+    "where": "vision.py:70",
+    "note": "No usage is recorded at all, so no cached share is kept or lost."
+   },
+   "stop_reason": {
+    "value": "no",
+    "where": "vision.py:71",
+    "note": "Only 'response' is read; unparsable output becomes 'unclear', which is a safe default."
+   },
+   "retry_identical": {
+    "value": "no",
+    "where": "vision.py:70",
+    "note": "One request per crop, no retry."
+   },
+   "output_cap": {
+    "value": "yes",
+    "where": "vision.py:68",
+    "note": "num_predict=80 reaches the request via smart._payload."
+   }
+  },
+  {
+   "binding": "Connection test (llm.test)",
+   "file": "llm.py",
+   "line": 216,
+   "status": "checked",
+   "in_scope": true,
+   "cache_marker": {
+    "value": "n.a.",
+    "where": "llm.py:216",
+    "note": "No cache marker is sent. The prompt before the transcript is about 2,650 characters (about 660 tokens, estimate), below the 1,024-token minimum cacheable prefix in the OpenAI caching page (fact), and the host is user-chosen, so no marker applies."
+   },
+   "usage_counts_cache": {
+    "value": "n.a.",
+    "where": "llm.py:216",
+    "fact": "openai-prompt-caching",
+    "note": "The app reads no usage fields from any response (no spend meter, no token counter), so there is nothing that could miss cache tokens."
+   },
+   "cache_breakdown": {
+    "value": "n.a.",
+    "where": "llm.py:216",
+    "note": "No usage is recorded at all, so no cached share is kept or lost."
+   },
+   "stop_reason": {
+    "value": "no",
+    "where": "llm.py:217",
+    "note": "Answer parsed, no finish reason read; open PR #82 changes this ping's budget from 30 to 512 and adds an empty-reply message."
+   },
+   "retry_identical": {
+    "value": "yes",
+    "where": "llm.py:216",
+    "note": "Goes through cloud_complete, same bounded retries as llm.py:164."
+   },
+   "output_cap": {
+    "value": "yes",
+    "where": "llm.py:216",
+    "note": "Budget 30 tokens reaches the request (open PR #82 raises it)."
+   }
+  },
+  {
+   "binding": "Model list (llm.list_models, GET /models)",
+   "file": "llm.py",
+   "line": 43,
+   "status": "out_of_scope",
+   "in_scope": false,
+   "reason": "Metadata GET listing model ids; sends no prompt and no request body."
+  },
+  {
+   "binding": "Ollama model list (smart._model, GET /api/tags)",
+   "file": "smart.py",
+   "line": 65,
+   "status": "out_of_scope",
+   "in_scope": false,
+   "reason": "Metadata GET listing installed models; no prompt is sent."
+  },
+  {
+   "binding": "Ollama capability probe (vision.model, /api/tags and /api/show)",
+   "file": "vision.py",
+   "line": 25,
+   "status": "out_of_scope",
+   "in_scope": false,
+   "reason": "Metadata calls that list models and read capabilities; no prompt is sent."
+  }
+ ],
+ "prior_art_log": [
+  {
+   "finding": "model-retired",
+   "terms": "gemini-2.5-flash,gemini,deprecat,preset",
+   "files": [
+    "llm.py"
+   ],
+   "before": null,
+   "matches": [
+    "commit#3cd5bc6a",
+    "commit#84b56a33",
+    "commit#94a64693",
+    "commit#7d3c1b89",
+    "issue#72",
+    "issue#83",
+    "issue#60",
+    "issue#64"
+   ],
+   "pr_file_hits": [
+    "#82"
+   ],
+   "coverage": "issues 90, prs 13, discussions 0, commits 89, capped=False"
+  },
+  {
+   "finding": "truncation",
+   "terms": "truncated,max_tokens,finish_reason,num_predict,invalid JSON,skipped reading",
+   "files": [
+    "llm.py",
+    "wholepass.py",
+    "smart.py"
+   ],
+   "before": null,
+   "matches": [],
+   "pr_file_hits": [
+    "#82",
+    "#62"
+   ],
+   "coverage": "issues 90, prs 13, discussions 0, commits 89, capped=False"
+  },
+  {
+   "finding": "num-ctx",
+   "terms": "num_ctx,context,Ollama 500,context length",
+   "files": [
+    "studio_plans.py",
+    "llm.py",
+    "smart.py"
+   ],
+   "before": null,
+   "matches": [],
+   "pr_file_hits": [
+    "#82",
+    "#62"
+   ],
+   "coverage": "issues 90, prs 13, discussions 0, commits 89, capped=False"
+  }
+ ]
+}
