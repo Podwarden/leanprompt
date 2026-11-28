@@ -1,0 +1,44 @@
+{
+  "v": 1,
+  "unattended": true,
+  "findings": [],
+  "notes": [
+    {
+      "title": "Provider errors are saved as wiki text, so page retries never run",
+      "file": "api/services/research.py",
+      "line": 283,
+      "problem": "research_chat turns any provider failure (rate limit, bad key, timeout, context too large) into streamed text (lines 283-287, 278-281). Wiki generation concatenates every chunk (tasks.py:398-400) and stores it, so the error becomes the page body (or 'No valid <wiki_structure> XML found' for the structure step). _generate_page_with_retry (tasks.py:270-285) only retries on exceptions, so its WIKI_PAGE_RETRIES budget never fires for a provider error, and the finished wiki is cached and served by wiki_cache_exists (tasks.py:176-186).",
+      "change": "Add a keyword-only raise_errors flag to research_chat (default False, so chat is unchanged) and pass it from the structure and page steps; the existing retry and placeholder then work.",
+      "why": "A transient 429 costs a whole page for good, and every page of a rate-limited run can be an error string inside a cached 'completed' wiki.",
+      "verify": "Make the streamer raise once: with the change the page is generated again on the second attempt; before it the error text is the page content."
+    },
+    {
+      "title": "The Bedrock client returns its errors as a string, which is streamed as the answer",
+      "file": "api/clients/bedrock.py",
+      "line": 369,
+      "problem": "call() catches every exception around invoke_model (line 357) and returns f'Error: {e}' (line 369). BedrockChatStreamer yields that string as the model's reply (_stream.py:268), so access-denied and throttling reach a wiki page as text, and the @backoff.on_exception decorator at line 301 never sees an exception to retry.",
+      "change": "Re-raise inside call() (or return the error in a separate field) so the streamer and the backoff can see it.",
+      "verify": "Call with an unauthorised model id: the call raises instead of returning a string starting 'Error:'."
+    },
+    {
+      "title": "Bedrock answers are capped at 4,096 tokens and the stop reason is never read",
+      "file": "api/clients/bedrock.py",
+      "line": 210,
+      "rule": "LP-GE-12",
+      "severity": "medium",
+      "problem": "The Claude request body hard-codes max_tokens 4096 (lines 210, 219; 4096 for the other families at 226-239) and _extract_response_text (lines 247-258) returns only content[0].text, never stop_reason. A page that needs more is cut mid-sentence and stored as complete. How often this happens depends on page length.",
+      "change": "Read stop_reason ('max_tokens') and retry once with a larger limit, or let the model config set max_tokens.",
+      "verify": "Ask for a page longer than 4,096 tokens: stop_reason is max_tokens and the stored page ends mid-sentence."
+    },
+    {
+      "title": "Several default and listed model ids are scheduled for or past retirement",
+      "file": "api/config/generator.json",
+      "line": 45,
+      "rule": "LP-GE-13",
+      "severity": "medium",
+      "problem": "The openai default is gpt-5-nano (also the openrouter default, line 78); against models/retirements.md (read 2026-11-27) gpt-5-nano is scheduled for 2026-12-11, and listed ids o1, o4-mini, gpt-4, gpt-4-turbo and gpt-35-turbo are retired. The Bedrock default is anthropic.claude-3-sonnet-20240229-v1:0 (line 146), whose Bedrock schedule is not on the Anthropic page. The table was read through a summarising fetch tool and must be re-checked before anyone relies on it.",
+      "change": "Update the defaults after checking the providers' own pages.",
+      "verify": "Compare each id with the provider's deprecations page."
+    }
+  ]
+}

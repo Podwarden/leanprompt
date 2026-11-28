@@ -1,0 +1,17 @@
+repo: https://github.com/JoshuaC215/agent-service-toolkit
+visibility: public
+commit: 3d771312f01d0397da3bc0cd2c2db8d4e1786128
+leanprompt: 0.1.0-dev.15
+date: 2026-11-28
+status: notified
+headline: "Bedrock replies stop at 1,024 tokens and a cut-off one is passed on as complete"
+subtitle: "A LangGraph, FastAPI and Streamlit template for agent services that builds the model for each of its many providers in one place."
+kind: Cut-off answer
+figure:
+  label: no token figure; the problems found cost no tokens of their own
+  unit: calls
+illustration:
+  scene: "a long unrolled paper ribbon with its far end sliced off by a pair of scissors, the short piece tucked into a sealed plain envelope, the cut-off remainder curled on the floor"
+  alt: "A long paper ribbon has had its end cut off by scissors, the short piece sits in a sealed envelope and the offcut curls on the floor."
+maintainer:
+  issue: https://github.com/JoshuaC215/agent-service-toolkit/issues/410

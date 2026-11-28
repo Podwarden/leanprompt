@@ -1,0 +1,89 @@
+{
+  "v": 1,
+  "unattended": true,
+  "average_call": {
+    "prompt_tokens": 1800,
+    "output_tokens": 300
+  },
+  "findings": [
+    {
+      "id": "dup-user",
+      "rule": "LP-PD-02",
+      "file": "src/components/ConversationView/index.tsx",
+      "line": 194,
+      "saves": "prefill",
+      "severity": "low",
+      "share": 0.033,
+      "tokens_per_1k": {
+        "prompt": 60000
+      },
+      "problem": "The question is saved to the message list before the history is read back, so the history loop already contains it; the code then pushes the same question again as the last message. Every request ends with the same user message twice.",
+      "change": "Build the history from the list as it was before the question was added (or skip the message whose id is userMessage.id in the loop at line 174).",
+      "why": "Every call sends the newest question twice and counts it twice against the history budget, so a little less history fits.",
+      "estimate": "about 60k prompt tokens per 1,000 calls (60-token question)",
+      "assumptions": "an average question of about 60 tokens; every call goes through this path",
+      "verify": "Log formatedMessageList.length before the fetch: it is history + 3 today (system, history, question, question) and history + 2 after the fix; the last two entries are no longer equal."
+    },
+    {
+      "id": "schema-varies",
+      "rule": "LP-PC-02",
+      "file": "src/utils/openai.ts",
+      "line": 27,
+      "saves": "prefill",
+      "severity": "medium",
+      "share": 0.1,
+      "status": "frequency-unknown",
+      "confirm": "how many selected schemas exceed half of the model's max_token budget (only those lose tables, and so vary)",
+      "tokens_per_1k": {
+        "uncached": 180000
+      },
+      "problem": "The number of tables put in the system prompt is decided by a budget that starts from the length of the current question (line 27, test at line 48). A longer question leaves room for fewer tables, so for a large schema the system prompt is different on different turns: tables the model saw earlier disappear, and the cached prefix (system prompt, then history) does not match.",
+      "change": "Spend the table budget without the current question (use a fixed share of max_token), so the system prompt is the same for the whole conversation.",
+      "why": "The system prompt is the first thing in every request; when it changes, the history after it cannot be read from the cache, and the model sees a different set of tables from turn to turn.",
+      "estimate": "about 180k prompt tokens per 1,000 calls not served from cache",
+      "assumptions": "1 in 10 calls hits a schema larger than the budget and changes the table list; about 1,800 tokens of prefix lost each time",
+      "verify": "Ask two questions of different length on a schema larger than max_token/2 and compare the system message of both requests: today the table lists differ, after the fix they are identical."
+    }
+  ],
+  "notes": [
+    {
+      "title": "Default and listed models were shut down on 2026-10-23",
+      "rule": "LP-GE-13",
+      "severity": "high",
+      "file": "src/store/setting.ts",
+      "line": 13,
+      "problem": "The default model is gpt-3.5-turbo (setting.ts:13, and getModel returns it when no name is sent, model.ts:67-69). gpt-4 and gpt-4-turbo, also offered in the settings (OpenAIApiConfigView.tsx), have the same shutdown date. OpenAI's deprecations page lists gpt-3.5-turbo, gpt-4 and gpt-4-turbo as shut down on Oct 23, 2026 (replacements gpt-5.6-terra and gpt-5.6-sol).",
+      "change": "Change the default and the list in setting.ts, model.ts and OpenAIApiConfigView.tsx to models OpenAI still serves; keep the per-model cost_per_call table in step.",
+      "verify": "A request with the default settings against api.openai.com returns 200, not model_not_found."
+    },
+    {
+      "title": "A cut-off answer is stored as complete",
+      "rule": "LP-GE-12",
+      "severity": "medium",
+      "file": "src/pages/api/chat.ts",
+      "line": 146,
+      "problem": "The stream parser forwards delta.content and never reads finish_reason, and the request sets no max_tokens. An answer that stops for length is marked DONE (ConversationView/index.tsx:276) and sent back as history on the next turn.",
+      "change": "Read choices[0].finish_reason; on length, mark the message so the user sees it was cut.",
+      "verify": "Force a small max_tokens on a test endpoint: the message shows a cut-off marker instead of DONE."
+    },
+    {
+      "title": "Stream is never closed when the provider sends no [DONE]",
+      "file": "src/pages/api/chat.ts",
+      "line": 140,
+      "problem": "controller.close() is only reached on a [DONE] event, so providers that omit it leave the client hanging in LOADING.",
+      "change": "Close the controller after the for-await loop ends.",
+      "known": {
+        "kind": "reported",
+        "url": "https://github.com/sqlchat/sqlchat/issues/176",
+        "note": "Issue #176 open; fix PR #186 (octo-patch) was closed by the maintainer on 2026-09-17 without a comment."
+      }
+    },
+    {
+      "title": "Quota is a flat per-call cost, charged before generation",
+      "file": "src/pages/api/usage.ts",
+      "line": 29,
+      "problem": "addUsage adds model.cost_per_call regardless of tokens, and chat.ts:161-167 charges it before the stream is read. There is no token meter, so LP-GE-11 (cache tokens) does not apply; a design choice, not a bug.",
+      "change": "No change needed; note only: if a token-based quota is wanted later, meter prompt, cached and output tokens from the stream's usage field."
+    }
+  ]
+}

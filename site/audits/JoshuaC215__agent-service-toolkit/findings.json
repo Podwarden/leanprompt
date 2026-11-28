@@ -1,0 +1,25 @@
+{
+  "v": 1,
+  "unattended": true,
+  "findings": [],
+  "notes": [
+    {
+      "title": "Bedrock replies stop at 1,024 tokens; a cut-off reply is passed on as complete",
+      "rule": "LP-GE-12",
+      "severity": "high",
+      "file": "src/core/llm.py",
+      "line": 120,
+      "problem": "ChatBedrock(model=...) sets no max_tokens. In the locked langchain-aws 1.9.0 an Anthropic model on ChatBedrock uses InvokeModel, whose adapter sends max_tokens=1024 when none is given (llms/bedrock.py:389-392); the Anthropic branch at llm.py:110 gets the model's own limit (128000 for claude-haiku-5-5 in langchain-anthropic 1.7.6). Checked offline with a stub client: invoke and stream both send 1024. Nothing in src/ reads stop_reason, so a cut-off answer is saved as finished.",
+      "change": "Pass an explicit limit in the AWS branch (for example ChatBedrock(model=..., max_tokens=<limit the maintainers choose>)) and surface a stop_reason of max_tokens (response_metadata) to the client instead of treating the message as complete.",
+      "verify": "Build get_model(AWSModelName.BEDROCK_HAIKU) with a stub boto client that records the InvokeModel body: max_tokens is 1024 today and the chosen limit after the change."
+    },
+    {
+      "title": "The current date in three system prompts is fixed at server start",
+      "file": "src/agents/research_assistant.py",
+      "line": 39,
+      "problem": "current_date is evaluated once at import (research_assistant.py:39, rag_assistant.py:33, github_mcp_agent.py:17) and baked into a module-level f-string that wrap_model reuses for every request (research_assistant.py:54-60). The service is a long-running process, so after the first midnight the default agent states the wrong day. docs/RAG_Assistant.md:40-42 teaches the same pattern.",
+      "change": "Build the date inside the preprocessor lambda (or a small function called from it) so each request gets the current date; the day-level string keeps the prompt prefix stable within a day.",
+      "verify": "Freeze time at 2026-11-01 during import, move it to 2026-11-03, call the preprocessor: the system message says November 01 today and November 03 after the change."
+    }
+  ]
+}

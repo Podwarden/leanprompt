@@ -1,0 +1,20 @@
+repo: https://github.com/HKUDS/LightRAG
+visibility: public
+commit: b3ca0ddb13268c2fc081be5841782a099bfed814
+leanprompt: 0.1.0-dev.15
+date: 2026-11-28
+status: notified
+summary: >-
+  Three small pull requests were opened: Bedrock cache marks and cache token metering (#4743, linked below), a warning on the retired Claude 3 helpers (#4744) and cached-token metering for the OpenAI Responses binding (#4745).
+headline: "The Bedrock system prompt has no cache mark, so every call pays in full"
+subtitle: "A graph-based retrieval library that meters tokens per call and already has an open pull request adding prompt caching to its Anthropic binding."
+kind: Cache never hits
+figure:
+  finding: bedrock-no-cachepoint
+  label: prompt tokens paid at full price for a system prompt the cache could have served
+  unit: calls
+illustration:
+  scene: "a tall stack of identical paper sheets being fed again into a copier, a small unused brass tag with a hole lying beside the stack on a desk"
+  alt: "A tall stack of cream paper sheets with the top sheet folded up stands beside a small unused brass tag lying on the desk."
+maintainer:
+  pr: https://github.com/HKUDS/LightRAG/pull/4743

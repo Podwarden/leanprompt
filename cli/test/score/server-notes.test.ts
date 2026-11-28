@@ -106,6 +106,22 @@ describe("notes: verified problems outside the rules", () => {
     expect(with_).toEqual(without);
   });
 
+  it("keeps a note's quote (the verbatim cited line) and rejects an empty or non-string one", () => {
+    const r = parseFindings(doc([], { notes: [{ ...note, quote: "  const x = 1;" }] }), IDS);
+    expect(r.errors).toEqual([]);
+    expect(r.notes![0].quote).toBe("  const x = 1;");
+    const e = (q: unknown) => parseFindings(doc([], { notes: [{ ...note, quote: q }] }), IDS).errors[0] ?? "";
+    expect(e("")).toMatch(/notes\[0\]: quote must be a non-empty string/);
+    expect(e(3)).toMatch(/quote must be a non-empty string/);
+  });
+
+  it("accepts the audit's top-level binding_matrix and prior_art_log without changing the score", () => {
+    const base = parseFindings(doc([f({ share: 0.1 })]), IDS);
+    const r = parseFindings(doc([f({ share: 0.1 })], { binding_matrix: [{ binding: "x", status: "checked" }], prior_art_log: [{ finding: "a" }] }), IDS);
+    expect(r.errors).toEqual([]);
+    expect(staticScore(r.findings)).toEqual(staticScore(base.findings));
+  });
+
   it("rejects a score field, an unknown key, a missing field or a bad line, naming the entry", () => {
     const e = (n: object) => parseFindings(doc([], { notes: [n] }), IDS).errors[0] ?? "";
     expect(e({ ...note, share: 0.1 })).toMatch(/notes\[0\]: share is not allowed: a note is never scored/);

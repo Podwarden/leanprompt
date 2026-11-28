@@ -1,0 +1,64 @@
+{
+  "v": 1,
+  "unattended": true,
+  "average_call": {
+    "prompt_tokens": 3600,
+    "output_tokens": 500
+  },
+  "findings": [
+    {
+      "id": "bedrock-no-cachepoint",
+      "rule": "LP-PC-01",
+      "file": "lightrag/llm/bedrock.py",
+      "line": 334,
+      "saves": "prefill",
+      "severity": "medium",
+      "share": 0.42,
+      "tokens_per_1k": {
+        "prompt": 1500000
+      },
+      "status": "frequency-unknown",
+      "problem": "The Bedrock binding sends the system prompt as a plain text block with no cachePoint (bedrock.py:334). The entity-extraction system prompt is rendered once per run (operate.py:4655/4668) and is the same for every chunk and every gleaning call, about 1.5k tokens. AWS says Claude models on Bedrock do not cache requests without a checkpoint, and the repo's own Bedrock sample model is anthropic.claude-haiku-4-5 (env.example:1914). The Anthropic binding has the same gap (anthropic.py:208) and is already tracked (#4464, open PR #4729).",
+      "change": "Add an opt-in cache_system_prompt argument that appends {\"cachePoint\": {\"type\": \"default\"}} after the system text block, as #4729 does for Anthropic.",
+      "why": "Every extraction call pays full input price for the same ~1.5k-token prefix. Claude Haiku 4.5 has a 4,096-token minimum, so the system prompt alone will not cache there; models with a 512 or 1,024 minimum will.",
+      "estimate": "about 1.5M uncached prompt tokens per 1,000 extraction calls (about 42% of an average call); a cache read bills about a tenth of that on models where the prefix is long enough",
+      "assumptions": "system prompt about 1.5k tokens (the maintainers' own tiktoken estimate in #4464), chunk 1,200 tokens, one gleaning call per chunk; Bedrock Claude model whose minimum is at or below 1,024 tokens",
+      "verify": "Send two extraction calls within five minutes with cache_system_prompt=True and read usage.cacheReadInputTokens on the second; it is non-zero.",
+      "model": "anthropic.claude-* on Bedrock",
+      "confirm": "How many extraction calls the deployment sends to a Bedrock Claude model with a 512 or 1,024 token cache minimum."
+    }
+  ],
+  "notes": [
+    {
+      "title": "Bedrock usage ignores cache reads and writes",
+      "rule": "LP-GE-11",
+      "severity": "medium",
+      "file": "lightrag/llm/bedrock.py",
+      "line": 400,
+      "problem": "Both usage paths pass inputTokens straight to TokenTracker (bedrock.py:400 streaming, :480 non-streaming). Converse reports inputTokens for uncached tokens only; cache reads and writes arrive in cacheReadInputTokens and cacheWriteInputTokens (AWS prompt caching page). With caching on (e.g. BEDROCK_LLM_EXTRA_FIELDS with a top-level cache_control, bedrock.py:356-358), prompt_tokens drops to the uncached remainder and the cache share is never reported. OpenAI and Gemini bindings already report cached_prompt_tokens (#4572, #4687).",
+      "change": "prompt_tokens = inputTokens + cacheReadInputTokens + cacheWriteInputTokens; report cacheReadInputTokens as cached_prompt_tokens.",
+      "verify": "Feed a Converse usage block with cacheReadInputTokens to a TokenTracker: prompt_tokens includes it and get_usage() shows cached_prompt_tokens."
+    },
+    {
+      "title": "Public Claude 3 helpers name retired models",
+      "rule": "LP-GE-13",
+      "severity": "low",
+      "file": "lightrag/llm/anthropic.py",
+      "line": 462,
+      "problem": "claude_3_opus_complete, claude_3_sonnet_complete and claude_3_haiku_complete hard-code claude-3-opus-20240229 (:462), claude-3-sonnet-20240229 (:483) and claude-3-haiku-20240307 (:504). Anthropic's deprecations page lists them retired on 2026-01-05, 2025-07-21 and 2026-04-20; requests return 404. Library helpers only: the server does not use the Anthropic binding and nothing but a test calls them.",
+      "change": "Remove the three helpers or point them at a current model; use anthropic_complete with LLM_MODEL instead.",
+      "verify": "grep for claude-3- under lightrag/ returns nothing."
+    },
+    {
+      "title": "Responses binding drops cached prompt tokens",
+      "file": "lightrag/llm/openai_responses.py",
+      "line": 358,
+      "quote": "\"prompt_tokens\": getattr(usage, \"input_tokens\", 0) or 0,",
+      "rule": "LP-GE-11",
+      "severity": "low",
+      "problem": "_usage_counts forwards input, output and total tokens only, so a run through the OpenAI Responses binding shows no cached_prompt_tokens in the TokenTracker, while the Chat Completions binding does since #4572.",
+      "change": "Read usage.input_tokens_details.cached_tokens and forward it as cached_prompt_tokens, keeping a reported zero.",
+      "verify": "A mocked Responses usage with input_tokens_details.cached_tokens=5 gives cached_prompt_tokens 5 in the tracker; absent or null details leave the field out."
+    }
+  ]
+}

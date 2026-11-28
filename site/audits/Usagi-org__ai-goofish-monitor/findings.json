@@ -1,0 +1,73 @@
+{
+  "v": 1,
+  "unattended": true,
+  "average_call": {
+    "prompt_tokens": 20000,
+    "output_tokens": 800
+  },
+  "findings": [
+    {
+      "id": "seller-block",
+      "rule": "LP-PD-04",
+      "file": "src/ai_handler.py",
+      "line": 314,
+      "saves": "prefill",
+      "severity": "high",
+      "share": 0.17,
+      "status": "size-unknown",
+      "confirm": "prompt_tokens of one analysis request (provider usage) for an item whose seller has about 40 ratings and 40 listings, before and after the change",
+      "tokens_per_1k": {
+        "prompt": 3500000
+      },
+      "problem": "Each item's prompt contains the seller's whole rating list and whole listing list, because the profile scraper scrolls until the site says there is no next page. Every entry also carries fields the criteria never use (rating id, rating image URLs, listing id, listing image URL, the seller avatar URL), and the JSON is pretty-printed with indent=2.",
+      "change": "Where the prompt JSON is built, drop the id and URL fields from the seller lists, serialise compactly, and optionally cap the lists to the newest N entries (a setting, default unlimited so answers do not change).",
+      "why": "Seller entries are about 100 tokens each, about half of it ids, URLs and indentation. The block is sent again for every item of the same seller, because only the scraping is cached (SellerProfileCache), not the prompt.",
+      "estimate": "about 3.5M prompt tokens per 1,000 items (estimate)",
+      "assumptions": "A seller with 40 ratings and 40 listings (the size in the project's own log in issue 146), about 100 tokens per entry, about 45 percent of it ids, URLs and whitespace; the average call is about 20,000 prompt tokens (up to 9 images, the seller block, about 3,000 tokens of instructions, the item JSON). Larger sellers cost proportionally more; the cap would be a separate, optional change.",
+      "verify": "Log usage.prompt_tokens for the same item before and after: the drop should match the removed fields. Compare the model's reason and criteria_analysis for 10 stored items; the seller_type verdicts should not change."
+    }
+  ],
+  "notes": [
+    {
+      "title": "No timeout on the analysis client; SDK retries inside the app's 4 attempts, with no pause",
+      "rule": "LP-GE-15",
+      "severity": "medium",
+      "file": "src/config.py",
+      "line": 77,
+      "problem": "AsyncOpenAI is built with only api_key and base_url. The openai SDK then waits up to 600 s for a reply and retries a failed request twice. get_ai_analysis wraps that in 4 attempts with no pause between them, so one item can send up to 12 identical requests (each with every image as base64) and hold one of the 2 analysis slots for up to 2 hours; scraper.py waits for all slots at dispatcher.join().",
+      "change": "Pass timeout=httpx.Timeout(120, connect=10) and max_retries=0 (or 1) to AsyncOpenAI, and sleep a few seconds between the app's own attempts. The settings test-connection client already sets timeout=30 s (src/api/routes/settings.py:302); the analysis client does not.",
+      "why": "A hung gateway stalls the whole task; a 429 or 5xx is retried immediately, up to 12 times.",
+      "verify": "Point OPENAI_BASE_URL at a local server that never answers: the item should fail after about the configured timeout, not after 10 minutes."
+    },
+    {
+      "title": "A reply cut off at max_tokens is not detected as cut off",
+      "rule": "LP-GE-12",
+      "severity": "high",
+      "file": "src/ai_handler.py",
+      "line": 407,
+      "problem": "finish_reason / status is never read, and the same 4000-token request is repeated up to 4 times.",
+      "change": "Reject length / incomplete replies and retry once with a larger limit.",
+      "verify": "Request with max tokens 50: the item is retried or reported, not parsed.",
+      "known": {
+        "kind": "in-progress",
+        "url": "https://github.com/Usagi-org/ai-goofish-monitor/pull/535",
+        "note": "open PR 535 adds IncompleteAIResponseError and AI_MAX_OUTPUT_TOKENS; PR 518 and 525 do part of it; issues 499 and 519 describe it"
+      }
+    },
+    {
+      "title": "A failed analysis is saved as a final not-recommended result and never retried",
+      "rule": "LP-GE-12",
+      "severity": "medium",
+      "file": "src/services/item_analysis_dispatcher.py",
+      "line": 131,
+      "problem": "After 4 failed attempts the item is stored with is_recommended false and its link is then treated as already processed on later runs.",
+      "change": "Do not store (or mark for retry) results whose analysis errored.",
+      "verify": "Make the first run fail, fix the key, run again: the item is analysed.",
+      "known": {
+        "kind": "reported",
+        "url": "https://github.com/Usagi-org/ai-goofish-monitor/issues/477",
+        "note": "open issue 477 asks to re-run failed analyses; the maintainer replied there is no per-item re-run; open PR 513 adds delete of failed items"
+      }
+    }
+  ]
+}

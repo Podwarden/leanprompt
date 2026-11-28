@@ -1,0 +1,18 @@
+repo: https://github.com/OpenMontageInc/OpenMontage
+visibility: public
+commit: 2e003e65fa99a0f329478a2c1cdcf26bc481933a
+leanprompt: 0.1.0-dev.15
+date: 2026-11-28
+status: notified
+headline: "The proposal stage prints the whole tool registry into the agent's context"
+subtitle: "An agent-driven video production pipeline whose own guide already names the short provider summary to use instead."
+kind: Oversized prompt
+figure:
+  finding: preflight-dump
+  label: prompt tokens for a registry dump the guide calls a firehose
+  unit: runs
+illustration:
+  scene: "a small funnel pouring an overflowing torrent of folded paper sheets from a tall filing cabinet onto a desk, a slim single index card lying unused beside it"
+  alt: "A cream filing cabinet overflows with paper sheets, a small funnel of folded paper stands beside it, and one blank card lies unused."
+maintainer:
+  issue: https://github.com/OpenMontageInc/OpenMontage/issues/986

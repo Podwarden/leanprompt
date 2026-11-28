@@ -1,0 +1,85 @@
+{
+  "v": 1,
+  "unattended": true,
+  "run": "one animated-explainer production, 8 stages, about 100 agent calls",
+  "average_call": {
+    "prompt_tokens": 60000,
+    "output_tokens": 1500
+  },
+  "findings": [
+    {
+      "id": "preflight-dump",
+      "rule": "LP-PD-04",
+      "file": "skills/pipelines/explainer/proposal-director.md",
+      "line": 94,
+      "saves": "prefill",
+      "severity": "high",
+      "unit": "run",
+      "status": "size-unknown",
+      "confirm": "Run the two commands on a configured machine and count the characters printed (python -c ... support_envelope() and capability_catalog(), both indent=2).",
+      "share": 0.005,
+      "tokens_per_run": {
+        "prompt": 30000
+      },
+      "problem": "The proposal stage tells the agent to print the whole tool registry as indented JSON (support_envelope) and then the whole capability catalog, although AGENT_GUIDE.md line 267 says the raw dump is a firehose, to be used for debugging only, and gives a short provider_menu_summary() for this step. The same dump is repeated in the animation and cinematic proposal skills and in video-reference-analyst.md.",
+      "change": "In the proposal-director skills, replace the two commands with registry.provider_menu_summary() (the call AGENT_GUIDE.md already runs at preflight), or reuse its result; keep support_envelope() for debugging.",
+      "why": "get_info() returns about 40 fields per tool, including the input and output schemas, for about 130 tools, and the output goes into the agent's context and is carried through every later call of the run.",
+      "estimate": "about 30,000 prompt tokens per run, more on a machine where it is not truncated",
+      "assumptions": "about 130 tool classes (tools/ has 132 BaseTool subclasses), 2 to 3 KB of JSON each; the agent's shell tool cuts output at roughly 30,000 characters (about 8,000 tokens) in some harnesses and not in others, so 30,000 is a middle figure; the preflight in AGENT_GUIDE.md already ran once, so this is a second dump. Cached re-reads of it on later calls are not counted.",
+      "verify": "Run the proposal stage before and after on the same brief and compare the characters of the preflight tool results in the transcript; the capability list the agent shows the user must stay the same."
+    },
+    {
+      "id": "guide-reread",
+      "rule": "LP-PD-03",
+      "file": "AGENTS.md",
+      "line": 3,
+      "saves": "prefill",
+      "severity": "medium",
+      "unit": "run",
+      "status": "frequency-unknown",
+      "confirm": "Look at a real transcript of one run and count how many times AGENT_GUIDE.md is read after the first message.",
+      "share": 0.01,
+      "tokens_per_run": {
+        "prompt": 62000
+      },
+      "problem": "AGENTS.md and CLAUDE.md (line 3 in both) tell the agent to read AGENT_GUIDE.md, 49,611 bytes, before responding to any user message. Every approval gate ends the agent's turn (AGENT_GUIDE.md line 599) and waits for the user, so one run is many user messages, and an agent that follows the sentence literally reads the 12,000-token guide again on each.",
+      "change": "Say 'once per session, again only if it is no longer in context' in AGENTS.md and CLAUDE.md. Optionally move the sections only some runs need (onboarding, reference analysis, atelier mode, provider menu) into skills the guide points to.",
+      "why": "The guide is about 12,400 tokens (49,611 bytes at 4 bytes per token) and every second read adds it to the context again.",
+      "estimate": "about 62,000 prompt tokens per run if the guide is re-read at five of the gates",
+      "assumptions": "5 re-reads of 12,400 tokens; agents differ in whether they re-read, which is why the status is frequency-unknown; the estimate counts the first pass only, not later cached reads.",
+      "verify": "In a transcript of a run with 6 or more user messages, AGENT_GUIDE.md is read once and the first-pass prompt tokens drop by about 12,000 per avoided read."
+    },
+    {
+      "id": "reviewer-reread",
+      "rule": "LP-PD-03",
+      "file": "AGENT_GUIDE.md",
+      "line": 586,
+      "saves": "prefill",
+      "severity": "medium",
+      "unit": "run",
+      "status": "frequency-unknown",
+      "confirm": "Count the reads of skills/meta/reviewer.md in a transcript of one run.",
+      "share": 0.007,
+      "tokens_per_run": {
+        "prompt": 44000
+      },
+      "problem": "AGENT_GUIDE.md line 586 (and line 193) say to self-review after every stage with the reviewer skill, skills/meta/reviewer.md, 25,407 bytes. Eight stages can mean eight reads of the same 6,400 tokens, and a revision round runs it again.",
+      "change": "Write the rule as 'read reviewer.md once per run' and keep the per-stage part as a one-kilobyte checklist taken from the manifest's review_focus, which AGENT_GUIDE.md line 587 already loads.",
+      "why": "The same 6,400 tokens enter the context at each stage in which the agent reads the file again.",
+      "estimate": "about 44,000 prompt tokens per run (7 extra reads of 6,400 tokens)",
+      "assumptions": "8 stages, one read each; agents that keep the first read in context avoid this, hence frequency-unknown; revisions (up to 3 a stage) would add more.",
+      "verify": "reviewer.md appears once in the transcript of a full run; the review notes still list the manifest's review_focus items."
+    }
+  ],
+  "notes": [
+    {
+      "title": "Revision and send-back limits disagree and no code enforces them",
+      "file": "pipeline_defs/animated-explainer.yaml",
+      "line": 49,
+      "problem": "The manifest sets max_revisions_per_stage: 3 and max_send_backs: 3. AGENT_GUIDE.md line 588 says at most two review rounds, and skills/pipelines/explainer/executive-producer.md line 135 says at most one send-back per stage pair (line 121 uses 3 for revisions). Only schemas/pipelines/pipeline_manifest.schema.json mentions the two keys; no Python or TypeScript reads them, so each limit exists only as a sentence the agent may follow.",
+      "change": "Pick one number per limit, write it in the manifest, and make the guide and the executive-producer skill refer to the manifest instead of repeating a number.",
+      "why": "Every extra revision runs a director skill (10,000 to 33,000 bytes) and its review again.",
+      "verify": "grep for the limits shows one number in the manifest and references to it elsewhere."
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+repo: https://github.com/AsyncFuncAI/deepwiki-open
+visibility: public
+commit: 327da9735eac38b2a035c5e319872a14ce96e1a7
+leanprompt: 0.1.0-dev.15
+date: 2026-11-28
+status: notified
+headline: "A provider error is saved as the wiki page, so page retries never run"
+subtitle: "A wiki generator for any GitHub repository that streams answers from many model providers and already retries a page when its provider call raises an error."
+kind: Retry loop
+figure:
+  label: no token figure; a failed page is kept as the page's text
+  unit: calls
+illustration:
+  scene: "a book with a blank page on which a torn error slip is glued where the page text should be, a small unused brass key lying beside the book"
+  alt: "A closed cream book has a small torn slip lying on its cover, with a brass key on the table beside it."
+maintainer:
+  pr: https://github.com/AsyncFuncAI/deepwiki-open/pull/640

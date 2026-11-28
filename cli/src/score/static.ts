@@ -160,6 +160,8 @@ export interface Note {
   file: string;
   /** The line the note is about; 0 for an `<external>` note with no line. */
   line: number;
+  /** The verbatim text of the cited line at the audited commit, as the audit read it. */
+  quote?: string;
   problem: string;
   change: string;
   why?: string;
@@ -170,7 +172,7 @@ export interface Note {
   private?: boolean;
 }
 
-export const NOTE_KEYS = ["title", "rule", "severity", "finding", "known", "file", "line", "problem", "change", "why", "verify", "scope", "private"] as const;
+export const NOTE_KEYS = ["title", "rule", "severity", "finding", "known", "file", "line", "problem", "change", "why", "verify", "scope", "private", "quote"] as const;
 export const ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/;
 export const NOTE_TITLE_MAX = 120;
 
@@ -580,6 +582,7 @@ function parseNote(raw: unknown, at: string, errors: string[], noteRuleIds: Read
   for (const k of ["why", "verify"] as const) {
     if (r[k] !== undefined && !text(r[k], TEXT_MAX)) return bad(`${k} must be a non-empty string of at most ${TEXT_MAX} characters`);
   }
+  if (r.quote !== undefined && !text(r.quote, TEXT_MAX)) return bad(`quote must be a non-empty string of at most ${TEXT_MAX} characters: the verbatim cited line`);
   const n: Note = { title: r.title, file: r.file, line: (r.line as number | undefined) ?? 0, problem: r.problem as string, change: r.change as string };
   if (r.rule !== undefined) n.rule = r.rule as string;
   if (r.severity !== undefined) n.severity = r.severity as Severity;
@@ -588,6 +591,7 @@ function parseNote(raw: unknown, at: string, errors: string[], noteRuleIds: Read
   if (r.why !== undefined) n.why = r.why as string;
   if (r.verify !== undefined) n.verify = r.verify as string;
   if (r.scope !== undefined) n.scope = r.scope as Scope;
+  if (r.quote !== undefined) n.quote = r.quote as string;
   if (r.private === true) n.private = true;
   return n;
 }

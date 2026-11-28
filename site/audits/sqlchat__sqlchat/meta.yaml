@@ -1,0 +1,18 @@
+repo: https://github.com/sqlchat/sqlchat
+visibility: public
+commit: 85af0b4733d91d5c97a2ad89660cbfc515898676
+leanprompt: 0.1.0-dev.15
+date: 2026-11-28
+status: notified
+headline: "The default model is one OpenAI shut down on 2026-10-23"
+subtitle: "A chat interface for talking to a database in plain language, which fits as many of the schema's tables into the prompt as the model's limit allows."
+kind: Retired model
+figure:
+  finding: schema-varies
+  label: prompt tokens not served from the cache when a long question changes the table list
+  unit: calls
+illustration:
+  scene: "a vintage brass key stuck in the lock of a wooden door, a blank calendar page torn from its pad lying on the floor below it, a clean new key resting on a small shelf beside the door"
+  alt: "A brass key hangs in the lock of a wooden door, a torn blank pad lies on the floor, and a newer key rests on a small shelf."
+maintainer:
+  issue: https://github.com/sqlchat/sqlchat/issues/197

@@ -1,0 +1,18 @@
+repo: https://github.com/Usagi-org/ai-goofish-monitor
+visibility: public
+commit: 77f8d75869acd65f9dba72731b95c7c49ea67bdf
+leanprompt: 0.1.0-dev.15
+date: 2026-11-28
+status: notified
+headline: "Every item's prompt carries the seller's whole rating and listing history"
+subtitle: "A second-hand listing monitor that scrapes with a browser and analyses each item with a multimodal model, caching the seller profile it scrapes."
+kind: Oversized prompt
+figure:
+  finding: seller-block
+  label: prompt tokens for the seller's whole rating and listing lists, sent again for each item
+  unit: calls
+illustration:
+  scene: "a single small wooden toy car on a desk, pulling a long train of tall blank cardboard boxes stacked high behind it with string, plain surfaces, no labels"
+  alt: "A small wooden toy car is tied by string to a long row of stacked cardboard boxes far bigger than itself."
+maintainer:
+  issue: https://github.com/Usagi-org/ai-goofish-monitor/issues/550
